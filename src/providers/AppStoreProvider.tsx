@@ -1,17 +1,47 @@
 // 📄 src/providers/AppStoreProvider.tsx
 'use client'
 
-import { createContext, useContext, useRef } from 'react';
+import { createContext, useContext, useRef, useEffect } from 'react';
 import { useStore } from 'zustand';
 import { createAppStore, type AppStoreInstance, type AppState } from '@/stores/app-store';
+import { type UserTier, TIERS } from '@/lib/utils/constants';
 
 const AppStoreContext = createContext<AppStoreInstance | null>(null);
 
-export function AppStoreProvider({ children, initialTier = 'free' }: { children: React.ReactNode; initialTier?: 'free' | 'pro' }) {
+export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { children: React.ReactNode; initialTier?: UserTier }) {
   const storeRef = useRef<AppStoreInstance>(null);
+  
+  // 1. Instant Synchronous Creation of the Brain //////////////
+  //////////////////////////////////////////////////////////////
   if (!storeRef.current) {
     storeRef.current = createAppStore(initialTier);
-  }
+  }/////////////////////////////////////////////////////////////
+
+
+  // 2. Simple Boot Trigger & Passive Hardware Monitoring //////
+  //////////////////////////////////////////////////////////////
+  useEffect(() => {
+    const store = storeRef.current;
+    if (!store) return;
+
+    // 🚀 THE SELF-STARTUP TRIGGER: Launches your online/offline orchestration
+    store.getState().initializeWorkspace();
+
+    // Catch immediate physical connection cuts or antenna restorations
+    const handleOffline = () => store.setState({ isOnline: false });
+    const handleOnline = () => store.getState().checkNetwork();
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []); ///////////////////////////////////////////////////////
+
+
+
   return (
     <AppStoreContext.Provider value={storeRef.current}>
       {children}
@@ -19,6 +49,7 @@ export function AppStoreProvider({ children, initialTier = 'free' }: { children:
   );
 }
 
+/// Function called by pages 
 export function useAppStore<T>(selector: (store: AppState) => T): T {
   const context = useContext(AppStoreContext);
   if (!context) throw new Error('useAppStore must be used within AppStoreProvider');

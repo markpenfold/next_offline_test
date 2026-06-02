@@ -1,6 +1,6 @@
 // src/lib/auth/hydrat_user.ts
 import type { User } from '@supabase/supabase-js';
-import { Profile } from '@/lib/types';
+import { Profile } from '@/lib/types'
 
 export interface OfflineHydrationKit {
   user: User;

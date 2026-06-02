@@ -2,49 +2,67 @@
 'use client'
 
 import { useEffect, useState } from "react";
-import { AppStoreProvider, useAppStore } from "@/app/providers/AppStoreProvider";
+import { AppStoreProvider, useAppStore } from "@/providers/AppStoreProvider";
+import { createClient } from '@/lib/supabase/client'
 
 function SandboxWorkspace() {
+  // 1. Sync directly with our offline-first orchestration store
   const isOnline = useAppStore((s) => s.isOnline);
   const tier = useAppStore((s) => s.tier);
+  const profile = useAppStore((s) => s.profile);
+  const authStatus = useAppStore((s) => s.authStatus);
   const checkNetwork = useAppStore((s) => s.checkNetwork);
-  const toggleTier = useAppStore((s) => s.toggleTier);
 
   const [blocks, setBlocks] = useState<string[]>([]);
   const [checking, setChecking] = useState(false);
+  const supabase = createClient();
+
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    await supabase.auth.signOut()
+    localStorage.removeItem('app_auth_snapshot')
+    window.location.href = '/login'
+  }
 
   useEffect(() => {
     checkNetwork();
   }, [checkNetwork]);
 
-  // This is used strictly for styling the UI elements on render
-  const hasAccessCurrently = isOnline || tier === 'pro';
+  // 2. LOADING: Prevent flash of unauthenticated or incorrect default state
+  if (authStatus === 'loading') {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+        <p style={{ color: '#64748b' }}>⚡ Authenticating & sync lease records...</p>
+      </div>
+    );
+  }
 
-  // Button 1 Handler
+  // 3. Rule Matrix: Allowed if online OR if they have ANY subscription tier other than 'free'
+  const hasAccessCurrently = isOnline || tier !== 'free';
+
   const handleCheckNetwork = async () => {
     setChecking(true);
     await checkNetwork();
     setChecking(false);
   };
 
-  // ⚡ Button 3 Handler (Now triggers live check)
   const addBlock = async () => {
     setChecking(true);
     
-    // 1. Force a live ping to Google/Apple right now
+    // Force a fresh low-level ping to verify connection status
     const freshOnlineStatus = await checkNetwork(); 
     
     setChecking(false);
 
-    // 2. Calculate access using the freshest network result + current tier
-    const freshHasAccess = freshOnlineStatus || tier === 'pro';
+    // Re-verify compliance instantly against the real-time wire status
+    const freshHasAccess = freshOnlineStatus || tier !== 'free';
 
     if (!freshHasAccess) {
-      alert("🔒 Access Denied! Your live connection check failed, and Free tier cannot work offline.");
+      alert("🔒 Access Denied! You are currently offline and your account is on the Free tier.");
       return;
     }
 
-    // 3. Success! Spawn the block
+    // Success! Spawn the block
     const colors = ['#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
     setBlocks((prev) => [...prev, randomColor]);
@@ -53,25 +71,28 @@ function SandboxWorkspace() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '500px', margin: 'auto' }}>
       <h2>App Sandbox Shell</h2>
+      <button onClick={handleLogout}>
+              Logout
+            </button>
+
+      {/* Profile Details (Hydrated via Offline Handshake lease) */}
+      <div style={{ padding: '15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '12px' }}>
+        <p style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#64748b' }}>Logged User Profile:</p>
+        <strong>👤 {profile?.name || 'Anonymous User'}</strong> 
+        <span style={{ fontSize: '0.85rem', color: '#64748b', marginLeft: '6px' }}>@{profile?.username || 'unknown'}</span>
+      </div>
 
       <div style={{ padding: '15px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '20px' }}>
-        <p>Cached Network State: <strong>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</strong></p>
-        <p>User Tier: <strong style={{ color: tier === 'pro' ? '#0284c7' : '#e11d48' }}>{tier.toUpperCase()}</strong></p>
+        <p style={{ marginTop: 0 }}>Cached Network State: <strong>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</strong></p>
+        <p style={{ marginBottom: 0 }}>User Tier: <strong style={{ color: tier !== 'free' ? '#0284c7' : '#e11d48' }}>{tier.toUpperCase()}</strong></p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         
-        {/* Button 1 */}
         <button onClick={handleCheckNetwork} style={{ padding: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-          {checking ? "⏳ Querying Endpoint..." : "🔄 Button 1: Check Connection Status"}
+          {checking ? "⏳ Querying Endpoint..." : "🔄 Check Connection Status"}
         </button>
 
-        {/* Button 2 */}
-        <button onClick={toggleTier} style={{ padding: '12px', fontWeight: 'bold', backgroundColor: '#e2e8f0', cursor: 'pointer' }}>
-          🔑 Button 2: Toggle Tier (Switch to {tier === 'free' ? 'PRO' : 'FREE'})
-        </button>
-
-        {/* Button 3: Double Duty Button */}
         <button 
           onClick={addBlock}
           disabled={checking}
@@ -84,7 +105,7 @@ function SandboxWorkspace() {
             cursor: 'pointer' 
           }}
         >
-          {checking ? "⏳ Verifying Link..." : "➕ Button 3: Ping & Spawn Workspace Block"}
+          {checking ? "⏳ Verifying Link..." : "➕ Simulate network event"}
         </button>
 
       </div>
@@ -95,7 +116,7 @@ function SandboxWorkspace() {
         
         {!hasAccessCurrently ? (
           <div style={{ padding: '20px', background: '#ffe4e6', color: '#9f1239', borderRadius: '6px' }}>
-            <strong>Workspace Suspended:</strong> Reconnect to the internet or switch your account state to PRO to work out of range.
+            <strong>Workspace Suspended:</strong> Reconnect to the internet or upgrade your account tier beyond FREE to create items offline.
           </div>
         ) : (
           <div>

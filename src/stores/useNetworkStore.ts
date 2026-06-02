@@ -1,6 +1,6 @@
 // 📄 src/stores/useNetworkStore.ts
 import { create } from 'zustand';
-import { isReallyOnline } from '../checkOnline';
+import { isReallyOnline } from '@/lib/utils/checkOnline';
 
 interface NetworkState {
   isOnline: boolean;

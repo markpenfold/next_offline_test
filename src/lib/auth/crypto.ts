@@ -1,9 +1,11 @@
 // src/lib/auth/crypto.ts
 import * as jose from 'jose';
+import { type UserTier } from '../utils/constants';
 
-interface LeasePayload {
+export interface LeasePayload {
   userId: string;
-  tier: string;
+  tier: UserTier;
+  exp: number;
   version: number;
 }
 
@@ -28,4 +30,26 @@ export async function generateOfflineLeaseJwt(payload: LeasePayload): Promise<st
     .sign(privateKey);
 
   return jwt;
+}
+
+
+
+/**
+ * Decodes a standard JWT payload on the client side without verifying signatures.
+ * (We trust it because it was originally set via secure HttpOnly handshakes).
+ */
+export function decodeLeaseJwt(token: string): LeasePayload | null {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
 }
