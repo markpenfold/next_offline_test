@@ -27,6 +27,9 @@ export interface AppState {
   hydrateWorkspace: (token: string, profile: UserProfile) => void;
 }
 
+// This is a factory function. It initializes the store with default values. 
+// It creates a "Source of Truth" that exists entirely in memory. 
+// Each session has its own store
 export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
   return createStore<AppState>()((set, get) => ({
     authStatus: 'loading',
@@ -36,6 +39,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
     profile: null,
     offlineLeaseJwt: null,
 
+    // double checks with API ping whether we are connected
     checkNetwork: async () => {
       const online = typeof window !== 'undefined' && navigator.onLine 
         ? await isReallyOnline() 
@@ -43,8 +47,10 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
       set({ isOnline: online });
       return online;
     },
-
-    // 🧠 CENTRALIZED EVALUATOR ENGINE
+    
+    /////////////////////////////////////////////////////////////////////////////////
+    // 🧠 CENTRALIZED EVALUATOR ENGINE ///////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////
     initializeWorkspace: async () => {
       await get().checkNetwork();
 
