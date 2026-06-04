@@ -21,8 +21,6 @@ export const getProfile = cache(async () => {
   return profile
 })
 
-
-
 export async function getAccountByStripeId( customerId: string) {
   if (!customerId) return null
   const supabase = await createAdminClient()
@@ -65,10 +63,6 @@ export async function getAccountOwnerId(accountId:string): Promise<string | null
     return membership.user_id
 }
 
-
-
-
-
 export async function getAccountIdFromOwner(user_id:string): Promise<string | null> {
   const supabase = await createClient()
 
@@ -88,9 +82,6 @@ export async function getAccountIdFromOwner(user_id:string): Promise<string | nu
   }
     return membership.account_id
 }
-
-
-
 
 export async function getAccountOwner(accountId:string): Promise<string | null> {
   const supabase = await createClient()

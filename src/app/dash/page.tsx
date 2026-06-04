@@ -2,14 +2,16 @@
 'use client'
 
 import { useEffect, useState } from "react";
-import { AppStoreProvider, useAppStore } from "@/providers/AppStoreProvider";
+import { useAppStore } from "@/providers/AppStoreProvider";
 import { createClient } from '@/lib/supabase/client'
 
 function SandboxWorkspace() {
   // 1. Sync directly with our offline-first orchestration store
   const isOnline = useAppStore((s) => s.isOnline);
   const tier = useAppStore((s) => s.tier);
+  console.log("THE TIER: ", tier)
   const profile = useAppStore((s) => s.profile);
+  console.log("THE PROFILE: ", profile)
   const authStatus = useAppStore((s) => s.authStatus);
   const checkNetwork = useAppStore((s) => s.checkNetwork);
 
@@ -18,9 +20,10 @@ function SandboxWorkspace() {
   const supabase = createClient();
 
   const handleLogout = async (e: React.MouseEvent) => {
+    console.log("loggin out and clearing localStorage - jungle_lease_v2")
     e.preventDefault()
     await supabase.auth.signOut()
-    localStorage.removeItem('app_auth_snapshot')
+    localStorage.removeItem('jungle_lease_v2')
     window.location.href = '/login'
   }
 
@@ -85,6 +88,8 @@ function SandboxWorkspace() {
       <div style={{ padding: '15px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '20px' }}>
         <p style={{ marginTop: 0 }}>Cached Network State: <strong>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</strong></p>
         <p style={{ marginBottom: 0 }}>User Tier: <strong style={{ color: tier !== 'free' ? '#0284c7' : '#e11d48' }}>{tier.toUpperCase()}</strong></p>
+                <p style={{ marginBottom: 0 }}>User email: <strong style={{ color: '#e11d48' }}>{profile?.email}</strong></p>
+
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -105,7 +110,7 @@ function SandboxWorkspace() {
             cursor: 'pointer' 
           }}
         >
-          {checking ? "⏳ Verifying Link..." : "➕ Simulate network event"}
+          {checking ? "⏳ Verifying Link..." : "Simulate work event"}
         </button>
 
       </div>
@@ -137,8 +142,8 @@ function SandboxWorkspace() {
 
 export default function DashboardPage() {
   return (
-    <AppStoreProvider initialTier="free">
+
       <SandboxWorkspace />
-    </AppStoreProvider>
+ 
   );
 }

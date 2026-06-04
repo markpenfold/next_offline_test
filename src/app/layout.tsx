@@ -1,6 +1,6 @@
 
 import "./globals.css";
-
+import { AppStoreProvider } from "@/providers/AppStoreProvider";
 
 export default function RootLayout({
   children,
@@ -9,7 +9,11 @@ export default function RootLayout({
 }>) {
   return (
     <html>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AppStoreProvider initialTier="free">
+        {children}
+        </AppStoreProvider>
+        </body>
     </html>
   );
 }

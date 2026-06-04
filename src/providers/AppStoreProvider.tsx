@@ -4,11 +4,12 @@
 import { createContext, useContext, useRef, useEffect } from 'react';
 import { useStore } from 'zustand';
 import { createAppStore, type AppStoreInstance, type AppState } from '@/stores/app-store';
-import { type UserTier, TIERS } from '@/lib/utils/constants';
+import { type UserTier, TIERS } from '@/lib/types';
 
 const AppStoreContext = createContext<AppStoreInstance | null>(null);
 
 export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { children: React.ReactNode; initialTier?: UserTier }) {
+  console.log("AppstorePRovider RUNS")
   const storeRef = useRef<AppStoreInstance>(null);
   
   // 1. Instant Synchronous Creation of the Brain //////////////
@@ -24,7 +25,7 @@ export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { child
     const store = storeRef.current;
     if (!store) return;
 
-    // 🚀 THE SELF-STARTUP TRIGGER: Launches your online/offline orchestration
+    // THE SELF-STARTUP TRIGGER: Launches online/offline orchestration
     store.getState().initializeWorkspace();
 
     // Catch immediate physical connection cuts or antenna restorations

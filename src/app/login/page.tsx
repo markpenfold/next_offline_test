@@ -22,6 +22,7 @@ export default async function LoginPage({ searchParams }: LoginProps) {
   const { message } = await searchParams
 
   return (
+
     <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
       <h1>Log in</h1>
       
@@ -38,5 +39,6 @@ export default async function LoginPage({ searchParams }: LoginProps) {
         <Link href='/forgotten-password'>Forgot your password?</Link>
       </div>
     </div>
+ 
   )
 }
