@@ -31,23 +31,7 @@ export function LoginForm() {
       // 1. 🎯 THE UNIFIED CACHE: Only cache if valid credentials/token are generated
       if (result.payload.token) {
         console.log("Login recieved this payload:", result.payload)
-        // Transform the payload into your app store's expected hydration contract
-        const localCacheState = {
-          offlineLeaseJwt: result.payload.token,
-          profile: {
-            name: result.payload.user.name,
-            username: result.payload.user.username,
-            hasAvatar: result.payload.user.hasAvatar,
-            email: result.payload.user.email || '', // Ensured fallback to string
-          },
-          authStatus: 'authenticated',
-          tier: result.payload.tier,                             
-          activeAccountId: result.payload.accounts[0]?.id || null, 
-          accounts: result.payload.accounts                       
-        };
-
-        // ✅ Commit the object to localStorage
-        localStorage.setItem('jungle_lease_v2', JSON.stringify(localCacheState));
+        loginSuccess(result.payload);
       } 
 
       // 2. DYNAMIC ROUTING: Transitions to target URL

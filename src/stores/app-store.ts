@@ -45,6 +45,8 @@ export interface AppState {
   loginSuccess: (payload: LoginPayload) => void;
   initializeWorkspace: () => Promise<void>;
   hydrateWorkspace: (token: string, profile: UserProfile) => void;
+  logout: () => Promise<void>;
+  
 }
 
 const supabase = createClient();
@@ -82,6 +84,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
     },
 
     loginSuccess: (payload: LoginPayload) => {
+      console.log("login success", payload.user.name)
       // 🎯 Map the raw server payload directly inside the store
       const formattedProfile = {
         name: payload.user.name,
@@ -182,7 +185,6 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
       // 3. CLEAN SLATE: Only if both fail
       console.log("Cleaning the slate!!!!!!!!!!!")
       set({ authStatus: 'unauthenticated', tier: TIERS.FREE, profile: null, offlineLeaseJwt: null });
-
       console.log("yoyiyiyiyiyiyi" )
     },
 
@@ -201,6 +203,29 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
         // Persist to storage
         console.count('Hydrated workspace saved to localStorage');
         localStorage.setItem('jungle_lease_v2', JSON.stringify(state));
+      }
+    },
+
+    // 🧼 THE PURGE ACTION: Atomically wipes client data structures
+    logout: async () => {
+      console.log("🧼 Executing global workspace purge...");
+
+      try {
+        // 1. Clear the persistent lease disk token
+        localStorage.removeItem('jungle_lease_v2');
+
+        // 2. Reset the Zustand store back to an unauthenticated blank slate
+        set({
+          offlineLeaseJwt: null,
+          userId: null,
+          profile: null,
+          activeAccount: null,
+          accounts: [],
+          authStatus: 'unauthenticated',
+          tier: 'free'
+        });
+      } catch (e) {
+        console.error("Failed to clean up local device storage:", e);
       }
     }
   }

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { createClient } from '@/lib/supabase/client'
+import { LogoutButton } from "@/components/LogoutButton";
 
 function SandboxWorkspace() {
   // 1. Sync directly with our offline-first orchestration store
@@ -19,13 +20,7 @@ function SandboxWorkspace() {
   const [checking, setChecking] = useState(false);
   const supabase = createClient();
 
-  const handleLogout = async (e: React.MouseEvent) => {
-    console.log("loggin out and clearing localStorage - jungle_lease_v2")
-    e.preventDefault()
-    await supabase.auth.signOut()
-    localStorage.removeItem('jungle_lease_v2')
-    window.location.href = '/login'
-  }
+
 
   useEffect(() => {
     checkNetwork();
@@ -74,9 +69,7 @@ function SandboxWorkspace() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '500px', margin: 'auto' }}>
       <h2>App Sandbox Shell</h2>
-      <button onClick={handleLogout}>
-              Logout
-            </button>
+      <LogoutButton />
 
       {/* Profile Details (Hydrated via Offline Handshake lease) */}
       <div style={{ padding: '15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '12px' }}>
