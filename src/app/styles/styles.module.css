@@ -1,0 +1,254 @@
+.lnk {
+    padding:4px;
+    color:rgb(17, 225, 114);
+    font-size: 8pt;
+}
+
+.lnk:hover {
+    color:rgb(228, 13, 13);
+}
+
+.lnk_holder {
+    display: flex;
+  align-items: center;
+  justify-content: space-between; /* This forces Child 1 to the far left and Child 2 to the far right */
+  width: 100%;
+  padding: 0.5rem 1rem;
+  box-sizing: border-box;
+  background-color: rgb(231, 231,231);
+}
+
+.formHolder {
+    padding: 4px;
+}
+
+.p4 {
+    padding:4px;
+}
+
+.right {
+    display: flex;
+  align-items: center;
+}
+
+.mr4 {
+    margin-right: 4px;
+}
+
+.ml4 {
+    margin-left: 4px;
+}
+
+.user_name {
+    color:rgb(17, 225, 114);
+}
+
+.bgRed {
+    background-color: rgb(225, 120, 120);
+    border:none;
+    padding:4px;
+    color:ivory;
+}
+
+.uploader {
+    padding:4px;
+}
+
+.loading_label {
+    padding: 4px;
+}
+
+.dashBox {
+    padding:4px;
+}
+
+.accBox {
+    padding:4px;
+    color:rgb(32, 145, 100)
+}
+
+.gapBig {
+    margin-top: 12px;
+    margin-bottom: 12px;
+    color: red;
+}
+
+.navBarID {
+    display: flex;
+  align-items: center;       /* Keeps name, avatar, and button centered together */
+  gap: 12px;
+}
+
+.leftLinks {
+    display: flex;
+  align-items: center;
+}
+
+
+.fbox {
+  display: flex;
+  justify-content: center;
+  /* Remove align-items: center so it doesn't anchor to the dead center */
+  align-items: flex-start; 
+  
+  /* Create a comfortable, natural buffer from the top nav bar */
+  padding-top: 80px; 
+  
+  width: 100%;
+  min-height: 80vh; 
+  box-sizing: border-box;
+}
+
+
+/* The parent form grid wrapper */
+.authForm {
+  display: grid;
+  /* Column 1 auto-sizes to your longest label (Username/Full Name) */
+  /* Column 2 stretches to fill all remaining form space */
+  grid-template-columns: max-content 1fr; 
+  gap: 16px 12px; /* 16px row spacing, 12px column spacing */
+  width: 100%;
+  max-width: 400px;
+  align-items: center; /* Vertically aligns text and inputs perfectly on the line */
+}
+
+/* Force headings, error blocks, and buttons to cross both layout columns */
+.authForm h2,
+.authForm p,
+.authForm button {
+  grid-column: span 2;
+}
+
+/* Explicit inputs styling */
+.authForm input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+/* Clean fallback button just to look decent */
+.authForm button {
+  justify-self: start; /* Stops the button from stretching across the entire screen */
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+/* Tells the checklist container to span both grid columns */
+.checklist {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: -4px; /* Pulls it slightly closer to the password field */
+  padding-left: 4px;
+  font-size: 12px;
+}
+
+/* Red styling for unfulfilled rules */
+.invalid {
+  color: #d93838;
+  transition: color 0.2s ease;
+}
+
+.priceContainer {
+display: grid;
+  /* Column 1 auto-sizes to your longest label (Username/Full Name) */
+  /* Column 2 stretches to fill all remaining form space */
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
+  padding:12px;
+
+}
+
+.priceBox {
+
+  display: flex;
+  flex-direction: column; /* Stacks elements vertically */
+  align-items: center;    /* Centers elements horizontally */
+  justify-content: flex-start; /* Keeps items anchored to the top */
+  max-width: 200px;
+  height:auto;
+  text-align: center;     /* Centers the inline text strings */
+  background-color: rgb(222,222,222);
+  /* Optional but helpful for layout: */
+  padding: 24px;          /* Prevents text from hitting the box edges */
+  gap: 16px;              /* Adds consistent space between titles, prices, and buttons */
+}
+
+.buttonClass {
+    margin-top: auto;
+    background-color: rgb(30,30,30);
+    color: rgb(231, 231,231);
+    padding:8px;
+}
+
+.buttonClass :hover {
+    color: rgb(30,30,30);
+    background-color: rgb(231, 231,231);
+}
+
+
+.pageContainer {
+    display: flex;
+  flex-direction: column; /* Stacks elements vertically */
+  align-items: center;    /* Centers elements horizontally */
+  justify-content: flex-start; /* Keeps items anchored to the top */
+  width: 100%;
+  min-height: 80vh; 
+  box-sizing: border-box;
+  text-align: center;
+}
+
+
+.pageHeader {
+    display: flex;
+    align-items: center; 
+    width: 100%;
+    padding: 12px;
+    text-align: center;  
+}
+
+
+.container2Cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr; 
+  padding:12px;
+}
+
+.container3Cols {
+  display: grid;
+  grid-template-columns: auto auto 1fr; 
+  grid-auto-rows: minmax(55px, auto);
+  gap: 20px;
+  padding:12px;
+}
+
+.errorText {
+  color:rgba(224, 35, 35. 0.8);
+  font-size: small;
+
+}
+
+
+
+
+.warning_banner {
+  background-color: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 12px 24px;
+  width: 100%;
+  text-align: center;
+}
+
+.brandLink {
+  color: #166534;
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+.brandLink:hover {
+  opacity: 1;
+}

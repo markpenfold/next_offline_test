@@ -7,9 +7,15 @@ import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
 import { type UserTier, TIERS } from '@/lib/types'
 import { type PostgrestSingleResponse, type PostgrestResponse } from '@supabase/supabase-js';
 import { type SupabaseClient, type User } from '@supabase/supabase-js';
-import { type LoginResult, AccountContext, ProfileRecord, MembershipRecord  } from '@/lib/types'
+import { type LoginResult, AccountContext, ProfileRecord, MembershipRecord, ActionState  } from '@/lib/types'
+import { redirect } from 'next/navigation'
+import { updatePasswordSchema, forgotPasswordSchema } from "@/lib/validations/primitives";
+import { headers } from 'next/headers'
+import { signUpSchema } from '@/lib/validations/primitives'
+import { generateUserSessionPayload } from '@/lib/supabase/queries'
 
 export async function login(formData: FormData): Promise<LoginResult> {
+  
   console.log("login")
   const supabase = await createClient()
   const email = formData.get('email') as string
@@ -25,119 +31,180 @@ export async function login(formData: FormData): Promise<LoginResult> {
     password,
   })
 
-  // get out early if auth failed
   if (authError || !authData.user) {
     return { success: false, error: 'Invalid credentials' }
   }
-
-  // grab the user from auth process
   const user = authData.user
 
-  // Query supabase to get user details now we know they're OK.
-  // We need profile and membership info
+
+  // 2. Query supabase for details
   const [profileResult, membershipsResult] = await getUserDetails(user, supabase);
-  const { data: profile, error: profileError } = profileResult;
-  const { data: memberships, error: memError } = membershipsResult;
+  
+  // 3. Delegate the entire payload generation and validation to an external function
+  return await generateUserSessionPayload(authData.user, profileResult, membershipsResult);
+}
 
-  console.log("profileResult:", profileResult, "membershipsResult:", membershipsResult);
 
-  // success or failure? 
-  // early returns for both profile and membership errors
-  if (profileError || !profile) {
-    return { success: false, error: 'Failed to retrieve user profile records.' };
+export async function refreshSession() {
+  const supabase = await createClient()
+  
+  // 1. Get the current logged-in user session
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return { success: false, error: "Not authenticated" }
   }
-  if (memError || !memberships) {
-    return { success: false, error: 'Failed to retrieve workspace account relations.' };
+
+  // 2. Query the database for the newly updated Stripe details
+  const [profileResult, membershipsResult] = await getUserDetails(user, supabase)
+
+  // 3. Run it through your external function to get the fresh JWT and payload
+  return await generateUserSessionPayload(user, profileResult, membershipsResult)
+}
+
+
+export async function logout() {
+  const cookieStore = await cookies()
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/')
+}
+
+
+export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
+
+ 
+  const rawData = Object.fromEntries(formData)
+  console.log("rawData:", rawData)
+  
+  const result = signUpSchema.safeParse(rawData)
+  if (!result.success) {
+     const firstIssue = result.error.issues[0]
+    return { error: `${String(firstIssue.path[0])}: ${firstIssue.message}` }  }
+  // Now destructure from result.data instead of formData directly
+  const { email, password, full_name, username, account_name, planChoice, invite_token } = result.data
+
+
+
+  const supabase = await createClient()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
+  let verifiedParentAccountId: string | null = null
+
+  // SECURITY CHECK: If joining a team, validate the token first
+  if (invite_token) {
+    const { data: invite, error: inviteError } = await supabase
+      .from('invitations')
+      .select('account_id, email, expires_at, accepted')
+      .eq('id', invite_token)
+      .single()
+
+    // 1. Check if token exists or has already been used
+    if (inviteError || !invite || invite.accepted) {
+      return { error: "This invitation is invalid or has already been used." }
+    }
+
+    // 2. Check if the token has expired
+    if (new Date(invite.expires_at) < new Date()) {
+      return { error: "This invitation has expired. Please ask your admin for a new link." }
+    }
+
+    // 3. Prevent Email Hijacking: Ensure they are signing up with the invited email
+    if (invite.email.toLowerCase() !== email) {
+      return { error: "This invitation was sent to a different email address." }
+    }
+
+    // Secure token passes validation. Fetch the true account ID from the DB.
+    verifiedParentAccountId = invite.account_id
   }
 
-  // 2. Safe Fallback Return: Direct client to signup if no memberships exist
-  // Only thin here that matters is the returnUrl - /signup
-  if (memberships.length === 0) {
-    return {
-      success: true,
-      payload: {
-        token: '',
-        redirectUrl: '/signup',
-        tier: 'free', // 🆕 Send the determined tier down
-
-        user: {
-          id: profile.id,
-          email: user.email || null,
-          name: profile.full_name,
-          username: profile.username,
-          hasAvatar: !!profile.has_avatar
-        },
-        accounts: []
+  // Execute standard Supabase signup
+  const { error } = await supabase.auth.signUp({ 
+    email, 
+    password,
+    options: {
+      emailRedirectTo: `${siteUrl}/auth/callback?plan=${planChoice}`,
+      data: {
+        full_name,
+        username,
+        account_name,
+        pending_plan: planChoice,
+        // Pass the backend-verified ID straight to your existing Postgres trigger!
+        parent_account_id: verifiedParentAccountId 
       }
     }
-  }
-
-  // 3. Transform database query layers and SORT by 'owner' priority
-  const accounts: AccountContext[] = memberships
-    .filter(mem => mem.accounts !== null && typeof mem.accounts === 'object' && !Array.isArray(mem.accounts)) 
-    .map(mem => {
-      const acc = mem.accounts as any 
-      
-      return {
-        id: acc.id,
-        name: acc.name,
-        tier: (acc.plan_name?.toLowerCase() || TIERS.FREE) as UserTier,
-        subscriptionStatus: acc.subscription_status,
-        role: mem.role,
-        isPersonal: !!acc.is_personal 
-      }
-    })
-    // 🧬 SERVER-SIDE SORTING: Prioritize accounts where user is 'owner'
-    .sort((a, b) => {
-      if (a.role === 'owner' && b.role !== 'owner') return -1;
-      if (a.role !== 'owner' && b.role === 'owner') return 1;
-      return 0;
-    });
-
-  // Edge case handle: Filtered out invalid accounts entirely
-  if (accounts.length === 0) {
-    return { success: false, error: 'No valid workspace accounts associated with this profile.' };
-  }
-
-  // 4. Calculate operational parameters from the primary sorted account
-  const primaryAccount = accounts[0];
-  const targetLeaseTier: UserTier = primaryAccount.tier || TIERS.FREE;
-  const targetAccountId: string = primaryAccount.id; // 🆕 Grab the verified account ID
-
-  // 5. 🔐 Generate the Cryptographic Subscription Lease
-  const issuedAt = Math.floor(Date.now() / 1000)
-  const fourteenDaysInSeconds = 14 * 24 * 60 * 60
-    
-  const offlineLeaseJwt = await generateOfflineLeaseJwt({
-    userId: user.id,
-    accountId: targetAccountId,
-    tier: targetLeaseTier,
-    exp: issuedAt + fourteenDaysInSeconds,
-    version: 1
   })
 
-  // 6. Compute Workspace Target Redirection URI
-  const redirectUrl =  '/dash'
+  if (error) return { error: error.message };
 
+  // just in time cookies
+  const cookieStore = await cookies()
+  cookieStore.set('allow_confirm', 'true', {
+    maxAge: 600, 
+    path: '/',
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+  })
 
-  // 8. Return compiled single data payload to client form
-  return {
-    success: true,
-    payload: {
-      token: offlineLeaseJwt,
-      redirectUrl,
-      tier: targetLeaseTier, // 🆕 Send the determined tier down
-      user: {
-        id: profile.id,
-        email: user.email || null,
-        name: profile.full_name,
-        username: profile.username,
-        hasAvatar: !!profile.has_avatar
-      },
-      accounts // 🔄 This is now safely pre-sorted by ownership!
-    }
-  }
+  redirect('/confirm');
 }
+
+
+export async function requestPasswordReset(prevState: any, formData: FormData) {
+  const email = formData.get('email') as string
+  const supabase = await createClient()
+  // Get the site URL dynamically so it works in localhost and production
+  const origin = (await headers()).get('origin')
+
+  const validated = forgotPasswordSchema.safeParse({ email: email });
+
+  //local zod test for input failed so...
+  if (!validated.success) {
+    return { error: validated.error.issues[0].message };
+  }
+
+  // now send to supabase, and await return value
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    // This tells Supabase where to send the user after they click the email link
+    redirectTo: `${origin}/auth/callback?next=/update-password`,
+  })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  return { success: "Check your email for the reset link!" }
+}
+
+
+export async function resetPassword(prevState: ActionState, formData: FormData) {
+
+  const supabase = await createClient()
+
+  // 1. Convert all form fields to an object for Zod
+  const rawData = Object.fromEntries(formData)
+  // 2. Validate against the schema (this checks password + confirmation match)
+  const validated = updatePasswordSchema.safeParse(rawData)
+
+  if (!validated.success) {
+    // Return Zod issue if validation fails
+    return { error: validated.error.issues[0].message };
+  }
+
+
+  // 3. Supabase only needs the validated password
+  const { error } = await supabase.auth.updateUser({
+    password: validated.data.password
+  })
+
+  if (error) return { error: error.message }
+  
+  // Redirect to login or profile after success
+  redirect('/login?message=Password updated successfully')
+}
+
+
+
 
 async function getUserDetails(user: User, 
   supabase: SupabaseClient

@@ -70,7 +70,8 @@ export function LoginForm() {
                 cursor: 'pointer',
                 color: '#64748b',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
+  
               }}
               aria-label={isVisible ? "Hide password" : "Show password"}
             >
@@ -89,7 +90,7 @@ export function LoginForm() {
           type="submit" 
           disabled={isPending}
           className="w-full bg-black text-white p-2 rounded font-medium disabled:bg-gray-400 dynamic-transition"
-        >
+       style={{marginTop: '10px'}} >
           {isPending ? 'Establishing Link...' : 'Sign In'}
         </button>
       </form>

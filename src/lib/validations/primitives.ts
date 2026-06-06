@@ -13,7 +13,11 @@ const emailSchema = z.string().email("Please enter a valid email address");
 export const signUpSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  full_name: z.string().min(2, "Full name is required"),
+  full_name: z.string().min(2, "Full name must be at least 2 characters"),
+  username: z.string().min(3, "Username must be at least 3 characters").toLowerCase(),
+  account_name: z.string().min(2, "Account name is required"),
+  planChoice: z.string().min(1, "Plan is required"),
+  invite_token: z.string().optional(),
 });
 
 // 2. Login

@@ -6,7 +6,7 @@ import { type UserTier, TIERS, AccountContext } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 
 
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unknown';
 
 export interface UserProfile {
   name: string | null;
@@ -46,22 +46,23 @@ export interface AppState {
   initializeWorkspace: () => Promise<void>;
   hydrateWorkspace: (token: string, profile: UserProfile) => void;
   logout: () => Promise<void>;
+  refreshTier: () => Promise<void>;
   
 }
-
+console.log("so we get to here")
 const supabase = createClient();
 
 // This is a factory function. It initializes the store with default values. 
 // It creates a "Source of Truth" that exists entirely in memory. 
 // Each session has its own store
-export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
+export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
  console.log("CreateAppStore RUNS")
 
   return createStore<AppState>()((set, get) => ({
-    authStatus: 'loading',
+    authStatus: 'unknown',
     isOnline: true,
     tier: initialTier,
-    userId: null,
+    userId: 'FAIL!',
     profile: null,
     offlineLeaseJwt: null,
     activeAccount:  null,
@@ -70,7 +71,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
     // Centralized rule: Access if online OR not on free tier
     canAccessWorkspace: () => {
       const { isOnline, tier } = get();
-      return isOnline || tier !== TIERS.FREE;
+      return isOnline || tier !== TIERS.FREE && tier !== TIERS.NONE;
     },
 
     // double checks with API ping whether we are connected
@@ -124,6 +125,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
     //////////////////////////////////////////////////////////////////////////////////
     initializeWorkspace: async () => {
       console.log("init Workspace")
+      
+      
       // Add a guard to prevent redundant re-initialization loops
       if (get().authStatus === 'loading') {
          // Optionally: log if this is hit while already loading
@@ -144,22 +147,22 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
       // HARD STOP: If the user explicitly logged out or has no cache, KILL IT HERE.
       if (!savedLease) {
         console.log(" No local lease cache found. Halting auto-login framework safely.");
-        set({ authStatus: 'unauthenticated', tier: 'free', profile: null });
+        set({ authStatus: 'unauthenticated', tier:  TIERS.NONE, profile: null });
         return;
       }
       
       if (savedLease) {
-        console.log("savedlease in init:", savedLease);
+        //console.log("savedlease in init:", savedLease);
         try {
           const parsed = JSON.parse(savedLease);
-          console.log("parsed:", parsed)
+          //console.log("parsed:", parsed)
           const tokenToDecode = parsed.offlineLeaseJwt;
-          console.log("tokenToDecode", tokenToDecode)
+          //console.log("tokenToDecode", tokenToDecode)
           const decoded = decodeLeaseJwt(tokenToDecode);
-          console.log("decoded", decoded)
+          //console.log("decoded", decoded)
           
           if (decoded && decoded.exp > Math.floor(Date.now() / 1000)) {
-            console.log("decoded so tier is:", decoded.tier, 'user is:', decoded.userId)
+           // console.log("decoded so tier is:", decoded.tier, 'user is:', decoded.userId)
           
           // Determine token origin (Custom vs Supabase)
           const isSupabaseToken = !!(decoded as any)?.iss && (decoded as any).iss.includes('supabase.co');
@@ -184,8 +187,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
 
       // 3. CLEAN SLATE: Only if both fail
       console.log("Cleaning the slate!!!!!!!!!!!")
-      set({ authStatus: 'unauthenticated', tier: TIERS.FREE, profile: null, offlineLeaseJwt: null });
-      console.log("yoyiyiyiyiyiyi" )
+      set({ authStatus: 'unauthenticated', tier: TIERS.NONE, profile: null, offlineLeaseJwt: null });
     },
 
     hydrateWorkspace: (token, profile) => {
@@ -222,12 +224,34 @@ export const createAppStore = (initialTier: UserTier = TIERS.FREE) => {
           activeAccount: null,
           accounts: [],
           authStatus: 'unauthenticated',
-          tier: 'free'
+          tier: 'none'
         });
       } catch (e) {
         console.error("Failed to clean up local device storage:", e);
       }
+    },
+
+    // Add to the store implementation
+refreshTier: async () => {
+  try {
+    const response = await fetch('/api/me/tier')
+    const { tier } = await response.json()
+    
+    // Update store
+    set({ tier })
+    
+    // Update localStorage atomically
+    const savedLease = localStorage.getItem('jungle_lease_v2')
+    if (savedLease) {
+      const parsed = JSON.parse(savedLease)
+      localStorage.setItem('jungle_lease_v2', JSON.stringify({ ...parsed, tier }))
     }
+  } catch (e) {
+    console.error('Failed to refresh tier:', e)
+  }
+},
+
+
   }
 
 ));

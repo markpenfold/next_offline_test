@@ -1,5 +1,5 @@
 
-import "./globals.css";
+import "@/app/styles/globals.css";
 import { AppStoreProvider } from "@/providers/AppStoreProvider";
 
 export default function RootLayout({
@@ -7,11 +7,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  
   return (
     <html>
       <body className="min-h-full flex flex-col">
-        <AppStoreProvider initialTier="free">
-        {children}
+        <AppStoreProvider initialTier="none">
+              {children}
         </AppStoreProvider>
         </body>
     </html>

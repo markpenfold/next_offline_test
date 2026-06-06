@@ -6,7 +6,7 @@ import { useStore } from 'zustand';
 import { createAppStore, type AppStoreInstance, type AppState } from '@/stores/app-store';
 import { type UserTier, TIERS } from '@/lib/types';
 
-const AppStoreContext = createContext<AppStoreInstance | null>(null);
+export const AppStoreContext = createContext<AppStoreInstance | null>(null);
 
 export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { children: React.ReactNode; initialTier?: UserTier }) {
   console.log("AppstorePRovider RUNS")
@@ -25,8 +25,18 @@ export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { child
     const store = storeRef.current;
     if (!store) return;
 
+    console.log("🔥 useEffect FIRED");
     // THE SELF-STARTUP TRIGGER: Launches online/offline orchestration
     store.getState().initializeWorkspace();
+
+    const handlePageShow = (e: PageTransitionEvent) => {
+      console.log("📄 pageshow fired, persisted:", e.persisted);
+      if (e.persisted) {
+        store.getState().initializeWorkspace();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
 
     // Catch immediate physical connection cuts or antenna restorations
     const handleOffline = () => store.setState({ isOnline: false });

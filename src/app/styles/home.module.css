@@ -1,0 +1,264 @@
+.pageContainer {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.oneTwoOne {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) auto minmax(0, 200px);
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.oneTwoThreeFour {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: 0 var(--space-6, 24px);
+  gap: var(--space-4, 16px);
+}
+
+.oneTwoThree {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: 0 var(--space-6, 24px);
+  gap: var(--space-4, 16px);
+}
+
+/* Image scaling */
+.filmie img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+
+@media (max-width: 768px) {
+  .oneTwoThreeFour {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .oneTwoThree {
+    grid-template-columns: 1fr;
+  }
+
+  .oneTwoOne {
+    grid-template-columns: 0 1fr 0; /* collapse side columns on mobile */
+  }
+
+  .filmie {
+    width: 90%;
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center children horizontally */
+  justify-content: center;
+  width: 100%;
+  position: relative;
+}
+
+.spacer {
+  height: 30px;
+  width: 100%;
+}
+
+.middle {
+  margin-left: 150px;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 600ms ease, color 180ms ease;
+}
+
+.middle.visible {
+  opacity: 1;
+}
+
+.middle:hover {
+  color: #555;
+}
+
+.centre {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.iconbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 12px;
+  text-align: center;
+}
+
+.iconbox > svg {
+  flex-shrink: 0;
+  height: 92px;
+  width: auto;
+}
+
+.icon {
+  color: inherit;
+  transition: color 0.2s ease;
+}
+
+.iconbox:hover .icon {
+  color: rgb(243, 38, 35);
+}
+
+
+
+@media (max-width: 480px) {
+  .iconbox > svg {
+    height: 64px;
+  }
+
+  .oneTwoThreeFour {
+    grid-template-columns: 1fr;
+  }
+}
+
+.iconHeader {
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* Fluid headline — Scaled to be more sensible on mobile */
+/* 2.5rem (~40px) minimum to 6.75rem maximum */
+.omenland {
+  font-size: clamp(2.5rem, 10vw, 6.75rem); 
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+  line-height: 1.1;
+  /* Remove white-space: nowrap if you want it to wrap on tiny screens, 
+     otherwise keep it but keep the min clamp value low */
+}
+
+
+.canvasWrapper {
+  width: 100%;
+  max-width: 750px;  /* Matches your max-width ${CANVAS_SIZE}px */
+  aspect-ratio: 1 / 1; /* Ensures it stays a perfect square (750x750) */
+  margin: 0 auto;    /* Centers the wrapper, matching your margin: 0 auto */
+  
+  /* Optional: Give it a background color or border while loading */
+  background-color: rgba(245, 245, 245, 0.5); 
+  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 10px;
+  font-size: clamp(0.65rem, 1.8vw, 1rem); /* shrinks on mobile */
+}
+
+/* Make sure the canvas container respects the center */
+.canvasContainer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+}
+
+/* The actual canvas element */
+.canvas {
+  max-width: 100%;
+  height: auto !important; /* Force aspect ratio maintenance */
+}
+
+.red {
+  background-color: red;
+}
+
+.blue {
+  background-color: blue;
+}
+
+.sectionLight {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.sectionDark {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--foreground);
+  color: var(--background);
+}
+
+/* Fluid subtitle — scales from 28px on mobile to 64px on desktop */
+.subTitle {
+  font-size: clamp(1.75rem, 5vw, 4rem);
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Fix the intro text widths */
+.intro {
+  text-align: center;
+  max-width: 800px; /* Prevents lines from being too long on desktop */
+  margin: 0 auto;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  padding: 0 20px;
+}
+
+.filmie {
+  width: 30%;
+  margin-left: auto;
+  margin-right: auto;
+  border: 2px solid;
+  border-color: var(--background);
+}
+
+
+
+.fontRed {
+  color: rgb(243, 38, 35);
+  font-style: italic;
+  font-weight: 700;
+}
+
+.tooltipWrapper {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: -100%;
+  background: #333;
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.tooltipWrapper:hover .tooltip {
+  opacity: 1;
+}

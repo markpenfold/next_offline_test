@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { cache } from 'react'
 import {createAdminClient} from '@/lib/supabase/admin'
+import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/types'
+import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
+
 
 // Using 'cache' ensures that if you call this 3 times in 
 // one request, it only hits the database ONCE.
@@ -114,4 +117,122 @@ export async function getAccountOwner(accountId:string): Promise<string | null> 
   }
 
   return profile?.email || null
+}
+
+
+interface SessionDetailsResult {
+  success: boolean;
+  error?: string;
+  data?: {
+    accounts: AccountContext[];
+    primaryAccount: AccountContext | null;
+    userPayload: {
+      id: string;
+      email: string | null;
+      name: string;
+      username: string;
+      hasAvatar: boolean;
+    };
+  };
+}
+
+// Define what a membership object looks like from your database query
+interface DatabaseMembership {
+  role: string;
+  accounts: {
+    id: string;
+    name: string;
+    plan_name?: string | null;
+    subscription_status?: string | null;
+    is_personal?: boolean | null;
+  } | null | unknown; // accounts can be an object, null, or unknown before filtering
+}
+
+export async function generateUserSessionPayload(
+  user: any,
+  profileResult: { data: any; error: any },
+  membershipsResult: { data: DatabaseMembership[] | null; error: any } // 👈 Explicit type here
+): Promise<LoginResult> {
+  const { data: profile, error: profileError } = profileResult;
+  const { data: memberships, error: memError } = membershipsResult;
+
+  if (profileError || !profile) {
+    return { success: false, error: 'Failed to retrieve user profile records.' };
+  }
+  if (memError || !memberships) {
+    return { success: false, error: 'Failed to retrieve workspace account relations.' };
+  }
+
+  const userPayload = {
+    id: profile.id,
+    email: user.email || null,
+    name: profile.full_name,
+    username: profile.username,
+    hasAvatar: !!profile.has_avatar
+  };
+
+  if (memberships.length === 0) {
+    return {
+      success: true,
+      payload: {
+        token: '',
+        redirectUrl: '/signup',
+        tier: 'free', 
+        user: userPayload,
+        accounts: []
+      }
+    };
+  }
+
+  const accounts: AccountContext[] = memberships
+    // TypeScript now knows 'mem' is a DatabaseMembership
+    .filter((mem): mem is DatabaseMembership & { accounts: Record<string, any> } => 
+      mem.accounts !== null && typeof mem.accounts === 'object' && !Array.isArray(mem.accounts)
+    ) 
+    .map(mem => {
+      const acc = mem.accounts as any;
+      return {
+        id: acc.id,
+        name: acc.name,
+        tier: (acc.plan_name?.toLowerCase() || TIERS.FREE) as UserTier,
+        subscriptionStatus: acc.subscription_status,
+        role: mem.role,
+        isPersonal: !!acc.is_personal 
+      };
+    })
+    .sort((a, b) => {
+      if (a.role === 'owner' && b.role !== 'owner') return -1;
+      if (a.role !== 'owner' && b.role === 'owner') return 1;
+      return 0;
+    });
+
+  if (accounts.length === 0) {
+    return { success: false, error: 'No valid workspace accounts associated with this profile.' };
+  }
+
+  const primaryAccount = accounts[0];
+  const targetLeaseTier: UserTier = primaryAccount.tier || TIERS.FREE;
+  const targetAccountId: string = primaryAccount.id; 
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const fourteenDaysInSeconds = 14 * 24 * 60 * 60;
+    
+  const offlineLeaseJwt = await generateOfflineLeaseJwt({
+    userId: user.id,
+    accountId: targetAccountId,
+    tier: targetLeaseTier,
+    exp: issuedAt + fourteenDaysInSeconds,
+    version: 1
+  });
+
+  return {
+    success: true,
+    payload: {
+      token: offlineLeaseJwt,
+      redirectUrl: '/dash',
+      tier: targetLeaseTier,
+      user: userPayload,
+      accounts
+    }
+  };
 }

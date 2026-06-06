@@ -1,6 +1,7 @@
 // 📄 src/app/dashboard/page.tsx
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { createClient } from '@/lib/supabase/client'
@@ -10,9 +11,9 @@ function SandboxWorkspace() {
   // 1. Sync directly with our offline-first orchestration store
   const isOnline = useAppStore((s) => s.isOnline);
   const tier = useAppStore((s) => s.tier);
-  console.log("THE TIER: ", tier)
+  //console.log("THE TIER: ", tier)
   const profile = useAppStore((s) => s.profile);
-  console.log("THE PROFILE: ", profile)
+ // console.log("THE PROFILE: ", profile)
   const authStatus = useAppStore((s) => s.authStatus);
   const checkNetwork = useAppStore((s) => s.checkNetwork);
 

@@ -35,12 +35,9 @@ export interface DashboardUserProps {
   message?: string;
 }
 
-
 export interface DashboardLoaderProps {
   session_id: string;
 }
-
-
 
 export interface AccountContext {
   id: string;
@@ -88,28 +85,30 @@ export interface ProfileRecord {
   has_avatar: boolean;
 }
 
-
-
 export const TIERS = {
   FREE: 'free',
   PRO: 'pro',
   TEAM: 'team',
   FOUNDER: 'founder',
+  NONE: 'none',
 } as const;
 
-// 🎯 This generates the TypeScript union type: 'free' | 'pro' | 'team' | 'founder'
+// This generates the TypeScript union type: 'free' | 'pro' | 'team' | 'founder'
 export type UserTier = typeof TIERS[keyof typeof TIERS];
 
-// 🌲 Configuration array defining which tiers get access to the offline engine
+// Configuration array defining which tiers get access to the offline engine
 export const OFFLINE_CAPABLE_TIERS: UserTier[] = [
   TIERS.PRO,
   TIERS.TEAM,
   TIERS.FOUNDER
 ];
 
-/**
- * Clean helper to check if a specific tier is allowed to operate in the jungle.
- */
+// Clean helper to check if a specific tier is allowed to operate in the jungle.
 export function canWorkOffline(tier: UserTier): boolean {
   return OFFLINE_CAPABLE_TIERS.includes(tier);
 }
+
+export type ActionState = {
+  error?: string;
+  success?: boolean;
+} | null;

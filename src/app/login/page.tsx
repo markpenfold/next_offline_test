@@ -2,9 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { LoginForm } from '@/components/LoginForm'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import classes from '@/app/styles/styles.module.css'
 
 type LoginProps = {
-  searchParams: Promise<{ message?: string }>
+  searchParams: Promise<{ message?: string, verified?:string }>
 }
 
 export default async function LoginPage({ searchParams }: LoginProps) {
@@ -19,23 +20,33 @@ export default async function LoginPage({ searchParams }: LoginProps) {
     redirect('/dash')
   }
 
-  const { message } = await searchParams
+  const { message, verified } = await searchParams
 
-  return (
 
-    <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
+   return (
+  <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
+    
+
+    {verified === 'true' ? (
+      <div className={classes.warning_banner}>
+        <h3>Email confirmed! Please Sign in to continue.</h3>
+      </div>
+    ) : (
       <h1>Log in</h1>
-      
-      {message && (
-        <p style={{ color: '#0284c7', backgroundColor: 'rgba(2, 132, 199, 0.1)', padding: '10px', borderRadius: '6px' }}>
-          {message}
-        </p>
-      )}
+    )
+  
+  }
+
+    {message && (
+      <div className={classes.warning_banner}>
+        <h3>{message}</h3>
+      </div>
+    )}
 
       {/* Client component form logic */}
       <LoginForm />
 
-      <div style={{ marginTop: '15px' }}>
+      <div style={{ marginTop: '5px' , paddingLeft: '30px'}}>
         <Link href='/forgotten-password'>Forgot your password?</Link>
       </div>
     </div>
