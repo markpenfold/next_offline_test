@@ -62,14 +62,6 @@ export async function refreshSession() {
 }
 
 
-export async function logout() {
-  const cookieStore = await cookies()
-  const supabase = await createClient()
-  await supabase.auth.signOut()
-  redirect('/')
-}
-
-
 export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
 
  

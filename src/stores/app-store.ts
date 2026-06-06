@@ -44,7 +44,6 @@ export interface AppState {
   checkNetwork: () => Promise<boolean>;
   loginSuccess: (payload: LoginPayload) => void;
   initializeWorkspace: () => Promise<void>;
-  hydrateWorkspace: (token: string, profile: UserProfile) => void;
   logout: () => Promise<void>;
   refreshTier: () => Promise<void>;
   
@@ -84,6 +83,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       return online;
     },
 
+    /////////////////////////////////////////////////////////////////
+    // USER HAS JUST LOGGED IN //////////////////////////////////////
     loginSuccess: (payload: LoginPayload) => {
       console.log("login success", payload.user.name)
       // 🎯 Map the raw server payload directly inside the store
@@ -126,13 +127,11 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     initializeWorkspace: async () => {
       console.log("init Workspace")
       
-      
       // Add a guard to prevent redundant re-initialization loops
       if (get().authStatus === 'loading') {
          // Optionally: log if this is hit while already loading
          console.log("workspace data loading")
       }
-
 
       set({ authStatus: 'loading' });
 
@@ -190,23 +189,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       set({ authStatus: 'unauthenticated', tier: TIERS.NONE, profile: null, offlineLeaseJwt: null });
     },
 
-    hydrateWorkspace: (token, profile) => {
-      const decoded = decodeLeaseJwt(token);
-      console.log("decoded tier in hydrator: ", decoded?.tier)
-      if (decoded) {
-        const state = {
-          offlineLeaseJwt: token,
-          userId: decoded.userId,
-          tier: decoded.tier,
-          profile,
-          authStatus: 'authenticated' as AuthStatus,
-        };
-        set(state);
-        // Persist to storage
-        console.count('Hydrated workspace saved to localStorage');
-        localStorage.setItem('jungle_lease_v2', JSON.stringify(state));
-      }
-    },
+
 
     // 🧼 THE PURGE ACTION: Atomically wipes client data structures
     logout: async () => {

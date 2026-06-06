@@ -1,5 +1,5 @@
 
-const CANVAS_SIZE = 650;
+const CANVAS_SIZE = 750;
 export default function ob1Sketch(p, displaySize = 750,  onComplete) {
   // ---- State ----
 
@@ -36,7 +36,7 @@ export default function ob1Sketch(p, displaySize = 750,  onComplete) {
   let pathSqueeze = [];
   let currentPathIndex = 0;
   let pathIndex = 0;
-  let numGestures = p.random(2,4);;
+  let numGestures = p.random(1,6);;
 
   // ---- p5 lifecycle ----
 
@@ -57,7 +57,7 @@ export default function ob1Sketch(p, displaySize = 750,  onComplete) {
     settingsX.bristles = generateBristleConfigRANDOM(settingsX.numBristles);
     brush = new OmenBrush(settingsX);
     drawPerfectO(CANVAS_SIZE/2,CANVAS_SIZE/2, 300);
-    numGestures = p.random(2, 5);
+    numGestures = p.random(1,6);
     generateSymbols(numGestures);
   };
 
@@ -93,7 +93,7 @@ export default function ob1Sketch(p, displaySize = 750,  onComplete) {
   p.keyPressed = () => {
     p.background(245);
     drawPerfectO(CANVAS_SIZE/2,CANVAS_SIZE/2, 300);
-    let count = p.random(1, 5);
+    let count = p.random(1, 6);
     generateSymbols(count);
     currentPathIndex = 0;
     pathIndex = 0;

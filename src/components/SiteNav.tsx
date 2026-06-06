@@ -12,10 +12,15 @@ import classes from '@/app/styles/sitenav.module.css'
 // =========================================================
 export function SiteNav() {
   // We peek at the raw context directly instead of using the throwing hook
-  const storeContext = useContext(AppStoreContext);
+  // const storeContext = useContext(AppStoreContext);
 
-  // 🕵️‍♂️ The Test: If the provider doesn't exist above us, render the public guest nav
-  if (!storeContext) {
+  const authStatus = useAppStore((s) => s.authStatus);
+
+  if (authStatus === 'unknown' || authStatus === 'loading') {
+    return null;
+  }
+
+  if (authStatus === 'unauthenticated') {
     return <PublicSiteNav />;
   }
 
@@ -28,11 +33,11 @@ export function SiteNav() {
 // =========================================================
 function PublicSiteNav() {
   return (
-    <nav className={classes.container}>
+    <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
-        <Link href="/" className={classes.brandLink}>⚡ MainApp</Link>
+        <Link href="/" className={classes.brandLink}>⚡ Home</Link>
         <Link href="/login" className={classes.brandLink}>Login</Link>
-        <Link href="/signup" className={classes.brandLink}>Sign Up</Link>
+        <Link href="/pricing" className={classes.brandLink}>Sign Up</Link>
       </div>
     </nav>
   );
@@ -63,7 +68,7 @@ function AuthenticatedSiteNav() {
   }
 
   return (
-    <nav className={classes.container}>
+    <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
         <Link href="/" className={classes.brandLink}>⚡ MainApp</Link>
         <Link href="/dash" className={classes.link}>Dashboard</Link>
@@ -74,7 +79,7 @@ function AuthenticatedSiteNav() {
         
         <div className={classes.profileMeta}>
           <span className={classes.userName}>{profile.username}</span>
-          <span className={classes.usernameSub}>{profile.email}</span>
+         
           <span className={classes.usernameSub} style={{ fontSize: '10px', color: 'gold' }}>
             Plan: {tier.toUpperCase()}
           </span>

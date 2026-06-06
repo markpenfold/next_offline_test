@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { createClient } from '@/lib/supabase/client'
 import { LogoutButton } from "@/components/LogoutButton";
+import { SiteNav } from '@/components/SiteNav';
 
 function SandboxWorkspace() {
   // 1. Sync directly with our offline-first orchestration store
@@ -19,8 +20,6 @@ function SandboxWorkspace() {
 
   const [blocks, setBlocks] = useState<string[]>([]);
   const [checking, setChecking] = useState(false);
-  const supabase = createClient();
-
 
 
   useEffect(() => {
@@ -68,16 +67,13 @@ function SandboxWorkspace() {
   };
 
   return (
+    <div style={{fontFamily: 'sans-serif', width: '100%', margin: 'auto' }}>
+      <SiteNav />
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '500px', margin: 'auto' }}>
       <h2>App Sandbox Shell</h2>
-      <LogoutButton />
+      
 
-      {/* Profile Details (Hydrated via Offline Handshake lease) */}
-      <div style={{ padding: '15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '12px' }}>
-        <p style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#64748b' }}>Logged User Profile:</p>
-        <strong>👤 {profile?.name || 'Anonymous User'}</strong> 
-        <span style={{ fontSize: '0.85rem', color: '#64748b', marginLeft: '6px' }}>@{profile?.username || 'unknown'}</span>
-      </div>
+
 
       <div style={{ padding: '15px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '20px' }}>
         <p style={{ marginTop: 0 }}>Cached Network State: <strong>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</strong></p>
@@ -88,9 +84,7 @@ function SandboxWorkspace() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         
-        <button onClick={handleCheckNetwork} style={{ padding: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-          {checking ? "⏳ Querying Endpoint..." : "🔄 Check Connection Status"}
-        </button>
+
 
         <button 
           onClick={addBlock}
@@ -130,6 +124,7 @@ function SandboxWorkspace() {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

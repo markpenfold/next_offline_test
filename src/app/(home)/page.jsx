@@ -1,20 +1,23 @@
 import { LocateFixed, BookCheck,MountainSnow, Share2, ChartNoAxesGantt, ArrowDownToLine, Megaphone, } from 'lucide-react';
 import P5Canvas from "../(home)/home_components/P5Canvas.jsx";
 import classes from '@/app/styles/home.module.css'
+import { SiteNav } from '@/components/SiteNav'
 
 export default async function HomePage() {
 
   return (
    
   <div className={classes.pageContainer} >
+    <div className={classes.navholder}>
+      <SiteNav />
+    </div>
 
-    <div  className={classes.spacer}></div>
-    
     <div className={classes.section}>
         <div className={`${classes.omenland}`}>OMENLAND</div>
-        <div className={classes.canvasWrapper}>
+    </div>
+    
+    <div className={classes.section}>
         <P5Canvas />
-        </div>
     </div>
         
     <div  className={classes.spacer}></div>

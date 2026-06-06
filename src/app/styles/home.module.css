@@ -141,6 +141,7 @@
   text-align: center;
   width: 100%;
   line-height: 1.1;
+
   /* Remove white-space: nowrap if you want it to wrap on tiny screens, 
      otherwise keep it but keep the min clamp value low */
 }
@@ -148,7 +149,7 @@
 
 .canvasWrapper {
   width: 100%;
-  max-width: 750px;  /* Matches your max-width ${CANVAS_SIZE}px */
+  max-width: 450px;  /* Matches your max-width ${CANVAS_SIZE}px */
   aspect-ratio: 1 / 1; /* Ensures it stays a perfect square (750x750) */
   margin: 0 auto;    /* Centers the wrapper, matching your margin: 0 auto */
   
@@ -168,13 +169,7 @@
   font-size: clamp(0.65rem, 1.8vw, 1rem); /* shrinks on mobile */
 }
 
-/* Make sure the canvas container respects the center */
-.canvasContainer {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  max-width: 100%;
-}
+
 
 /* The actual canvas element */
 .canvas {
@@ -238,16 +233,38 @@
   font-weight: 700;
 }
 
+
+.canvasContainer {
+display: flex;
+  flex-direction: column; 
+  align-items: center;    
+  width: 100%;
+  max-width: 450px;       /* Set your width limit here, not on a parent wrapper */
+  margin: 0 auto;         /* Centers the whole block */
+  gap: 15px;
+
+  /* FORCE the height so the page doesn't shift */
+  height: 500px; /* 450px (canvas) + 15px (gap) + ~35px (icon+padding) */
+  flex-shrink: 0;
+}
+
+.canvas {
+  width: 100%;            /* Fills the 450px container */
+  height:100%;
+  background-color: rgba(245, 245, 245, 0.5);
+}
+
 .tooltipWrapper {
-  position: relative;
-  display: inline-flex;
+  position: relative; 
   cursor: pointer;
+  /* Add any specific margin if the gap isn't enough */
+  margin-top: 10px; 
 }
 
 .tooltip {
   position: absolute;
   left: calc(100% + 8px);
-  top: -100%;
+  top: 10%;
   background: #333;
   color: #fff;
   font-size: 0.75rem;
@@ -261,4 +278,8 @@
 
 .tooltipWrapper:hover .tooltip {
   opacity: 1;
+}
+
+.navholder {
+  min-height: 50px;
 }

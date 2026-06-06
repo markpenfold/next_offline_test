@@ -60,18 +60,20 @@ export default function P5Canvas() {
     }, "image/png");
   };
 
-  return (
-    <div  className={classes.canvasContainer} > 
-  <div ref={containerRef} className={classes.canvas} >
-     <div className={classes.tooltipWrapper}>
-        <ArrowDownToLine
-          className={`${classes.middle} ${animDone ? classes.visible : ""}`}
-          onClick={animDone ? handleDownload : undefined}
-          aria-label="Download today's logo"
-        />
-        <span className={classes.tooltip}>Download today's logo</span>
+return (
+    <div className={classes.canvasContainer}> 
+      {/* 1. The Canvas stays here */}
+      <div ref={containerRef} className={classes.canvas} />
+
+      {/* 2. The Tooltip/Arrow moves here as a sibling */}
+      <div className={classes.tooltipWrapper}>
+          <ArrowDownToLine
+            className={`${classes.left} ${animDone ? classes.visible : ""}`}
+            onClick={animDone ? handleDownload : undefined}
+            aria-label="Download today's logo"
+          />
+          <span className={classes.tooltip}>Download today's logo</span>
       </div>
-  </div>
-  </div>
+    </div>
   );
 }

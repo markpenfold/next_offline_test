@@ -15,7 +15,7 @@ export function logout() {
     await storeLogout();
 
     // 3. Hard redirect back to login to force a full clean window lifecycle
-    window.location.href = '/login?message=Signed out successfully.';
+    window.location.href = '/';
   };
 
   return { executeLogout };
