@@ -72,8 +72,6 @@ export async function POST(req: Request) {
       case 'customer.subscription.resumed':
         await handleSubscriptionStatus(event, supabaseAdmin);
         break;
-
- 
       }
     }
    catch (handlerError: any) {
@@ -83,36 +81,6 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ received: true });
-}
-
-/******************************************************
- * Syncs Stripe Products with Supabase Catalog Tables
- ********************************************************/
-async function handleProductSync(product: Stripe.Product, supabaseAdmin: SupabaseClient) {
-  await supabaseAdmin.from('products').upsert({
-    id: product.id,
-    active: product.active,
-    name: product.name,
-    description: product.description,
-    image: product.images?.[0],
-    metadata: product.metadata,
-  }, { onConflict: 'id' });
-}
-
-/******************************************************
- * Syncs Stripe Prices with Supabase Catalog Tables
- *****************************************************/
-async function handlePriceSync(price: Stripe.Price, supabaseAdmin: SupabaseClient) {
-  await supabaseAdmin.from('prices').upsert({
-    id: price.id,
-    product_id: price.product as string,
-    active: price.active,
-    currency: price.currency,
-    type: price.type,
-    unit_amount: price.unit_amount,
-    interval: price.recurring?.interval,
-    interval_count: price.recurring?.interval_count,
-  }, { onConflict: 'id' });
 }
 
 /******************************************************
@@ -338,6 +306,8 @@ async function handleSubscriptionDeletion(subscription: Stripe.Subscription, sup
 
 }
 
+
+
 async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: SupabaseClient) {
   const subscription = event.data.object as Stripe.Subscription;
   const customerId = subscription.customer as string;
@@ -395,6 +365,40 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
     }
   }
 }
+
+
+
+/******************************************************
+ * Syncs Stripe Products with Supabase Catalog Tables
+ ********************************************************/
+async function handleProductSync(product: Stripe.Product, supabaseAdmin: SupabaseClient) {
+  await supabaseAdmin.from('products').upsert({
+    id: product.id,
+    active: product.active,
+    name: product.name,
+    description: product.description,
+    image: product.images?.[0],
+    metadata: product.metadata,
+  }, { onConflict: 'id' });
+}
+
+/******************************************************
+ * Syncs Stripe Prices with Supabase Catalog Tables
+ *****************************************************/
+async function handlePriceSync(price: Stripe.Price, supabaseAdmin: SupabaseClient) {
+  await supabaseAdmin.from('prices').upsert({
+    id: price.id,
+    product_id: price.product as string,
+    active: price.active,
+    currency: price.currency,
+    type: price.type,
+    unit_amount: price.unit_amount,
+    interval: price.recurring?.interval,
+    interval_count: price.recurring?.interval_count,
+  }, { onConflict: 'id' });
+}
+
+
 
 /**
  * Isolated logic layer for managing refunds and cancellations

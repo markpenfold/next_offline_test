@@ -168,14 +168,28 @@ display: grid;
   flex-direction: column; /* Stacks elements vertically */
   align-items: center;    /* Centers elements horizontally */
   justify-content: flex-start; /* Keeps items anchored to the top */
-  max-width: 200px;
+  max-width: 150px;
+  min-height: 250px;
   height:auto;
   text-align: center;     /* Centers the inline text strings */
   background-color: rgb(222,222,222);
   /* Optional but helpful for layout: */
-  padding: 24px;          /* Prevents text from hitting the box edges */
+  padding:4px;
+  padding-top: 24px;
+  padding-bottom: 24px;
   gap: 16px;              /* Adds consistent space between titles, prices, and buttons */
+  margin:4px;
 }
+
+
+.current_tag {
+    margin-top: -55px;
+    background-color: rgb(30,30,30);
+    color: rgb(231, 231,231);
+    padding:4px;
+    min-width: 150px;
+}
+
 
 .buttonClass {
     margin-top: auto;

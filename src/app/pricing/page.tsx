@@ -34,23 +34,32 @@ export default function PricingPage() {
 
 
   return (
+
+    <>
+    <SiteNav />
     <div className={classes.pageContainer}>
-      <SiteNav />
+      
       {error === 'session_expired' && (
         <div style={{ color: 'red', padding: '10px', border: '1px solid red' }}>
          Your signup session expired or was invalid. Please try selecting your plan again.
         </div>
       )}
-      <div className={classes.pageHeader}>
+      
         <h1>Choose your plan</h1>
-      </div>
+     
       
       <div className={classes.priceContainer}>
         {tier_details.map((tier) => {
           const isCurrentPlan = currentTier === tier.id
 
           return (
+            
             <div key={tier.id} className={classes.priceBox}>
+              {isCurrentPlan && (
+                <div className={classes.current_tag}>
+                  Current Plan
+                </div>
+              )}
               <h3>{tier.name}</h3>
               <div>{tier.price}</div>
 
@@ -58,8 +67,9 @@ export default function PricingPage() {
               {isCurrentPlan ? (
                 // Scenario A: User is looking at their current subscription
                 <button disabled className={classes.buttonClass} style={{ opacity: 0.5 }}>
-                  Current Plan
+                  Cancel
                 </button>
+                
               ) : !profile ? (
                 // Scenario B: Anonymous visitor. Send them to registration.
                 <Link href={`/signup?plan=${tier.id}`} className={classes.buttonClass}>
@@ -68,7 +78,7 @@ export default function PricingPage() {
               ) : tier.id === 'free' ? (
                 // Scenario C: Logged in, wanting to downgrade to free (Handle via account panel normally)
                 <Link href="/dash" className={classes.buttonClass}>
-                  Downgrade at Dashboard
+                  Downgrade
                 </Link>
               ) : (
                 // Scenario D: Logged in, purchasing a premium tier. Fires secure POST directly to Stripe.
@@ -81,5 +91,7 @@ export default function PricingPage() {
         })}
       </div>
     </div>
+    </>
+    
   )
 }

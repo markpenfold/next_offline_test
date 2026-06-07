@@ -211,9 +211,9 @@
 /* Fix the intro text widths */
 .intro {
   text-align: center;
-  max-width: 800px; /* Prevents lines from being too long on desktop */
+  max-width: 100%; /* Prevents lines from being too long on desktop */
   margin: 0 auto;
-  font-size: clamp(1rem, 2vw, 1.25rem);
+  font-size: clamp(1rem, 2vw, 1.1rem);
   padding: 0 20px;
 }
 
@@ -281,5 +281,5 @@ display: flex;
 }
 
 .navholder {
-  min-height: 50px;
+  min-height: 60px;
 }

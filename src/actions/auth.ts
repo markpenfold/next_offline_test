@@ -36,7 +36,6 @@ export async function login(formData: FormData): Promise<LoginResult> {
   }
   const user = authData.user
 
-
   // 2. Query supabase for details
   const [profileResult, membershipsResult] = await getUserDetails(user, supabase);
   
@@ -47,16 +46,13 @@ export async function login(formData: FormData): Promise<LoginResult> {
 
 export async function refreshSession() {
   const supabase = await createClient()
-  
   // 1. Get the current logged-in user session
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError || !user) {
     return { success: false, error: "Not authenticated" }
   }
-
   // 2. Query the database for the newly updated Stripe details
   const [profileResult, membershipsResult] = await getUserDetails(user, supabase)
-
   // 3. Run it through your external function to get the fresh JWT and payload
   return await generateUserSessionPayload(user, profileResult, membershipsResult)
 }
@@ -192,7 +188,8 @@ export async function resetPassword(prevState: ActionState, formData: FormData) 
   if (error) return { error: error.message }
   
   // Redirect to login or profile after success
-  redirect('/login?message=Password updated successfully')
+  // Do NOT call redirect('/dash') here!
+  return { success: true }
 }
 
 

@@ -1,26 +1,21 @@
 // 📄 src/app/dashboard/page.tsx
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/providers/AppStoreProvider";
-import { createClient } from '@/lib/supabase/client'
-import { LogoutButton } from "@/components/LogoutButton";
 import { SiteNav } from '@/components/SiteNav';
+import { redirect } from 'next/navigation'
 
 function SandboxWorkspace() {
   // 1. Sync directly with our offline-first orchestration store
   const isOnline = useAppStore((s) => s.isOnline);
   const tier = useAppStore((s) => s.tier);
-  //console.log("THE TIER: ", tier)
   const profile = useAppStore((s) => s.profile);
- // console.log("THE PROFILE: ", profile)
   const authStatus = useAppStore((s) => s.authStatus);
+  const activeAccount = useAppStore((s) => s.activeAccount);
   const checkNetwork = useAppStore((s) => s.checkNetwork);
-
   const [blocks, setBlocks] = useState<string[]>([]);
   const [checking, setChecking] = useState(false);
-
 
   useEffect(() => {
     checkNetwork();
@@ -70,22 +65,16 @@ function SandboxWorkspace() {
     <div style={{fontFamily: 'sans-serif', width: '100%', margin: 'auto' }}>
       <SiteNav />
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '500px', margin: 'auto' }}>
-      <h2>App Sandbox Shell</h2>
+      <h2>Sandbox for {activeAccount|| profile?.username || 'Guest'}</h2>
       
-
-
-
       <div style={{ padding: '15px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '20px' }}>
         <p style={{ marginTop: 0 }}>Cached Network State: <strong>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</strong></p>
         <p style={{ marginBottom: 0 }}>User Tier: <strong style={{ color: tier !== 'free' ? '#0284c7' : '#e11d48' }}>{tier.toUpperCase()}</strong></p>
                 <p style={{ marginBottom: 0 }}>User email: <strong style={{ color: '#e11d48' }}>{profile?.email}</strong></p>
-
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         
-
-
         <button 
           onClick={addBlock}
           disabled={checking}
@@ -130,8 +119,24 @@ function SandboxWorkspace() {
 }
 
 export default function DashboardPage() {
-  return (
+  const authStatus = useAppStore((state) => state.authStatus)
 
+  // ⏳ 1. HOLD UP: Wait for your centralized engine to finish checking cache & cookies
+  if (authStatus === 'unknown' || authStatus === 'loading') {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
+        <div className="text-sm font-medium text-gray-500 animate-pulse">
+          Initializing workspace...
+        </div>
+      </div>
+    )
+  }
+
+  // 🚫 2. SECURE: Only kick them out if the store definitively concludes they don't belong here
+  if (authStatus === 'unauthenticated') {
+    redirect('/login?next=/dash')
+  }
+  return (
       <SandboxWorkspace />
  
   );

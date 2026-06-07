@@ -32,11 +32,12 @@ export default async function HomePage() {
         <div></div>
       </div>
 
-      <div className={classes.oneTwoOne}>
-        <div></div>
+      <div className={classes.central}>
+       
           <div className={classes.intro}>
-            <p>If we wish to live well in the present, and ensure a better future. We must first understand our past. </p>
-            <p>OMENLAND gives you the tools to go deep into recorded history and find meaning in the chaos.</p>
+            <p>If we wish to live well in the present, and ensure a better future, we must understand our past. </p>
+            <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos.</p>
+            <p>This is work for adventurous spirits.</p>
             
           </div>
         <div></div>
@@ -50,7 +51,7 @@ export default async function HomePage() {
 
 
  <div  className={classes.section}>
-  <div className={classes.subTitle}>This is how it works</div>
+  <div className={classes.subTitle}>How it works</div>
   <div className={classes.oneTwoThree}>
         
         <div className={classes.iconbox} >

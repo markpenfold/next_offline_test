@@ -36,6 +36,14 @@ export async function GET(request: Request) {
     
     // SUCCESS PATH
   const user = data.user
+
+  // CATCH PASSWORD RESETS HERE AND SEND TO update page
+  // Keeping session active
+  if (next === '/update-password') {
+    return NextResponse.redirect(new URL(next, siteUrl).toString())
+  }
+
+
   const supabaseAdmin = await createAdminClient()
   
   //Background Provisioning: Safe to execute because we have the verified user object

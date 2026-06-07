@@ -1,5 +1,5 @@
 
-import styles from "@/app/styles/page.module.css"
+import styles from "@/app/styles/styles.module.css"
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -17,7 +17,7 @@ export default async function ForgotPasswordPage() {
   
   return(
   <div className={styles.container}>
-        <h1>Reset Password</h1>
+       
         <ForgottenPasswordForm />
       </div>
   )

@@ -3,7 +3,7 @@
 
 import { useActionState, useState } from 'react'
 import { requestPasswordReset } from '@/actions/auth'
-import styles from "@/app/styles/page.module.css"
+import styles from "@/app/styles/styles.module.css"
 import { forgotPasswordSchema } from '@/lib/validations/primitives'
 import Link from 'next/link'
 
@@ -40,23 +40,43 @@ export function ForgottenPasswordForm() {
     )
   }
 
-  return (
-    <form action={handleSubmit} className={styles.form}>
-      <p>Enter your email and we'll send you a link to get back into your account.</p>
+ return (
+  <div className="mx-auto max-w-sm p-6">
+     <h1>Reset Password</h1>
+    <form action={handleSubmit} className="space-y-4">
+      <p className="text-sm text-slate-600">
+        Enter your email and we'll send you a link to get back into your account.
+      </p>
 
-      {/* Show either Zod client errors or Supabase server errors */}
       {(clientError || state?.error) && (
-        <p className={styles.error}>{clientError || state?.error}</p>
+        <p className="text-sm font-semibold text-red-600 bg-red-50 p-2 rounded border border-red-200">
+          {clientError || state?.error}
+        </p>
       )}
 
-      <div className={styles.gap}>
-        <label htmlFor="email">Email Address</label>
-        <input id="email" name="email" type="email" required placeholder="you@example.com" />
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium mb-1">
+          Email Address
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          placeholder="you@example.com"
+          className="w-full border p-2 rounded"
+        />
       </div>
 
-      <button type="submit" disabled={isPending}>
+      <button
+        type="submit"
+        disabled={isPending}
+        className="w-full bg-black text-white p-2 rounded font-medium disabled:bg-gray-400 dynamic-transition"
+        style={{ marginTop: '10px' }}
+      >
         {isPending ? 'Sending...' : 'Send Reset Link'}
       </button>
     </form>
-  )
+  </div>
+)
 }

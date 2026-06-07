@@ -1,5 +1,5 @@
 import { UpdatePasswordForm } from '@/components/UpdatePasswordForm'
-import styles from "../styles/page.module.css"
+import styles from '@/app/styles/styles.module.css'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 

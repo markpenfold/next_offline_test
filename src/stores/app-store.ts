@@ -119,74 +119,126 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       });
     },
 
-
+    /////////////////////////////////////////////////////////////////////////////////
+    // 🧠 CENTRALIZED EVALUATOR ENGINE //////////////////////////////////////////////
+    // GETS JWT FROM COOKIES, LOCAL STORAGE /////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////
     // 🧠 CENTRALIZED EVALUATOR ENGINE ///////////////////////////////////////////////
     // GETS JWT FROM COOKIES, LOCAL STORAGE 
     //////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
+    // 🧠 CENTRALIZED EVALUATOR ENGINE ///////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////
     initializeWorkspace: async () => {
       console.log("init Workspace")
       
-      // Add a guard to prevent redundant re-initialization loops
-      if (get().authStatus === 'loading') {
-         // Optionally: log if this is hit while already loading
-         console.log("workspace data loading")
-      }
-
+      if (get().authStatus === 'loading') return;
       set({ authStatus: 'loading' });
-
       await get().checkNetwork();
-
-      let targetToken: string | null = null;
-      let targetProfile: UserProfile | null = null;
 
       // 1. LOCAL-FIRST PRIORITY: Check for valid lease in LocalStorage
       const savedLease = localStorage.getItem('jungle_lease_v2');
-
-      // HARD STOP: If the user explicitly logged out or has no cache, KILL IT HERE.
-      if (!savedLease) {
-        console.log(" No local lease cache found. Halting auto-login framework safely.");
-        set({ authStatus: 'unauthenticated', tier:  TIERS.NONE, profile: null });
-        return;
-      }
       
       if (savedLease) {
-        //console.log("savedlease in init:", savedLease);
         try {
           const parsed = JSON.parse(savedLease);
-          //console.log("parsed:", parsed)
           const tokenToDecode = parsed.offlineLeaseJwt;
-          //console.log("tokenToDecode", tokenToDecode)
           const decoded = decodeLeaseJwt(tokenToDecode);
-          //console.log("decoded", decoded)
           
           if (decoded && decoded.exp > Math.floor(Date.now() / 1000)) {
-           // console.log("decoded so tier is:", decoded.tier, 'user is:', decoded.userId)
-          
-          // Determine token origin (Custom vs Supabase)
-          const isSupabaseToken = !!(decoded as any)?.iss && (decoded as any).iss.includes('supabase.co');
-          
-          const finalUserId = isSupabaseToken ? (decoded as any).sub : (decoded as any).userId;
-          const finalTier = isSupabaseToken ? ((decoded as any).user_metadata?.pending_plan || 'free') : ((decoded as any).tier || 'free');
+            const isSupabaseToken = !!(decoded as any)?.iss && (decoded as any).iss.includes('supabase.co');
+            const finalUserId = isSupabaseToken ? (decoded as any).sub : (decoded as any).userId;
+            const finalTier = isSupabaseToken ? ((decoded as any).user_metadata?.pending_plan || 'free') : ((decoded as any).tier || 'free');
 
+            // 🟢 FIX 1: Restore the saved accounts and active account right out of localStorage!
+            const restoredAccounts = parsed.accounts || [];
+            const restoredActiveAccount = parsed.activeAccountId || restoredAccounts[0]?.id || null;
+
+            set({
+              offlineLeaseJwt: tokenToDecode,
+              userId: finalUserId,
+              tier: finalTier,
+              profile: parsed.profile,
+              accounts: restoredAccounts,         // Added
+              activeAccount: restoredActiveAccount, // Fixed variable reference
+              authStatus: 'authenticated'
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("Corrupted lease format encountered:", e);
+        }
+      }
+
+      // 2. NET-COOKIE FALLBACK (The Rescue Branch)
+      console.log("No local lease found. Checking ambient Supabase session cookies...");
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          console.log("Session cookies verified! Fetching application accounts...");
+          const user = session.user;
+          const tokenToDecode = session.access_token;
+          
+          // 🟢 FIX 2: Query your database to grab the user's workspace accounts!
+          // (Change 'accounts' to match your actual Supabase database table name if different)
+          let fetchedAccounts: AccountContext[] = [];
+          try {
+            const { data, error } = await supabase
+              .from('accounts') 
+              .select('*');
+            
+            if (data && !error) {
+              fetchedAccounts = data as AccountContext[];
+            }
+          } catch (dbErr) {
+            console.error("Could not fetch workspace accounts from database:", dbErr);
+          }
+
+          const targetActiveAccountId = fetchedAccounts[0]?.id || null;
+
+          const formattedProfile = {
+            name: user.user_metadata?.name || null,
+            username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+            hasAvatar: !!user.user_metadata?.avatar_url,
+            email: user.email || '',
+          };
+
+          const finalTier = user.user_metadata?.pending_plan || 'free';
+
+          // Note: your loginSuccess saves it as "activeAccountId" (with an Id suffix)
+          const localCacheState = {
+            offlineLeaseJwt: tokenToDecode,
+            profile: formattedProfile,
+            authStatus: 'authenticated',
+            tier: finalTier,
+            activeAccountId: targetActiveAccountId, 
+            accounts: fetchedAccounts
+          };
+
+          // 📦 Commit to cache disk so steps are linked
+          localStorage.setItem('jungle_lease_v2', JSON.stringify(localCacheState));
+          
           set({
             offlineLeaseJwt: tokenToDecode,
-            userId: finalUserId,
+            userId: user.id,
             tier: finalTier,
-            profile: parsed.profile,
+            profile: formattedProfile,
+            accounts: fetchedAccounts,          // Dynamic data populated
+            activeAccount: targetActiveAccountId, // Dynamic data populated
             authStatus: 'authenticated'
           });
           return;
         }
-      } catch (e) {
-        console.error("Corrupted lease format encountered:", e);
-        }
+      } catch (supabaseErr) {
+        console.error("Failed to verify ambient Supabase cookie session:", supabaseErr);
       }
 
-
-      // 3. CLEAN SLATE: Only if both fail
+      // 3. CLEAN SLATE
       console.log("Cleaning the slate!!!!!!!!!!!")
-      set({ authStatus: 'unauthenticated', tier: TIERS.NONE, profile: null, offlineLeaseJwt: null });
+      set({ authStatus: 'unauthenticated', tier: TIERS.NONE, profile: null, offlineLeaseJwt: null, accounts: [], activeAccount: null });
     },
 
 
@@ -214,31 +266,33 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       }
     },
 
-    // Add to the store implementation
-refreshTier: async () => {
-  try {
-    const response = await fetch('/api/me/tier')
-    const { tier } = await response.json()
-    
-    // Update store
-    set({ tier })
-    
-    // Update localStorage atomically
-    const savedLease = localStorage.getItem('jungle_lease_v2')
-    if (savedLease) {
-      const parsed = JSON.parse(savedLease)
-      localStorage.setItem('jungle_lease_v2', JSON.stringify({ ...parsed, tier }))
-    }
-  } catch (e) {
-    console.error('Failed to refresh tier:', e)
-  }
-},
+    // Refresh stored data when user has changed sub
+    refreshTier: async () => {
+      try {
+        const response = await fetch('/api/me/tier')
+        const { tier } = await response.json()
+        
+        // Update store
+        set({ tier })
+        
+        // Update localStorage atomically
+        const savedLease = localStorage.getItem('jungle_lease_v2')
+        if (savedLease) {
+          const parsed = JSON.parse(savedLease)
+          localStorage.setItem('jungle_lease_v2', JSON.stringify({ ...parsed, tier }))
+        }
+      } catch (e) {
+        console.error('Failed to refresh tier:', e)
+      }
+    },
 
 
   }
 
 ));
 };
+
+
 export type AppStoreInstance = ReturnType<typeof createAppStore>;
 
 // 🛠️ Simple, ultra-lightweight client side cookie extractor

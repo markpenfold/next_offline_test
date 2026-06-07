@@ -6,6 +6,7 @@ import { AppStoreContext } from "@/providers/AppStoreProvider"; // 🆕 Make sur
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { LogoutButton } from "@/components/LogoutButton";
 import classes from '@/app/styles/sitenav.module.css'
+import { Circle } from 'lucide-react';
 
 // =========================================================
 // 1. THE SITESHIFT BOARD (The "Test" component)
@@ -35,7 +36,7 @@ function PublicSiteNav() {
   return (
     <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
-        <Link href="/" className={classes.brandLink}>⚡ Home</Link>
+        <Link href="/" className={classes.brandLink}><Circle /></Link>
         <Link href="/login" className={classes.brandLink}>Login</Link>
         <Link href="/pricing" className={classes.brandLink}>Sign Up</Link>
       </div>
@@ -70,8 +71,9 @@ function AuthenticatedSiteNav() {
   return (
     <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
-        <Link href="/" className={classes.brandLink}>⚡ MainApp</Link>
+        <Link href="/" className={classes.brandLink}><Circle size={32} strokeWidth={3} /></Link>
         <Link href="/dash" className={classes.link}>Dashboard</Link>
+        <Link href="/pricing" className={classes.link}>Pricing</Link>
       </div>
 
       <div className={classes.userSection}>
