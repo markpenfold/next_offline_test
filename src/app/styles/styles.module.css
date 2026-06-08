@@ -188,6 +188,7 @@ display: grid;
     color: rgb(231, 231,231);
     padding:4px;
     min-width: 150px;
+
 }
 
 
@@ -205,7 +206,7 @@ display: grid;
 
 
 .pageContainer {
-    display: flex;
+  display: flex;
   flex-direction: column; /* Stacks elements vertically */
   align-items: center;    /* Centers elements horizontally */
   justify-content: flex-start; /* Keeps items anchored to the top */
@@ -224,6 +225,11 @@ display: grid;
     text-align: center;  
 }
 
+.pageSection {
+  width: 100%;
+  min-height: 100px;
+  padding: 8px;
+}
 
 .container2Cols {
   display: grid;

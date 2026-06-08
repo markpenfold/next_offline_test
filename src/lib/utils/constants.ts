@@ -20,8 +20,7 @@ export const DuckDBConfig = {
 
 export  const tier_details = [
     { name: 'Free', id: 'free', price: '£0', type: 'signup' },
-    { name: 'Standard', id: 'standard', price: '£10/Mo', type: 'premium' },
-    { name: 'Pro', id: 'pro', price: '£25/Mo', type: 'premium' },
-    { name: 'Team', id: 'team', price: '£8/Mo Per member', type: 'premium' },
-    { name: 'Founder', id: 'founder', price: '£120/Year For ever', type: 'premium' },
+    { name: 'Pro', id: 'pro', price: '£10/Mo', type: 'premium' },
+    { name: 'Team', id: 'team', price: '£9/Mo Per member', type: 'premium' },
+    { name: 'Founder', id: 'founder', price: '£120/Year', type: 'premium' },
   ]

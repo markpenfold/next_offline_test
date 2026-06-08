@@ -1,0 +1,131 @@
+/* pricing.module.css */
+
+/* Main wrapper centering layout */
+.pageContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px;
+
+}
+
+/* Header Text Wrapper */
+.pageSection {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.pageSection h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+/* 📱 MOBILE FIRST LAYOUT: Cards stack into a single column automatically */
+.priceContainer {
+  display: flex;
+  grid-template-columns: 1fr;
+  flex-direction: column-reverse;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  align-items: stretch;
+}
+
+/* 💻 DESKTOP BREAKPOINT: Items layout side-by-side on larger screens */
+@media (min-width: 768px) {
+  .priceContainer {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 190px));
+    display: grid;
+  }
+}
+
+/* 📦 Individual Pricing Cards */
+.priceBox {
+  position: relative; /* Crucial anchor for the absolute positioned 'Current Plan' tag */
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 36px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 6px -1px rgba(31,31,31, 0.05), 0 2px 4px -1px rgba(31,31,31, 0.03);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+/* Subtle elevation look when users hover over cards */
+.priceBox:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* 🌟 Current Plan Visual Highlight Modifier */
+.priceBox:has(.current_tag) {
+  border: 2px solid #000000;
+}
+
+/* Card Elements Typography */
+.priceBox h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: rgba(31,31,31,1);
+  margin: 0 0 12px 0;
+}
+
+/* Target the wrapper holding the price text string */
+.priceBox h3 + div {
+  font-size: 1 rem;
+  font-weight: 800;
+  color: rgba(31,31,31,1);
+  margin-bottom: 32px;
+}
+
+/* 🎨 Floating Current Plan Tag Badge */
+.current_tag {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(31,31,31,1);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 6px rgbargba(31,31,31,0.1);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* 🔘 Dynamic Action Buttons (Universal Formats for Links & Buttons) */
+.buttonClass {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background-color: rgba(31,31,31,1);
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  margin-top: auto; /* Snaps buttons neatly to the bottom if description text heights vary */
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.buttonClass:hover:not(:disabled) {
+  background-color: #1f2937; /* Dark charcoal shift */
+}
+
+/* Style state for your Cancel (disabled) button element */
+.buttonClass:disabled {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  border: 1px solid #d1d5db;
+}

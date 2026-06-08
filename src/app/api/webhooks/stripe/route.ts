@@ -10,6 +10,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-05-27.dahlia",
 });
 
+// 📄 Place this helper mapping at the top of your file outside the functions
+const getPlanFromPriceId = (priceId: string): string => {
+  if (priceId === process.env.STRIPE_PRICE_FOUNDER) return 'founder';
+  if (priceId === process.env.STRIPE_PRICE_PRO) return 'pro';
+  if (priceId === process.env.STRIPE_PRICE_TEAM) return 'team';
+  return 'free';
+};
 
 /******************************************************
  * Main switch board for incoming stripe processes.
@@ -87,7 +94,7 @@ export async function POST(req: Request) {
  * Handles Complex Provisioning, Idempotency Safeguards, and Rollback Routing
  *****************************************************/
 async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin: SupabaseClient) {
-  console.log("handle subs:",event.type )
+  
   let customerId: string;
   let subscriptionId: string;
   let planChoice: string | undefined;
@@ -111,11 +118,20 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
     subscriptionObject = event.data.object as Stripe.Subscription;
     customerId = subscriptionObject.customer as string;
     subscriptionId = subscriptionObject.id;
-    planChoice = subscriptionObject.metadata?.planChoice || subscriptionObject.metadata?.plan;
     sessionMetadata = subscriptionObject.metadata || undefined; 
   }
 
+
+  // THE SOURCE OF TRUTH: Extract the actual active price item and seat count
   const subscriptionItem = subscriptionObject.items.data[0];
+  const actualPriceId = subscriptionItem.price.id;
+  const currentSeatCount = subscriptionItem.quantity || 1;
+  
+  // Resolve plan by its actual Price ID first (handles Portal changes flawlessly), fall back to metadata
+  const calculatedPlanName = getPlanFromPriceId(actualPriceId);
+  const targetTier = calculatedPlanName !== 'free' ? calculatedPlanName : (sessionMetadata?.planChoice || subscriptionObject.metadata?.planChoice || 'free');
+
+  const status = subscriptionObject.status; // e.g., 'active', 'past_due', 'trialing'
 
   // =========================================================
   // IDENTITY RESOLUTION PIPELINE
@@ -214,7 +230,7 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
 
       return NextResponse.json({ received: true, note: "Handled out-of-band to safeguard customer uptime." });
     }
-  }
+  } //////////////KILL PATH ENDS///////////////////////////////////////////////////////////////////////////////////////
 
   // =========================================================
   // DATABASE PROVISIONING SEQUENCING
@@ -237,18 +253,19 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
   // Execute workspace package upgrade changes
   if (accountId) {
     console.log(`[Webhook Debug] Found target account ${accountId}. Provisioning package update...`);
-    const targetTier = planChoice || 'free';
-    
+
+    // Sync updates to the active row matching this unique workspace account
     const { error: accountError } = await supabaseAdmin
       .from('accounts')
       .update({ 
         plan_name: targetTier, 
-        paid_plan: targetTier, // Sets permanent paid baseline record
-        subscription_status: 'active',
+        paid_plan: targetTier,
+        subscription_status: status, // Syncs exact current status from Stripe (active, past_due, etc.)
         stripe_customer_id: customerId,
         stripe_subscription_id: subscriptionId,
+        seat_count: currentSeatCount // Dynamic variable tracking team seat changes
       })
-      .eq('id', accountId);
+      .eq('id', accountId); // Targets the workspace ID precisely
     
     if (accountError) {
       console.error("[Webhook Debug] Account tier change failure:", accountError);

@@ -7,13 +7,14 @@ It "pre-fills" the URL, the Key, and the cookie logic.
 */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { Database } from '@/lib/database_types'
 
 export async function createClient() {
 
  // console.log("SupabaseServerClient")
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {

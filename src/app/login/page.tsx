@@ -3,6 +3,7 @@ import { LoginForm } from '@/components/LoginForm'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import classes from '@/app/styles/styles.module.css'
+import { SiteNav } from '@/components/SiteNav'
 
 type LoginProps = {
   searchParams: Promise<{ message?: string, verified?:string }>
@@ -24,6 +25,7 @@ export default async function LoginPage({ searchParams }: LoginProps) {
 
 
    return (
+    <><SiteNav />
   <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
     
 
@@ -50,6 +52,7 @@ export default async function LoginPage({ searchParams }: LoginProps) {
         <Link href='/forgotten-password'>Forgot your password?</Link>
       </div>
     </div>
+    </>
  
   )
 }

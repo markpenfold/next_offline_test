@@ -1,6 +1,6 @@
 'use client'
 
-import classes from '@/app/styles/styles.module.css'
+import classes from '@/app/styles/other.module.css'
 import Link from 'next/link' //
 import { CheckoutButton } from '@/components/CheckoutButton'
 import { useSearchParams } from 'next/navigation'
@@ -9,30 +9,17 @@ import { useAppStore } from "@/providers/AppStoreProvider";
 import { SiteNav } from '@/components/SiteNav'
 
 
-// Simple helper to check active subscription tier state
-function get_plan(id: string) {
-  // Replace this placeholder with a database fetch down the line
-  return 'free' 
-}
-
 export default function PricingPage() {
 
     const isOnline = useAppStore((s) => s.isOnline);
     const currentTier = useAppStore((s) => s.tier);
-    console.log("THE TIER: ", currentTier)
     const profile = useAppStore((s) => s.profile);
-    console.log("THE PROFILE: ", profile)
     const authStatus = useAppStore((s) => s.authStatus);
     const checkNetwork = useAppStore((s) => s.checkNetwork);
-
     const searchParams = useSearchParams()
     const error = searchParams.get('error')
 
   
-
-  // Helper array to keep the HTML rendering neat, organized, and DRY
-
-
   return (
 
     <>
@@ -44,11 +31,15 @@ export default function PricingPage() {
          Your signup session expired or was invalid. Please try selecting your plan again.
         </div>
       )}
-      
+      <div className={classes.pageSection}>
         <h1>Choose your plan</h1>
+      </div>
      
       
       <div className={classes.priceContainer}>
+        
+        {/* walk through the list of tiers and create cards
+            will also need a list of benefits per tier  */}
         {tier_details.map((tier) => {
           const isCurrentPlan = currentTier === tier.id
 
@@ -66,7 +57,7 @@ export default function PricingPage() {
               {/* DYNAMIC ACTION BUTTON GENERATOR */}
               {isCurrentPlan ? (
                 // Scenario A: User is looking at their current subscription
-                <button disabled className={classes.buttonClass} style={{ opacity: 0.5 }}>
+                <button className={classes.buttonClass} style={{ backgroundColor:'#035503' }}>
                   Cancel
                 </button>
                 
@@ -75,15 +66,10 @@ export default function PricingPage() {
                 <Link href={`/signup?plan=${tier.id}`} className={classes.buttonClass}>
                   Sign up
                 </Link>
-              ) : tier.id === 'free' ? (
-                // Scenario C: Logged in, wanting to downgrade to free (Handle via account panel normally)
-                <Link href="/dash" className={classes.buttonClass}>
-                  Downgrade
-                </Link>
-              ) : (
+              )  : (
                 // Scenario D: Logged in, purchasing a premium tier. Fires secure POST directly to Stripe.
                 <CheckoutButton plan={tier.id} className={classes.buttonClass}>
-                  Upgrade
+                  Switch
                 </CheckoutButton>
               )}
             </div>

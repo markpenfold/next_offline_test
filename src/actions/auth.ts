@@ -3,16 +3,15 @@
 
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
-import { type UserTier, TIERS } from '@/lib/types'
 import { type PostgrestSingleResponse, type PostgrestResponse } from '@supabase/supabase-js';
 import { type SupabaseClient, type User } from '@supabase/supabase-js';
-import { type LoginResult, AccountContext, ProfileRecord, MembershipRecord, ActionState  } from '@/lib/types'
+import { type LoginResult,  ProfileRecord, MembershipRecord, ActionState  } from '@/lib/types'
 import { redirect } from 'next/navigation'
 import { updatePasswordSchema, forgotPasswordSchema } from "@/lib/validations/primitives";
 import { headers } from 'next/headers'
 import { signUpSchema } from '@/lib/validations/primitives'
 import { generateUserSessionPayload } from '@/lib/supabase/queries'
+import { Database } from '@/lib/database_types'
 
 export async function login(formData: FormData): Promise<LoginResult> {
   
@@ -193,14 +192,12 @@ export async function resetPassword(prevState: ActionState, formData: FormData) 
 }
 
 
-
+// 1. Define a type helper for the profiles query response
+type ProfileResponse = Database['public']['Tables']['profiles']['Row'];
 
 async function getUserDetails(user: User, 
-  supabase: SupabaseClient
-): Promise<[
-  PostgrestSingleResponse<ProfileRecord>, 
-  PostgrestResponse<MembershipRecord>
-]>{
+  supabase: SupabaseClient<Database>
+){
 
   // CONCURRENT PIPELINE: Run both queries in parallel
   const [profileResult, membershipsResult] = await Promise.all([
@@ -226,6 +223,9 @@ async function getUserDetails(user: User,
       .eq('user_id', user.id)
   ]);
 
-  return [profileResult, membershipsResult];
+  // NO hardcoded return type signature in the function header!
+  // TypeScript will automatically infer the exact, perfectly accurate return shape
+  // Because we have imported the db schema from Supabase => SupabaseClient<Database>
+  return [profileResult, membershipsResult] as const;
 
 }
