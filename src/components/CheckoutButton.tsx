@@ -4,11 +4,12 @@ import { useState } from 'react'
 
 interface CheckoutButtonProps {
   plan: string
+  activeAccount:string
   className: string
   children: React.ReactNode
 }
 
-export function CheckoutButton({ plan, className, children }: CheckoutButtonProps) {
+export function CheckoutButton({ plan, activeAccount, className, children }: CheckoutButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleCheckout = async () => {
@@ -17,7 +18,7 @@ export function CheckoutButton({ plan, className, children }: CheckoutButtonProp
       const res = await fetch('/api/checkout/stripe/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, activeAccount }),
       })
 
       const data = await res.json()

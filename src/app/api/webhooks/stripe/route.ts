@@ -125,7 +125,7 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
   // THE SOURCE OF TRUTH: Extract the actual active price item and seat count
   const subscriptionItem = subscriptionObject.items.data[0];
   const actualPriceId = subscriptionItem.price.id;
-  const currentSeatCount = subscriptionItem.quantity || 1;
+  //const currentSeatCount = subscriptionItem.quantity || 1;
   
   // Resolve plan by its actual Price ID first (handles Portal changes flawlessly), fall back to metadata
   const calculatedPlanName = getPlanFromPriceId(actualPriceId);
@@ -137,7 +137,7 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
   // IDENTITY RESOLUTION PIPELINE
   // =========================================================
   let userId: string | null = null;
-  let accountId: string | null = null;
+  let accountId: string | null = null; //internal not stripe
 
   // PATH A: The Primary Gold Standard Lookup (Query by Stripe Customer ID)
   console.log(`[Webhook] Attempting account lookup via Stripe Customer ID: ${customerId}`);
@@ -263,7 +263,7 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
         subscription_status: status, // Syncs exact current status from Stripe (active, past_due, etc.)
         stripe_customer_id: customerId,
         stripe_subscription_id: subscriptionId,
-        seat_count: currentSeatCount // Dynamic variable tracking team seat changes
+       // seat_count: currentSeatCount // Dynamic variable tracking team seat changes
       })
       .eq('id', accountId); // Targets the workspace ID precisely
     

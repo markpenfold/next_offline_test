@@ -16,10 +16,9 @@ export default async function ConfirmPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-      <h2>Confirm your sign up</h2>
+      <h2>Please confirm your sign up</h2>
         An email has been sent to your sign up address. 
-        <br></br>
-        Your dashboard is <Link href='/dash' className={styles.brandLink}> here</Link>
+        
       </main>
     </div>
   );

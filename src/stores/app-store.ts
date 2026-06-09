@@ -4,7 +4,7 @@ import { isReallyOnline } from '@/lib/utils/checkOnline';
 import { decodeLeaseJwt } from '@/lib/auth/crypto';
 import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
-import { fetchUserAccounts } from '@/lib/supabase/queries'
+import { fetchUserAccounts } from '@/lib/supabase/client_queries';
 
 const supabase = createClient();
 

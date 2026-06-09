@@ -12,6 +12,7 @@ import { headers } from 'next/headers'
 import { signUpSchema } from '@/lib/validations/primitives'
 import { generateUserSessionPayload } from '@/lib/supabase/queries'
 import { Database } from '@/lib/database_types'
+import { setUpStripeCustomer, getActiveUserAccount } from '@/lib/supabase/queries';
 
 export async function login(formData: FormData): Promise<LoginResult> {
   
@@ -59,18 +60,16 @@ export async function refreshSession() {
 
 export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
 
- 
   const rawData = Object.fromEntries(formData)
   console.log("rawData:", rawData)
   
   const result = signUpSchema.safeParse(rawData)
   if (!result.success) {
      const firstIssue = result.error.issues[0]
-    return { error: `${String(firstIssue.path[0])}: ${firstIssue.message}` }  }
+     return { error: `${String(firstIssue.path[0])}: ${firstIssue.message}` }  }
+
   // Now destructure from result.data instead of formData directly
   const { email, password, full_name, username, account_name, planChoice, invite_token } = result.data
-
-
 
   const supabase = await createClient()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -84,28 +83,26 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
       .select('account_id, email, expires_at, accepted')
       .eq('id', invite_token)
       .single()
-
     // 1. Check if token exists or has already been used
     if (inviteError || !invite || invite.accepted) {
       return { error: "This invitation is invalid or has already been used." }
     }
-
     // 2. Check if the token has expired
     if (new Date(invite.expires_at) < new Date()) {
       return { error: "This invitation has expired. Please ask your admin for a new link." }
     }
-
     // 3. Prevent Email Hijacking: Ensure they are signing up with the invited email
     if (invite.email.toLowerCase() !== email) {
       return { error: "This invitation was sent to a different email address." }
     }
-
     // Secure token passes validation. Fetch the true account ID from the DB.
     verifiedParentAccountId = invite.account_id
-  }
+  } /// END OF INVITE VERIFICATION 
 
-  // Execute standard Supabase signup
-  const { error } = await supabase.auth.signUp({ 
+
+  // Execute standard Supabase  sign up //////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////
+  const { data: authData, error } = await supabase.auth.signUp({ 
     email, 
     password,
     options: {
@@ -122,6 +119,37 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
   })
 
   if (error) return { error: error.message };
+
+  ///////////////////////////////////////////////////////////////////////////////
+  /// Now we want to get a stripe ID for the user+Account ///////////////////////
+  ///////////////////////////////////////////////////////////////////////////////
+  
+  // 🎯 3. Safely isolate the User ID
+  const userId = authData?.user?.id
+  if (!userId) {
+    return { error: "User registration succeeded, but failed to resolve identity." }
+  }
+
+  // Resolve the Account ID context if we have a team invite
+  let accountId = verifiedParentAccountId
+
+    // If it's a brand new signup
+    // Fetch the newly created account
+  if (!accountId) {
+    const activeAccount = await getActiveUserAccount(userId)
+    accountId = activeAccount?.account_id || null
+  }if (!accountId) {
+    return { error: "Could not resolve workspace account for customer setup." }
+  }
+
+  try {
+      // AWAIT the Stripe provisioning step 
+      const newStripeId = await setUpStripeCustomer(accountId, userId)
+      console.log(`Successfully mapped Stripe Customer ${newStripeId} to account ${accountId}`)
+    } catch (stripeError: any) {
+      console.error("Stripe customer provisioning deferred:", stripeError.message)
+      // Optional: Decide whether you want to block registration or let them pass and handle it later
+    }
 
   // just in time cookies
   const cookieStore = await cookies()

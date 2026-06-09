@@ -3,9 +3,9 @@ import { cache } from 'react'
 import {createAdminClient} from '@/lib/supabase/admin'
 import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/types'
 import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
-import { Database } from '@/lib/database_types'
-import { SupabaseClient } from '@supabase/supabase-js'
-
+import { Database, Tables } from '@/lib/database_types'
+import { SupabaseClient, QueryData } from '@supabase/supabase-js'
+import Stripe from 'stripe'
 
 // Using 'cache' ensures that if you call this 3 times in 
 // one request, it only hits the database ONCE.
@@ -26,7 +26,10 @@ export const getProfile = cache(async () => {
   return profile
 })
 
+
+
 export async function getAccountByStripeId( customerId: string) {
+  console.log("getAccountByStripeId")
   if (!customerId) return null
   const supabase = await createAdminClient()
 
@@ -44,6 +47,8 @@ export async function getAccountByStripeId( customerId: string) {
     return null
   }
   const user_id = await getAccountOwnerId(data?.id)
+  console.log("user_id from getAccountByStripeId:", user_id)
+  console.log("meanwhile, data getAccountByStripeId:", data)
 
   return { ...data, user_id }
 }
@@ -62,7 +67,7 @@ export async function getAccountOwnerId(accountId:string): Promise<string | null
     .maybeSingle()
 
   if (memError || !membership?.user_id) {
-    console.error(`[Query Error] No owner found for account ${accountId}`, memError?.message)
+    console.error(`[Query Error getAccountOwnerId] No owner found for account ${accountId}`, memError?.message)
     return null
   }
     return membership.user_id
@@ -102,7 +107,7 @@ export async function getAccountOwner(accountId:string): Promise<string | null> 
     .maybeSingle()
 
   if (memError || !membership?.user_id) {
-    console.error(`[Query Error] No owner found for account ${accountId}`, memError?.message)
+    console.error(`[Query Error getAccountOwner] No owner found for account ${accountId}`, memError?.message)
     return null
   }
 
@@ -121,50 +126,155 @@ export async function getAccountOwner(accountId:string): Promise<string | null> 
   return profile?.email || null
 }
 
-// From a user ID, get me their accounts and roles ///////
-export async function fetchUserAccounts(
-  supabase: SupabaseClient<Database>,
-  userId: string
-): Promise<AccountContext[]> {
-  const { data, error } = await supabase
-    .from('memberships')
-    .select(`
-      role,
-      accounts (
-        id,
-        name,
-        plan_name,
-        subscription_status,
-        is_personal
-      )
-    `)
-    .eq('user_id', userId);
+export async function getActiveUserAccount( user_id: string) {
+  
+  const supabaseAdmin = await createAdminClient()
 
-  if (error || !data) {
-    console.error("Error executing fetchUserAccounts query:", error);
-    throw error || new Error("No membership data returned.");
+  const { data: membership, error: dbError } = await supabaseAdmin
+      .from('memberships')
+      .select('account_id, accounts(stripe_customer_id)')
+      .eq('user_id',user_id)
+      .eq('role', 'owner')
+      .maybeSingle()
+
+    if (dbError) {
+    // Supabase throws an error if .single() finds 0 rows, 
+    // so we catch it gracefully without breaking the app.
+    console.warn(`[Queries] No account found for user ID ${user_id}:`, dbError)
+    return null
   }
 
-  // Map and transform raw database join results into client-side AccountContext shapes
-  return data
-    .map(mem => {
-      const acc = Array.isArray(mem.accounts) ? mem.accounts[0] : mem.accounts;
-      if (!acc) return null;
+  return membership;
 
-      return {
-        id: acc.id,
-        name: acc.name,
-        plan_name: (acc.plan_name?.toLowerCase() || 'free') as UserTier,
-        subscription_status: acc.subscription_status,
-        role: mem.role,
-        is_personal: !!acc.is_personal
-      };
-    })
-    .filter((acc): acc is AccountContext => acc !== null);
+
+}
+
+
+export async function getUserProfile(userId: string): Promise<Tables<'profiles'> | null> {
+  const supabase = await createAdminClient<Database>() // Or createAdminClient() depending on RLS
+
+  const { data, error } = await supabase
+    .from('profiles') // 💡 Change to your actual table name (e.g., 'users')
+    .select('*')
+    .eq('id', userId) // Assuming 'id' is the primary key linked to auth.users
+    .single()
+
+  if (error) {
+    console.error('Error fetching profile:', error)
+    return null
+  }
+  // TypeScript automatically infers 'data' 
+  // as exactly matching Tables<'profiles'>
+  return data
+}
+
+// used when we KNOW the account has no Stripe Customer ID. 
+export async function setUpStripeCustomer(accountId:string, userId:string):Promise<string>{
+
+      let stripeCustomerId:string | null = null;
+
+        console.log("setting up Stripe Customer ID for userAccount:", accountId)
+        const userProfile: Tables<'profiles'> | null = await getUserProfile(userId);
+
+        // 2. Guard Clause: Typescript knows profile fields can be null. We must verify they exist.
+        if (!userProfile || !userProfile.email) {
+          throw new Error(`User profile or email missing for user ID: ${userId}`)
+        }
+
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+          apiVersion: "2026-05-27.dahlia"
+        })
+
+        const existingCustomers = await stripe.customers.search({
+          query: `email:'${userProfile.email}' AND metadata['account_id']:'${accountId}'`,
+          limit: 1,
+        });
+        //double check with Stripe before creating a new ID
+        if (existingCustomers.data.length > 0) {
+          stripeCustomerId = existingCustomers.data[0].id
+        } else {
+          const customer = await stripe.customers.create({
+            email: userProfile.email,
+            metadata: { userId: userProfile.id, account_id: accountId},
+          })
+          stripeCustomerId = customer.id
+        }
+        
+        if(!stripeCustomerId){
+           throw new Error(`could not find or create a new stripe id for this user: ${userId}`)
+        }
+
+        const supabase = await createAdminClient<Database>()
+        //Uses Admin Client to update system identity details seamlessly
+        let result = await supabase
+          .from('accounts')
+          .update({ stripe_customer_id: stripeCustomerId })
+          .eq('id', accountId)
+          .select() // 🎯 Tells Supabase to return the modified data
+          .single() // 🎯 Since we filter by id, narrow the array down to one object
+
+          if (result.error) {
+            throw new Error(`Database update failed: ${result.error.message}`)
+          }
+        
+        return stripeCustomerId;
 }
 
 
 
+
+// Define the query builder independently so TypeScript can inspect it
+const getAccountContextQuery = (supabase: SupabaseClient, userId: string, accountId: string) =>
+  supabase
+    .from('memberships')
+    .select(`
+      account_id, 
+      accounts(
+        stripe_customer_id,
+        stripe_subscription_id,
+        subscription_status,
+        stripe_subscription_item_id,
+        plan_name
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
+    .eq('role', 'owner')
+    .maybeSingle()
+
+// extract the database response type from the query
+type MembershipQueryResult = QueryData<ReturnType<typeof getAccountContextQuery>>
+
+/**
+ * Safely fetches context for a workspace, validating that the user is the owner.
+ */
+export async function getAccountContext(
+  supabase: SupabaseClient, 
+  userId: string, 
+  accountId: string
+) {
+  const { data, error } = await getAccountContextQuery(supabase, userId, accountId)
+
+  if (error || !data) return null
+
+  // Cast safely using our inferred query type
+  const membership = data as MembershipQueryResult
+
+  // Clean up TypeScript array or object interpretation safely
+  const accountData = Array.isArray(membership.accounts)
+    ? membership.accounts[0]
+    : membership.accounts
+
+  // Just return the object. TypeScript infers the exact return type on the fly.
+  return {
+    accountId: membership.account_id,
+    stripeCustomerId: accountData?.stripe_customer_id || null,
+    stripeSubscriptionId: accountData?.stripe_subscription_id || null,
+    stripeSubscriptionItemId: accountData?.stripe_subscription_item_id || null,
+    subscriptionStatus: accountData?.subscription_status || null,
+    planName: accountData?.plan_name || null,
+  }
+}
 
 
 interface SessionDetailsResult {

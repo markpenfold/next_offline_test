@@ -16,6 +16,8 @@ export default function PricingPage() {
     const profile = useAppStore((s) => s.profile);
     const authStatus = useAppStore((s) => s.authStatus);
     const checkNetwork = useAppStore((s) => s.checkNetwork);
+    const activeAccount = useAppStore((s) => s.activeAccount);
+    
     const searchParams = useSearchParams()
     const error = searchParams.get('error')
 
@@ -67,8 +69,9 @@ export default function PricingPage() {
                   Sign up
                 </Link>
               )  : (
-                // Scenario D: Logged in, purchasing a premium tier. Fires secure POST directly to Stripe.
-                <CheckoutButton plan={tier.id} className={classes.buttonClass}>
+                // Scenario D: Logged in, purchasing a premium tier. 
+                // Fires secure POST directly to Stripe.
+                <CheckoutButton plan={tier.id} activeAccount={activeAccount} className={classes.buttonClass}>
                   Switch
                 </CheckoutButton>
               )}
