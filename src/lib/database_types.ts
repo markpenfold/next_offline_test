@@ -22,6 +22,7 @@ export type Database = {
           name: string
           paid_plan: string
           plan_name: string
+          seat_count: number
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           stripe_subscription_item_id: string | null
@@ -34,6 +35,7 @@ export type Database = {
           name: string
           paid_plan?: string
           plan_name?: string
+          seat_count?: number
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           stripe_subscription_item_id?: string | null
@@ -46,10 +48,47 @@ export type Database = {
           name?: string
           paid_plan?: string
           plan_name?: string
+          seat_count?: number
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           stripe_subscription_item_id?: string | null
           subscription_status?: string
+        }
+        Relationships: []
+      }
+      billing_errors: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          error_reason: string | null
+          id: string
+          plan_name: string | null
+          resolved: boolean
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          user_id: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          error_reason?: string | null
+          id?: string
+          plan_name?: string | null
+          resolved?: boolean
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          user_id?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          error_reason?: string | null
+          id?: string
+          plan_name?: string | null
+          resolved?: boolean
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }

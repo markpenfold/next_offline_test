@@ -61,7 +61,7 @@ export async function refreshSession() {
 export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
 
   const rawData = Object.fromEntries(formData)
-  console.log("rawData:", rawData)
+  console.log("rawData sent to signUp:", rawData)
   
   const result = signUpSchema.safeParse(rawData)
   if (!result.success) {

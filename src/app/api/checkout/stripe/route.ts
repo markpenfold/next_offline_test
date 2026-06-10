@@ -17,11 +17,7 @@ const PRICE_IDS: Record<string, string> = {
   founder: process.env.STRIPE_PRICE_FOUNDER!,
 }
 
-/**
- * POST ENDPOINT: Internal Upgrades
- * For users already logged into the app upgrading their plan.
- */
-
+// For users already logged into the app upgrading their plan.
 export async function POST(request: Request) {
   console.log("POST request received")
   try {
@@ -117,8 +113,12 @@ export async function POST(request: Request) {
 
     // 🎯 LOCAL STATE ASSIGNMENTS (Fixed references using flat camelCase helper object)
     let finalSubscriptionId = accountCtx.stripeSubscriptionId
+    console.log("FINAL SUB ID:", finalSubscriptionId)
     let finalSubItemId = accountCtx.stripeSubscriptionItemId
+    console.log("FINAL ITEM ID:", finalSubItemId)
     let finalSubStatus = accountCtx.subscriptionStatus
+    console.log("FINAL STATUS:", finalSubStatus)
+
     const dbPlanName = accountCtx.planName
     
     // Wrapped status assertions in grouping parentheses for correct logical precedence
@@ -221,7 +221,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
-
 
 // FOR FRESH SIGN UPS //////////////////////////
 export async function GET(req: NextRequest) {

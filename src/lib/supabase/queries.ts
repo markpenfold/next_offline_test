@@ -28,10 +28,19 @@ export const getProfile = cache(async () => {
 
 
 
-export async function getAccountByStripeId( customerId: string) {
+export type AccountWithOwner = Pick<
+  Tables<'accounts'>, 
+  'id' | 'plan_name' | 'stripe_subscription_id' | 'paid_plan'
+> & {
+  user_id: string | null
+}
+
+
+export async function getAccountByStripeId(customerId: string): Promise<AccountWithOwner | null> {
   console.log("getAccountByStripeId")
   if (!customerId) return null
-  const supabase = await createAdminClient()
+  
+  const supabase: SupabaseClient<Database> = await createAdminClient()
 
   const { data, error } = await supabase
     .from('accounts')
@@ -39,26 +48,31 @@ export async function getAccountByStripeId( customerId: string) {
     .eq('stripe_customer_id', customerId)
     .single()
 
-  
   if (error) {
-    // Supabase throws an error if .single() finds 0 rows, 
-    // so we catch it gracefully without breaking the app.
     console.warn(`[Queries] No account found for Stripe ID ${customerId}:`, error.message)
     return null
   }
-  const user_id = await getAccountOwnerId(data?.id)
-  console.log("user_id from getAccountByStripeId:", user_id)
-  console.log("meanwhile, data getAccountByStripeId:", data)
 
-  return { ...data, user_id }
+  // Look Ma, no passed client! It handles itself internally.
+  const user_id = await getAccountOwnerId(data.id)
+  console.log("user_id from getAccountOwnerId:", user_id)
+
+  return {
+    id: data.id,
+    plan_name: data.plan_name,
+    stripe_subscription_id: data.stripe_subscription_id,
+    paid_plan: data.paid_plan,
+    user_id
+  }
 }
 
-export async function getAccountOwnerId(accountId:string): Promise<string | null> {
-  const supabase = await createClient()
-
+export async function getAccountOwnerId(accountId: string): Promise<string | null> {
+  console.log("looking for owner of this account:", accountId, '-----------------------------------------------------------------')
   if (!accountId) return null
 
-  // 1. Get the owner's user_id from memberships
+  // Create its own admin client to punch right through RLS in the webhook background
+  const supabase: SupabaseClient<Database> = await createAdminClient()
+
   const { data: membership, error: memError } = await supabase
     .from('memberships')
     .select('user_id')
@@ -67,10 +81,11 @@ export async function getAccountOwnerId(accountId:string): Promise<string | null
     .maybeSingle()
 
   if (memError || !membership?.user_id) {
-    console.error(`[Query Error getAccountOwnerId] No owner found for account ${accountId}`, memError?.message)
+    console.error(`[Query Error getAccountOwnerId] No owner found for account ${accountId}`)
     return null
   }
-    return membership.user_id
+  
+  return membership.user_id
 }
 
 export async function getAccountIdFromOwner(user_id:string): Promise<string | null> {
@@ -148,7 +163,6 @@ export async function getActiveUserAccount( user_id: string) {
 
 
 }
-
 
 export async function getUserProfile(userId: string): Promise<Tables<'profiles'> | null> {
   const supabase = await createAdminClient<Database>() // Or createAdminClient() depending on RLS
@@ -245,9 +259,7 @@ const getAccountContextQuery = (supabase: SupabaseClient, userId: string, accoun
 // extract the database response type from the query
 type MembershipQueryResult = QueryData<ReturnType<typeof getAccountContextQuery>>
 
-/**
- * Safely fetches context for a workspace, validating that the user is the owner.
- */
+/** Safely fetches context for a workspace, validating that the user is the owner.*/
 export async function getAccountContext(
   supabase: SupabaseClient, 
   userId: string, 
@@ -275,7 +287,6 @@ export async function getAccountContext(
     planName: accountData?.plan_name || null,
   }
 }
-
 
 interface SessionDetailsResult {
   success: boolean;
