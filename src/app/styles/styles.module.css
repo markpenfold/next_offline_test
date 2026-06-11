@@ -272,3 +272,122 @@ display: grid;
 .brandLink:hover {
   opacity: 1;
 }
+
+.avatarWorkspace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+  letter-spacing: 0.1em;
+  padding: 40px 20px;
+}
+
+.dropZone {
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.dropZone:hover .circleWrapper {
+  border-color: #000000;
+  transform: scale(1.02);
+}
+
+.dropZone:hover .overlay {
+  opacity: 1;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.circleWrapper {
+  width: 240px;
+  height: 240px;
+  border: 4px solid #111111;
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
+  background-color: #f9f9f9;
+  transition: all 0.2s ease;
+}
+
+/* Lights up stark black when an image is physically dragged over it */
+.dragging .circleWrapper {
+  border-color: #000000;
+  background-color: #000000;
+  transform: scale(1.05);
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Minimal hover overlay text */
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.overlay span {
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  border: 1px solid #ffffff;
+  padding: 6px 12px;
+}
+
+/* Stark Brutalist Error Styling */
+.errorText {
+  color: #e11d48;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-top: 16px;
+  max-width: 240px;
+  text-align: center;
+}
+
+/* Sharp, flat typography action button */
+.actionButton {
+  margin-top: 24px;
+  background-color: #000000;
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  width: 240px;
+}
+
+.actionButton:hover {
+  background-color: #222222;
+}
+
+.actionButton:disabled {
+  background-color: #a1a1aa;
+  cursor: not-allowed;
+}
+
+.uploadBox {
+  padding:8px;
+  padding-bottom: 24px;
+}

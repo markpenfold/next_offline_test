@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin' // 🛡️ Import your admin utility
 import { UserTier } from '@/lib/types'
 import { getAccountContext } from '@/lib/supabase/queries'
-import { act } from 'react'
 
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -19,31 +18,31 @@ const PRICE_IDS: Record<string, string> = {
 
 // For users already logged into the app upgrading their plan.
 export async function POST(request: Request) {
-  console.log("POST request received")
+  console.log("checkout POST Billing modification request received ")
+  
   try {
-    // 1. Extract body variables securely via JSON payload
+    // 1. Extract body variables securely via JSON payload //////////////////////
     const body = await request.json()
     const { plan, activeAccount, seatsRequested } = body
 
-    // 🛡️ FIX: Added '!' to activeAccount so valid workspaces aren't rejected early
-    if (!plan || !PRICE_IDS[plan] || !activeAccount) {
+    // Allow 'free' through even though it doesn't have a Price ID ////////////////////////////
+    if (!plan || !PRICE_IDS[plan] && plan !== 'free' || !activeAccount) {
       return NextResponse.json({ error: 'Missing data, please try again.' }, { status: 400 })
     }
 
-    // 2. Validate current session identity parameters
+    // 2. Validate current user identity parameters ///////////////////////////////
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 🎯 FETCH CONTEXT: Run the query helper for the first time
+    // This will be the account contect
+    // Or null if the user is not the owner
     let accountCtx = await getAccountContext(supabase, user.id, activeAccount)
-
     // Total fail, go home
     if (!accountCtx) {
-      return NextResponse.json({ error: 'Unauthorized: Workspace context invalid.' }, { status: 403 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     // ATTEMPT STRIPE AUTO-HEAL //////////////////////////////////////////////
@@ -110,25 +109,18 @@ export async function POST(request: Request) {
       }
     } // END AUTO HEAL /////////////////////////////////////////
 
-
-    // 🎯 LOCAL STATE ASSIGNMENTS (Fixed references using flat camelCase helper object)
+    // LOCAL STATE ASSIGNMENTS (Fixed references using flat camelCase helper object)
     let finalSubscriptionId = accountCtx.stripeSubscriptionId
-    console.log("FINAL SUB ID:", finalSubscriptionId)
     let finalSubItemId = accountCtx.stripeSubscriptionItemId
-    console.log("FINAL ITEM ID:", finalSubItemId)
     let finalSubStatus = accountCtx.subscriptionStatus
-    console.log("FINAL STATUS:", finalSubStatus)
-
     const dbPlanName = accountCtx.planName
-    
-    // Wrapped status assertions in grouping parentheses for correct logical precedence
+    // Is this REALLY a paid sub?
     let finalIsPaidSub = dbPlanName && dbPlanName !== 'free' && finalSubscriptionId && (finalSubStatus === 'active' || finalSubStatus === 'trialing');
-
-    // RULE: If it's the team plan, force a baseline minimum of 2 seats
+    // TEAMS: If it's the team plan, force a baseline minimum of 2 seats
     const finalQuantity = plan === 'team' ? Math.max(2, seatsRequested || 2) : 1;
 
 
-    // CACHE-MISS SUBSCRIPTION PROTECTION
+    // DOUBLE CHECK WITH STRIPE ///////////////////////////////////////////////////
     // If the DB thought they were free, but they actually have a valid customer ID, 
     // run a quick direct verification with Stripe before letting them check out.
     if (!finalIsPaidSub && accountCtx.stripeCustomerId) {
@@ -163,11 +155,35 @@ export async function POST(request: Request) {
       }
     }
 
-
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     // BRANCH A: DEEP LINK UPDATE PORTAL ///////////////////////////////////////////////////////////////
     // For existing paying customers upgrading, downgrading, or adding seats
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     if (finalIsPaidSub && finalSubscriptionId) {
       console.log(`[Billing Workflow] Active paid subscription found (${finalSubscriptionId}). Generating switch deep link...`)
+
+      if(plan === 'free'){
+        // send downgrade signal to stripe reset db
+        // if user is owner of a team sub -> Kill all members down to 'free' 
+        console.log(`[Billing Workflow] Scheduling downgrade to free for subscription ${finalSubscriptionId}`)
+
+        // 1. Tell Stripe to stop billing them at the end of the current cycle
+      const updatedSub = await stripe.subscriptions.update(finalSubscriptionId, {
+          cancel_at_period_end: true
+        })
+
+        // IS THE CANCELLATION SET?
+        console.log(`[Stripe Verification] Is scheduled to cancel? ${updatedSub.cancel_at_period_end}`);
+        console.log(`[Stripe Verification] True expiration date: ${new Date(updatedSub.cancel_at! * 1000).toLocaleDateString()}`);
+
+        // 2. Clear out your local "paid_plan" ledger record if desired, or let the webhook handle it.
+        // We return early so they never hit the Stripe Billing Portal generation code below.
+        return NextResponse.json({ 
+          success: true, 
+          url: '/dash?update=success', 
+          message: 'Your subscription will remain active until the end of your billing period, then cascade to the free tier.' 
+        })
+      }
 
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: accountCtx.stripeCustomerId!,
@@ -193,9 +209,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ url: portalSession.url })
     }
 
-
-    // BRANCH B: COLD CALLER CHECKOUT /////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    // BRANCH B: COLD CALLER CHECKOUT //////////////////////////////////////////////////////////////////
     // For Free tier users or new signups going premium for the first time
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     console.log(`[Billing Workflow] No active paid subscription found. Generating fresh checkout form...`)
     
     if (!accountCtx.accountId) {

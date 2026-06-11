@@ -253,18 +253,14 @@ console.log(`[Provisioning] Linking Subscription ${subscriptionId} to Account ${
 
 /********************************************************
  * Clears database permissions if a subscription is deleted/terminated upstream
+ * sent by: 'customer.subscription.deleted'
  *******************************************************/
 async function handleSubscriptionDeletion(subscription: Stripe.Subscription, supabaseAdmin: SupabaseClient<Database>) {
 
   let customerId = subscription.customer as string;
   let subscriptionId = subscription.id;
-  let planChoice = subscription.metadata?.planChoice || subscription.metadata?.plan;
-  let sessionMetadata = subscription.metadata || undefined; 
-
   let userId: string | null = null;
   let accountId: string | null = null;
-
-  
   const matchedAccount = await getAccountByStripeId(customerId);
   
   // IT WORKED. WE HAVE ACCOUNT AND SUB //////////////////
@@ -279,15 +275,13 @@ async function handleSubscriptionDeletion(subscription: Stripe.Subscription, sup
   return NextResponse.json({ received: false });  
   }
 
-
   await supabaseAdmin
     .from('accounts')
-    .update({ 
-        plan_name: 'free', 
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
+    .update({
+        plan_name: 'free'
       })
-      .eq('id', accountId);
+      .eq('id', accountId )
+      .eq('stripe_subscription_id', subscriptionId);
   
   console.log(`Successfully updated subscription status to canceled for: ${subscription.id}`);
 
@@ -375,20 +369,57 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
       break;
     }
     case 'invoice.payment_succeeded': {
-      const targetPlan = matchedAccount.paid_plan || eventObject.metadata?.planChoice || 'pro';
-      
-      await supabaseAdmin
-        .from('accounts')
-        .update({ 
-          plan_name: targetPlan,             // Recovery success, reopen access lines
-          subscription_status: 'active' 
-        })
-        .eq('id', matchedAccount.id);
-      break;
-    }
+  const invoice = event.data.object;
+  
+  // 1. Extract the active array of line items itemized on this invoice
+  const lineItems = invoice.lines?.data;
+  if (!lineItems || lineItems.length === 0) {
+    console.error('[Invoice Webhook Error] Invoice contains zero line items.');
+    return new Response('Missing itemized lines', { status: 400 });
+  }
+
+  console.log("LINE ITEMS INV:  ", lineItems)
+
+  // 2. Cast to any to bypass TS compilation strictness safely 🛡️
+  const firstItem = lineItems[0] as any;
+  
+  // 3. Fall back to item.plan?.id if your Stripe Dashboard uses an older API version pin
+  const targetPriceId = firstItem.price?.id || firstItem.plan?.id;
+
+
+  // 3. Run the dynamic reverse lookup against your PRICE_IDS map
+  const verifiedPaidPlan = Object.keys(PRICE_IDS).find(key => PRICE_IDS[key] === targetPriceId);
+
+  // Safety fall-through guardrail
+  if (!verifiedPaidPlan) {
+    console.error(`[Invoice Webhook Error] Unmapped Price ID detected: ${targetPriceId}`);
+    return new Response('Price ID lookup failed', { status: 400 });
+  }
+
+  console.log(`[Invoice Webhook] Success! Money received for tier: ${verifiedPaidPlan}`);
+
+  // 4. Sync up your separate data states
+  const { error: dbError, data: updatedRows } = await supabaseAdmin
+    .from('accounts')
+    .update({
+      plan_name: verifiedPaidPlan,  // 🔑 Open the active gate because payment cleared!
+      paid_plan: verifiedPaidPlan,  // 📝 Update the "most recently paid" ledger tracking record
+    })
+    .eq('id', matchedAccount.id)    // Uses your matched account from context scope
+    .select('id, plan_name, paid_plan');
+
+  if (dbError) {
+    console.error(`[Database Error] Failed to open access gate for account ${matchedAccount.id}:`, dbError);
+    return new Response('Database gate open error', { status: 500 });
+  }
+
+  console.log(`[Postgres Verification] Row immediately after invoice payment UPDATE query:`, updatedRows?.[0]);
+
+  break;
+}
   case 'customer.subscription.updated': {
     console.log("current plan is ", matchedAccount.paid_plan);
-    console.log("customer.subscription.updated looks like this:", event);
+    //console.log("customer.subscription.updated looks like this:", event);
 
     const subscription = event.data.object;
     const previousAttributes = event.data.previous_attributes;
@@ -415,22 +446,21 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
       console.log(`[Database] Synchronizing account ${matchedAccount.id} to tier: ${newPlanName}`);
 
       // 4. Update your database schema
-      const { error: dbError } = await supabaseAdmin
+      const {data: updatedRows, error: dbError } = await supabaseAdmin
         .from('accounts')
         .update({
           plan_name: newPlanName,
           paid_plan: newPlanName,
           stripe_subscription_item_id: activeItem.id, // Keep tracking the fresh active item ID
         })
-        .eq('id', matchedAccount.id); // Uses the pre-matched account row ID from your scope
-
+        .eq('id', matchedAccount.id)
+        .select('id, plan_name, paid_plan');
       if (dbError) {
         console.error(`[Database Error] Tier transition failed for account ${matchedAccount.id}:`, dbError);
         return new Response('Database write error during upgrade', { status: 500 });
       }
 
-      console.log(`[Success] Account ${matchedAccount.id} updated from ${matchedAccount.paid_plan} to ${newPlanName}.`);
-
+      console.log(`[Postgres Verification] Row immediately after UPDATE query:`, updatedRows?.[0])
     } else {
       console.log('[Webhook] Noise Filtered: Status/Metadata update, skipping tier provisioning.');
     }

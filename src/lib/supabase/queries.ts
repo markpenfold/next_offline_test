@@ -141,6 +141,8 @@ export async function getAccountOwner(accountId:string): Promise<string | null> 
   return profile?.email || null
 }
 
+
+// get SINGLE user account where they are the owner
 export async function getActiveUserAccount( user_id: string) {
   
   const supabaseAdmin = await createAdminClient()
@@ -160,8 +162,25 @@ export async function getActiveUserAccount( user_id: string) {
   }
 
   return membership;
+}
 
+//get ALL ACCOUNTS this user owns 
+export async function getActiveUserAccounts(user_id: string) {
+  const supabaseAdmin = await createAdminClient();
 
+  const { data: memberships, error: dbError } = await supabaseAdmin
+    .from('memberships')
+    .select('account_id, accounts(stripe_customer_id)')
+    .eq('user_id', user_id)
+    .eq('role', 'owner'); // Removed .maybeSingle() to allow arrays
+
+  if (dbError) {
+    console.error(`[Queries] Error fetching accounts for user ID ${user_id}:`, dbError);
+    return [];
+  }
+  // If no memberships found, return an empty array safely
+  if (!memberships) return [];
+  return memberships;
 }
 
 export async function getUserProfile(userId: string): Promise<Tables<'profiles'> | null> {
@@ -234,7 +253,40 @@ export async function setUpStripeCustomer(accountId:string, userId:string):Promi
         return stripeCustomerId;
 }
 
+// Fetch ALL  ACCOUNTS + USER'S ROLE ///////////////////
+export async function getAllUserAccountsWithRoles(user_id: string) {
+  const supabaseAdmin = await createAdminClient();
 
+  const { data: memberships, error: dbError } = await supabaseAdmin
+    .from('memberships')
+    .select(`
+      account_id,
+      role, 
+      accounts (
+        stripe_customer_id
+      )
+    `)
+    .eq('user_id', user_id); // 🟢 Filter by user, but allow ALL roles!
+
+  if (dbError) {
+    console.error(`[Queries] Error fetching all accounts for user ID ${user_id}:`, dbError);
+    return [];
+  }
+
+  if (!memberships) return [];
+
+  // Clean and normalize the data array before sending it to your components
+  return memberships.map((m) => {
+    // Safely extract the account data whether Supabase types it as an array or object
+    const accountDetails = Array.isArray(m.accounts) ? m.accounts[0] : m.accounts;
+
+    return {
+      account_id: m.account_id,
+      role: m.role, // 🟢 Returns 'owner', 'member', 'admin', etc.
+      stripe_customer_id: accountDetails?.stripe_customer_id || null,
+    };
+  });
+}
 
 
 // Define the query builder independently so TypeScript can inspect it
@@ -267,6 +319,8 @@ export async function getAccountContext(
 ) {
   const { data, error } = await getAccountContextQuery(supabase, userId, accountId)
 
+  // the user is not OWNER or there was some other error
+  // Sends NULL back to caller
   if (error || !data) return null
 
   // Cast safely using our inferred query type

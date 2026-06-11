@@ -1,12 +1,13 @@
 'use client'
 
-import { useContext } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { AppStoreContext } from "@/providers/AppStoreProvider"; // 🆕 Make sure to export the raw Context from your provider file!
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { LogoutButton } from "@/components/LogoutButton";
 import classes from '@/app/styles/sitenav.module.css'
 import { Circle } from 'lucide-react';
+import { AVATAR_BUCKET_URL } from '@/lib/utils/constants';
 
 // =========================================================
 // 1. THE SITESHIFT BOARD (The "Test" component)
@@ -53,15 +54,27 @@ function AuthenticatedSiteNav() {
   const profile = useAppStore((s) => s.profile);
   const uID = useAppStore((s) => s.userId);
   const authStatus = useAppStore((s) => s.authStatus);
+  const avatarVersion = useAppStore((s) => s.avatarVersion || '')
+  // State to track if the current avatar URL fails to load
+  const [imageError, setImageError] = useState(false)
+  const avatarUrl = uID ? `${AVATAR_BUCKET_URL}/${uID}/avatar.png?v=${avatarVersion}` : null
 
-  const getInitials = (name: string | null) => {
-    if (!name) return 'OL';
-    return name.replace(/[._+]/g, ' ').split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+  const getInitials = () => {
+      const identifier = profile?.username || profile?.email || 'OL'
+      return identifier
+        .replace(/[._+@]/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    }
 
-  const avatarUrl = profile?.hasAvatar 
-    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${uID}.png`
-    : null;
+  // Reset the error state if the user uploads a new image or switches accounts
+  useEffect(() => {
+    setImageError(false)
+  }, [uID, avatarVersion])
 
   // Even if authenticated, handle states where profile data hasn't fully hydrated yet
   if (authStatus !== 'authenticated' || !profile) {
@@ -86,17 +99,26 @@ function AuthenticatedSiteNav() {
             Plan: {tier.toUpperCase()}
           </span>
         </div>
-
-        {avatarUrl ? (
+      <div  className={classes.avatarHolder}>
+        {/* 🟢 Condition: Try loading the image only if we haven't hit a 404/error yet */}
+        {avatarUrl && !imageError ? (
           <img 
             src={avatarUrl} 
-            alt="Avatar" 
+            alt="User Avatar" 
             className={classes.avatar}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            crossOrigin="anonymous"
+            onError={() => {
+              // If the image doesn't exist (404) or they are offline and it's uncached, 
+              // this triggers and seamlessly flips the UI to the text fallback.
+              setImageError(true)
+            }}
           />
         ) : (
-          <div className={classes.avatarFallback}>{getInitials(profile.name)}</div>
+          <div className={classes.avatarFallback}>
+            {getInitials()}
+          </div>
         )}
+      </div>
 
         <LogoutButton />
       </div>

@@ -17,9 +17,10 @@ export default function PricingPage() {
     const authStatus = useAppStore((s) => s.authStatus);
     const checkNetwork = useAppStore((s) => s.checkNetwork);
     const activeAccount = useAppStore((s) => s.activeAccount);
-    
     const searchParams = useSearchParams()
     const error = searchParams.get('error')
+
+    
 
   
   return (

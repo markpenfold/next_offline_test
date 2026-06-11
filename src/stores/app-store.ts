@@ -22,6 +22,9 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     offlineLeaseJwt: null,
     activeAccount: null,
     accounts: [],
+    avatarVersion: '',
+  
+    setAvatarVersion: (version) => set({ avatarVersion: version }),
 
     // Rules engine
     canAccessWorkspace: () => {
@@ -46,20 +49,29 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       
       if (get().authStatus === 'loading') return;
       set({ authStatus: 'loading' });
-      let isOnline = await get().checkNetwork();
 
-      // Standard app launch. Attempt immediate hydration from disk.
+      // 1. Check if the device can talk to the internet
+      const online = await get().checkNetwork();
+
+      // 2. Load the old state from disk instantly so the UI doesn't stutter
       const successfullyHydrated = get().hydrateFromCache();
-      if (successfullyHydrated) {
-        return; // Cache was present, validated, and loaded. We're done.
+
+      // 3. The Live Verification Pass
+      if (online) {
+        console.log("⚡ Online detected. Revalidating local cache against live database...");
+        
+        // Bypasses the early return trap and forces a check against Supabase.
+        // When this completes, its internal set() will automatically flip the UI to 'founder'
+        await get().syncFromDatabase(); 
+      } else {
+        // Fallback safety for offline situations
+        if (successfullyHydrated) {
+          console.log("Operating securely out of local offline cache container.");
+        } else {
+          console.log("Device is offline and no local cache exists. Clearing slate.");
+          get().clearSlate(); 
+        }
       }
-      // 2. If online, seamlessly top-off the data in the background (No 'await'!)
-      if (isOnline) {
-        get().syncFromDatabase().catch(e => console.error("Background sync failed:", e));
-      }
-      // Scenario C: Cold boot / Missing cache / Password Update Auto-Login. Check for ambient cookies.
-      console.log("Local storage lease empty or expired. Checking ambient cookie states...");
-      await get().syncFromDatabase();
     },
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -128,10 +140,11 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         // Check database value first, then metadata fallback, default to free
         const finalTier = fetchedAccounts[0]?.plan_name || user.user_metadata?.pending_plan || 'free';
 
+        console.log("setting has_avatar to: ", user.user_metadata, !!user.user_metadata?.avatar_url)
         const formattedProfile = {
           name: user.user_metadata?.name || null,
           username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
-          hasAvatar: !!user.user_metadata?.avatar_url,
+          has_avatar: !!user.user_metadata?.avatar_url,
           email: user.email || '',
         };
 
@@ -167,12 +180,12 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
 
     // 3. EXPLICIT INTERCEPT HANDLER (Called when user types credentials into standard forms)
     loginSuccess: (payload: LoginPayload) => {
-      console.log("🎯 Explicit login caught. Writing custom payload to memory...", payload.user.name);
+      console.log("Explicit login caught. Writing custom payload to memory...",  payload.user.name, "has avatar:", payload.user.hasAvatar );
 
       const formattedProfile = {
         name: payload.user.name,
         username: payload.user.username,
-        hasAvatar: payload.user.hasAvatar,
+        has_avatar: payload.user.hasAvatar,
         email: payload.user.email || '',
       };
 

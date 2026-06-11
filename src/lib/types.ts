@@ -58,7 +58,7 @@ export interface AccountContext {
 export interface UserProfile {
   name: string | null;
   username: string | null;
-  hasAvatar: boolean; // CamelCase intentional for frontend runtime parsing
+  has_avatar: boolean; // CamelCase intentional for frontend runtime parsing
   email: string;
 }
 
@@ -136,7 +136,9 @@ export interface AppState {
   offlineLeaseJwt: string | null;
   activeAccount: string | null;
   accounts: AccountContext[];
+  avatarVersion: string; 
   
+  setAvatarVersion: (version: string) => void; 
   canAccessWorkspace: () => boolean;
   checkNetwork: () => Promise<boolean>;
   initializeWorkspace: () => Promise<void>;
