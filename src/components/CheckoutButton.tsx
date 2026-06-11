@@ -4,15 +4,23 @@ import { useState } from 'react'
 
 interface CheckoutButtonProps {
   plan: string
-  activeAccount:string
+  activeAccount:string | null
   className: string
   children: React.ReactNode
 }
 
 export function CheckoutButton({ plan, activeAccount, className, children }: CheckoutButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const isDisabled = isLoading || !activeAccount
 
   const handleCheckout = async () => {
+    if (!activeAccount) {
+      console.warn('[Checkout] Intercepted click: activeAccount is null.')
+      alert('Your workspace account data is still loading. Please wait a moment and try again.')
+      return
+    }
+
+
     setIsLoading(true)
     try {
       const res = await fetch('/api/checkout/stripe/', {
@@ -40,11 +48,17 @@ export function CheckoutButton({ plan, activeAccount, className, children }: Che
   return (
     <button
       onClick={handleCheckout}
-      disabled={isLoading}
+      disabled={isDisabled}
       className={className}
       style={{ cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.7 : 1 }}
     >
-      {isLoading ? 'Processing...' : children}
+      {isLoading ? (
+        'Processing...'
+      ) : !activeAccount ? (
+        'Loading Account ...' //User-friendly indicator
+      ) : (
+        children
+      )}
     </button>
   )
 }

@@ -24,3 +24,10 @@ export  const tier_details = [
     { name: 'Team', id: 'team', price: '£9/Mo Per member', type: 'premium' },
     { name: 'Founder', id: 'founder', price: '£120/Year', type: 'premium' },
   ]
+
+
+ export const PRICE_IDS: Record<string, string> = {
+  pro: process.env.STRIPE_PRICE_PRO!,
+  team: process.env.STRIPE_PRICE_TEAM!,
+  founder: process.env.STRIPE_PRICE_FOUNDER!,
+}

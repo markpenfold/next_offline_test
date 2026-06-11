@@ -6,8 +6,9 @@ import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@
 import { createClient } from '@/lib/supabase/client';
 import { fetchUserAccounts } from '@/lib/supabase/client_queries';
 
-const supabase = createClient();
 
+const supabase = createClient();
+//const SCHEMA_VERSION = 'v2_0_0';
 export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
   console.log("CreateAppStore RUNS with initial Tier of:",initialTier );
 
@@ -45,23 +46,17 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       
       if (get().authStatus === 'loading') return;
       set({ authStatus: 'loading' });
-      await get().checkNetwork();
+      let isOnline = await get().checkNetwork();
 
-      const isReturningFromStripe = typeof window !== 'undefined' && window.location.search.includes('session_id=');
-      
-      // Scenario A: User just passed checkout. Bypass local storage completely to capture up-to-date DB records.
-      if (isReturningFromStripe) {
-        console.log("Stripe parameter found in address line. Forcing structural network rebuild...");
-        await get().syncFromDatabase();
-        return;
-      }
-
-      // Scenario B: Standard app launch. Attempt immediate hydration from disk.
+      // Standard app launch. Attempt immediate hydration from disk.
       const successfullyHydrated = get().hydrateFromCache();
       if (successfullyHydrated) {
         return; // Cache was present, validated, and loaded. We're done.
       }
-
+      // 2. If online, seamlessly top-off the data in the background (No 'await'!)
+      if (isOnline) {
+        get().syncFromDatabase().catch(e => console.error("Background sync failed:", e));
+      }
       // Scenario C: Cold boot / Missing cache / Password Update Auto-Login. Check for ambient cookies.
       console.log("Local storage lease empty or expired. Checking ambient cookie states...");
       await get().syncFromDatabase();

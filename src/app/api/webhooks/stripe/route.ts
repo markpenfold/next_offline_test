@@ -6,7 +6,7 @@ import {createAdminClient} from '@/lib/supabase/admin'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { Database, Tables } from '@/lib/database_types'
 import { sendEmergencyAdminAlert } from '@/lib/utils/sendEmergencyLog'
-
+import { PRICE_IDS } from '@/lib/utils/constants'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-05-27.dahlia",
@@ -119,7 +119,7 @@ async function handleSubscriptionProvisioning(event: Stripe.Event, supabaseAdmin
   const currentSeatCount = subscriptionItem.quantity || 1;
 
   // 4. Debug check to verify your payload parsing works perfectly
-  console.log(`[Provisioning Preview] Sub: ${subscriptionId} | Price: ${actualPriceId} | Seats: ${currentSeatCount}`);
+  console.log(`[Provisioning Preview] Sub: ${subscriptionId} | Price: ${actualPriceId} | Seats: ${currentSeatCount} | itemID: ${subscriptionItemId} `);
 
  // =========================================================
 // IDENTITY RESOLUTION PIPELINE
@@ -160,6 +160,7 @@ if (!accountId && userId) {
 // THE KILL PATH (Leveraging Stripe's Native Retries)
 // =========================================================
 if (!userId || !accountId) {
+  console.log("we have an issue with user/acc ID:", userId, accountId)
   // Check if we already processed this subscription to prevent duplicate work
   const { data: existingSub } = await supabaseAdmin
     .from('accounts') 
@@ -250,21 +251,6 @@ console.log(`[Provisioning] Linking Subscription ${subscriptionId} to Account ${
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /********************************************************
  * Clears database permissions if a subscription is deleted/terminated upstream
  *******************************************************/
@@ -312,14 +298,49 @@ async function handleSubscriptionDeletion(subscription: Stripe.Subscription, sup
 
 
 async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: SupabaseClient<Database>) {
-  const subscription = event.data.object as Stripe.Subscription;
-  const customerId = subscription.customer as string;
-  
-  const matchedAccount = await getAccountByStripeId(customerId);
-  if (!matchedAccount) return;
 
+  let customerId: string | null = null;
+  let eventObject = null;
+
+
+  // Typecast incoming event object //////////////////////////////////////
+  if (event.type.startsWith('customer.subscription.')) {
+    eventObject = event.data.object as Stripe.Subscription;
+    customerId = typeof eventObject.customer === 'string' 
+      ? eventObject.customer 
+      : eventObject.customer?.id || null;
+
+  } else if (event.type.startsWith('invoice.')) {
+    eventObject = event.data.object as Stripe.Invoice;
+    customerId = typeof eventObject.customer === 'string' 
+      ? eventObject.customer 
+      : eventObject.customer?.id || null;
+  }
+
+
+
+
+  // Global Guardrails ///////////////////////////////////////////////////////////////////////////
+   if (!eventObject) {
+    console.error(`[Webhook] eventObject was not initialized: ${event.type}`);
+    return;
+  }
+
+  if (!customerId) {
+    console.error(`[Webhook] Unhandled event category or missing customer for: ${event.type}`);
+    return;
+  }
+  const matchedAccount = await getAccountByStripeId(customerId);
+  if (!matchedAccount) {
+    console.error(`[Webhook] No DB account matches Stripe Customer: ${customerId}`);
+    return;
+  }
+
+  // SWITCH on INVOICE or SUBSCRIPTION events ////////////////////////////////////////////////////////
+  // SUBS update the db directly with upgrade/downgrade
+  // INVOICEs update status -> active/inactive/paused/resumed
   switch (event.type) {
-    case 'customer.subscription.paused':
+    case 'customer.subscription.paused':{
       await supabaseAdmin
         .from('accounts')
         .update({ 
@@ -329,10 +350,10 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
         })
         .eq('id', matchedAccount.id);
       break;
-
+    }
     case 'customer.subscription.resumed': {
       // Self-Healing Strategy: Fall back to Stripe metadata ONLY if your DB column is empty
-      const targetPlan = matchedAccount.paid_plan || subscription.metadata?.planChoice || 'pro';
+      const targetPlan = matchedAccount.paid_plan || eventObject.metadata?.planChoice || 'pro';
       
       await supabaseAdmin
         .from('accounts')
@@ -343,8 +364,7 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
         .eq('id', matchedAccount.id);
       break;
     }
-
-    case 'invoice.payment_failed':
+    case 'invoice.payment_failed':{
       await supabaseAdmin
         .from('accounts')
         .update({ 
@@ -353,9 +373,9 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
         })
         .eq('id', matchedAccount.id);
       break;
-
+    }
     case 'invoice.payment_succeeded': {
-      const targetPlan = matchedAccount.paid_plan || subscription.metadata?.planChoice || 'pro';
+      const targetPlan = matchedAccount.paid_plan || eventObject.metadata?.planChoice || 'pro';
       
       await supabaseAdmin
         .from('accounts')
@@ -366,10 +386,59 @@ async function handleSubscriptionStatus(event: Stripe.Event, supabaseAdmin: Supa
         .eq('id', matchedAccount.id);
       break;
     }
+  case 'customer.subscription.updated': {
+    console.log("current plan is ", matchedAccount.paid_plan);
+    console.log("customer.subscription.updated looks like this:", event);
+
+    const subscription = event.data.object;
+    const previousAttributes = event.data.previous_attributes;
+    
+    // 1. Check if the underlying line items actually changed
+    const isPlanChange = previousAttributes && 'items' in previousAttributes;     
+    
+    if (isPlanChange) {
+      console.log('[Webhook] Confirmed: This is a genuine tier upgrade or downgrade.');
+      
+      // Extract your new plan details
+      const activeItem = subscription.items.data[0];
+      const incomingPriceId = activeItem.price.id; 
+      
+      // 2. Perform the dynamic reverse lookup
+      const newPlanName = Object.keys(PRICE_IDS).find(key => PRICE_IDS[key] === incomingPriceId);
+
+      // 3. Guardrail if someone manages to buy an unmapped legacy plan
+      if (!newPlanName) {
+        console.error(`[Webhook Error] Unrecognized Price ID received: ${incomingPriceId}`);
+        return new Response('Unknown price conversion', { status: 400 });
+      }
+
+      console.log(`[Database] Synchronizing account ${matchedAccount.id} to tier: ${newPlanName}`);
+
+      // 4. Update your database schema
+      const { error: dbError } = await supabaseAdmin
+        .from('accounts')
+        .update({
+          plan_name: newPlanName,
+          paid_plan: newPlanName,
+          stripe_subscription_item_id: activeItem.id, // Keep tracking the fresh active item ID
+        })
+        .eq('id', matchedAccount.id); // Uses the pre-matched account row ID from your scope
+
+      if (dbError) {
+        console.error(`[Database Error] Tier transition failed for account ${matchedAccount.id}:`, dbError);
+        return new Response('Database write error during upgrade', { status: 500 });
+      }
+
+      console.log(`[Success] Account ${matchedAccount.id} updated from ${matchedAccount.paid_plan} to ${newPlanName}.`);
+
+    } else {
+      console.log('[Webhook] Noise Filtered: Status/Metadata update, skipping tier provisioning.');
+    }
+
+    break; 
+    }
   }
 }
-
-
 
 
 
