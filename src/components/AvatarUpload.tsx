@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { useAppStore } from "@/providers/AppStoreProvider" // 🟢 Watch/Write to your global store
 import { avatarSchema } from "@/lib/validations/primitives"
-import styles from '@/app/styles/styles.module.css'
+import styles from '@/app/styles/dashboard.module.css'
 import { AVATAR_BUCKET_URL } from '@/lib/utils/constants'
 
 export function AvatarUpload({ userId }: { userId: string }) {
@@ -20,6 +20,8 @@ export function AvatarUpload({ userId }: { userId: string }) {
   const avatarVersion = useAppStore((s) => s.avatarVersion || '')
   const setAvatarVersion = useAppStore((s) => s.setAvatarVersion)
   const profile = useAppStore((s) => s.profile)
+  const syncFromDatabase = useAppStore((s) => s.syncFromDatabase)
+  
 
   const supabase = createClient()
   const baseUrl = `${AVATAR_BUCKET_URL}/${userId}/avatar.png`
@@ -42,6 +44,41 @@ export function AvatarUpload({ userId }: { userId: string }) {
       .toUpperCase()
       .slice(0, 2)
   }
+
+  const handleDelete = async () => {
+  const confirmDelete = confirm("Are you sure you want to remove your avatar?")
+  if (!confirmDelete) return
+
+  setUploading(true)
+  setErrorMsg(null)
+
+  try {
+    // 1. Tell the database the user explicitly has NO avatar
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .update({ has_avatar: false })
+      .eq('id', userId)
+
+    if (dbError) throw dbError
+
+    // 2. Clean up the physical file from the storage bucket
+    const filePath = `${userId}/avatar.png`
+    await supabase.storage.from('avatars').remove([filePath])
+
+    // 3. Sync the update directly to your global Zustand store.
+    // This stops the old localStorage state from overwriting it on a reload!
+    syncFromDatabase();
+
+    // 4. Force our local workspace preview to drop back to initials
+    setLoadError(true)
+
+  } catch (error) {
+    console.error(error)
+    setErrorMsg("Could not delete avatar. Please try again.")
+  } finally {
+    setUploading(false)
+  }
+}
 
   const handleFileSelect = (file: File | undefined) => {
     setErrorMsg(null)
@@ -85,68 +122,90 @@ export function AvatarUpload({ userId }: { userId: string }) {
   }
 
   return (
-    <div className={styles.avatarWorkspace}>
-      <div className={styles.uploadBox}>
-        <h3>Upload your Avatar</h3>
-      </div>
-     
-      <label 
-        className={`${styles.dropZone} ${isDragging ? styles.dragging : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setIsDragging(false)
-          handleFileSelect(e.dataTransfer.files?.[0])
-        }}
-      >
-        <input 
-          type="file" 
-          onChange={(e) => handleFileSelect(e.target.files?.[0])} 
-          accept="image/*"
-          className={styles.hiddenInput}
+   <div className={styles.gridCard}>
+  <div className={styles.uploadBox}>
+    <h1 className={styles.AccountCardHeader}>Upload your Avatar</h1>
+  </div>
+ 
+  <label 
+    className={`${styles.dropZone} ${isDragging ? styles.dragging : ''}`}
+    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+    onDragLeave={() => setIsDragging(false)}
+    onDrop={(e) => {
+      e.preventDefault()
+      setIsDragging(false)
+      handleFileSelect(e.dataTransfer.files?.[0])
+    }}
+  >
+    <input 
+      type="file" 
+      onChange={(e) => handleFileSelect(e.target.files?.[0])} 
+      accept="image/*"
+      className={styles.hiddenInput}
+    />
+    
+    <div className={styles.circleWrapper}>
+      {/* 🟢 Look directly at the store profile state flag to choose what to render */}
+      {(localPreview || (profile?.has_avatar && !loadError)) ? (
+        <img 
+          src={localPreview || previewUrl} 
+          className={styles.avatarImg}
+          alt="Avatar Workspace Preview"
+          crossOrigin="anonymous"
+          onError={() => {
+            if (!localPreview) {
+              setLoadError(true)
+            }
+          }}
         />
-        
-        <div className={styles.circleWrapper}>
-          {/* 🟢 Render image if there is a file selected OR if the bucket file didn't 404 error out */}
-          {(localPreview || !loadError) ? (
-            <img 
-              src={localPreview || previewUrl} 
-              className={styles.avatarImg}
-              alt="Avatar Workspace Preview"
-              crossOrigin="anonymous"
-              onError={() => {
-                // If the user has no avatar file in the bucket yet, 
-                // flip the local load error flag to switch gracefully to text initials
-                if (!localPreview) {
-                  setLoadError(true)
-                }
-              }}
-            />
-          ) : (
-            /* 🟢 Minimalist Text Initials Fallback inside the workspace container */
-            <div className={styles.avatarFallbackText}>
-              {getInitials()}
-            </div>
-          )}
-
-          <div className={styles.overlay}>
-            <span>{selectedFile ? 'CHANGE' : 'UPLOAD'}</span>
-          </div>
+      ) : (
+        <div className={styles.avatarFallbackText}>
+          {getInitials()}
         </div>
-      </label>
-
-      {errorMsg && <p className={styles.errorText}>⚡ {errorMsg}</p>}
-
-      {selectedFile && (
-        <button 
-          onClick={startUpload} 
-          disabled={uploading}
-          className={styles.actionButton}
-        >
-          {uploading ? 'SAVING TO OMENLAND...' : 'CONFIRM & SAVE'}
-        </button>
       )}
+
+      <div className={styles.overlay}>
+        <span>{selectedFile ? 'CHANGE' : 'UPLOAD'}</span>
+      </div>
     </div>
+  </label>
+
+  {errorMsg && <p className={styles.errorText}>⚡ {errorMsg}</p>}
+
+  {/* Confirm & Save Button */}
+  {selectedFile && (
+    <button 
+      onClick={startUpload} 
+      disabled={uploading}
+      className={styles.actionButton}
+    >
+      {uploading ? 'SAVING TO OMENLAND...' : 'CONFIRM & SAVE'}
+    </button>
+  )}
+
+  {/* 🟢 Delete Button: Shows up if they have an active database avatar flag and haven't staged a new local file change */}
+  {profile?.has_avatar && !selectedFile && (
+    <button 
+      onClick={handleDelete} 
+      disabled={uploading}
+      className={styles.deleteButton}
+      style={{
+        marginTop: '12px',
+        backgroundColor: 'transparent',
+        color: '#e11d48',
+        border: '1px solid #e11d48',
+        padding: '8px 16px',
+        fontSize: '0.7rem',
+        fontWeight: 'bold',
+        letterSpacing: '0.2em',
+        cursor: 'pointer',
+        width: '240px',
+        textTransform: 'uppercase'
+      }}
+    >
+      {uploading ? 'DELETING...' : 'DELETE AVATAR'}
+    </button>
+  )}
+</div>
   )
 }

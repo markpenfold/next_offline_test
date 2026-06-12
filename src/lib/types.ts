@@ -58,7 +58,7 @@ export interface AccountContext {
 export interface UserProfile {
   name: string | null;
   username: string | null;
-  has_avatar: boolean; // CamelCase intentional for frontend runtime parsing
+  has_avatar: boolean; 
   email: string;
 }
 
@@ -149,4 +149,5 @@ export interface AppState {
   syncFromDatabase: () => Promise<void>;
   clearSlate: () => void;
   refreshTier: () => Promise<void>;
+  setActiveAccount: (accChoice:AccountContext) => void;
 }

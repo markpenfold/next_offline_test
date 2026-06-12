@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { AccountContext } from "@/lib/types"
 
 interface CheckoutButtonProps {
   plan: string
-  activeAccount:string | null
+  activeAccount:AccountContext | null
   className: string
   children: React.ReactNode
 }
@@ -26,7 +27,7 @@ export function CheckoutButton({ plan, activeAccount, className, children }: Che
       const res = await fetch('/api/checkout/stripe/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, activeAccount }),
+        body: JSON.stringify({ plan, accountId: activeAccount.id }),
       })
 
       const data = await res.json()

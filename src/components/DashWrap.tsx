@@ -1,32 +1,36 @@
-// 📄 src/components/DashboardClientWrapper.tsx
-'use client';
+'use client'
 
-import { useAppStore } from "@/providers/AppStoreProvider";
-import { SiteNav } from '@/components/SiteNav';
-import { SandboxWorkspace } from '@/components/SandboxWorkspace';
+import { useAppStore } from "@/providers/AppStoreProvider"
+import { SiteNav } from "@/components/SiteNav" // Adjust path as needed
+import styles from '@/app/styles/dashboard.module.css' 
 
 export default function DashWrap({ children }: { children: React.ReactNode }) {
-  const authStatus = useAppStore((state) => state.authStatus);
+  const authStatus = useAppStore((state) => state.authStatus)
+  const profile = useAppStore((s) => s.profile)
 
-  // Still handling client states gracefully
   if (authStatus === 'unknown' || authStatus === 'loading') {
-    return <div className="p-10 text-center">Initializing workspace...</div>;
+    return <div className={styles.loadingContainer}>Initializing workspace...</div>
   }
 
   return (
     <>
       <SiteNav />
-      <div style={{ maxWidth: '600px', margin: 'auto', padding: '20px' }}>
-        
-        {/* 🟢 The Server Component compiles into HTML and drops right here */}
-        <div className="my-4">
-          {children}
+
+      <div className={styles.pageContainer}>
+        <div className={styles.leftPageHeader}>
+          <h1 className={styles.bigHeader}>
+            Dashboard  
+            <span className={styles.redText}> | </span> 
+            <span className={styles.lightHeaded}>Welcome, {profile?.name || 'explorer'}</span>
+          </h1>
         </div>
 
-        {/* The rest of your offline-first playground */}
-        <SandboxWorkspace />
-        
+        {/* THE RESPONSIVE GRID LAYOUT CONTAINER */}
+        <div className={styles.dashboardGrid}>
+          {/* Main children components injected here from your sub-pages */}
+          {children}
+        </div>
       </div>
     </>
-  );
+  )
 }

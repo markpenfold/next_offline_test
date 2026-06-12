@@ -3,15 +3,11 @@
 :root {
   --background: rgb(245,245,245);
   --foreground: rgb(30,30,30);
+  --red:rgb(162, 5, 5);
+  --green:rgb(27, 99, 116);
+  --blue:rgb(65,105,225);
 }
 
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -20,8 +16,18 @@
   }
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* This makes Geist Sans the default font for everything */
+  font-family: var(--font-geist-sans), sans-serif;
+  
+  /* Optional: Ensures smooth text rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre, .mono-text {
+  /* Automatically maps mono elements to Geist Mono */
+  font-family: var(--font-geist-mono), monospace;
 }

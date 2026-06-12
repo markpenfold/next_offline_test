@@ -4,7 +4,8 @@ import { isReallyOnline } from '@/lib/utils/checkOnline';
 import { decodeLeaseJwt } from '@/lib/auth/crypto';
 import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
-import { fetchUserAccounts } from '@/lib/supabase/client_queries';
+import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_queries';
+
 
 
 const supabase = createClient();
@@ -25,6 +26,10 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     avatarVersion: '',
   
     setAvatarVersion: (version) => set({ avatarVersion: version }),
+    
+    setActiveAccount:(accChoice:AccountContext) => {
+      activeAccount: accChoice || null;
+    },
 
     // Rules engine
     canAccessWorkspace: () => {
@@ -119,14 +124,13 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         
         // If no active auth cookie is detected on the device, nuke local states safely
         if (!session?.user) {
-          console.log("❌ No active database session found. Clearing client environment.");
+          console.log(" No active database session found. Clearing client environment.");
           get().clearSlate();
           return;
         }
 
         const user = session.user;
-        console.log(`👤 Active session found for user: ${user.email}. Restructuring memory templates...`);
-        console.log("FULL USER FROM SESSION: ", user)
+        const uProfile = await getProfileFromUserId(user.id);
         
         // Pull corresponding user accounts from the database
         let fetchedAccounts: AccountContext[] = [];
@@ -136,7 +140,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
             console.error("Error fetching live database records:", dbErr);
           }
 
-        const targetActiveAccountId = fetchedAccounts[0]?.id || null;
+        const targetActiveAccount = fetchedAccounts[0] || null;
         // Check database value first, then metadata fallback, default to free
         const finalTier = fetchedAccounts[0]?.plan_name || user.user_metadata?.pending_plan || 'free';
 
@@ -144,7 +148,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         const formattedProfile = {
           name: user.user_metadata?.name || null,
           username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
-          has_avatar: !!user.user_metadata?.avatar_url,
+          has_avatar: uProfile?.has_avatar || false,
           email: user.email || '',
         };
 
@@ -154,7 +158,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           profile: formattedProfile,
           authStatus: 'authenticated',
           tier: finalTier,
-          activeAccountId: targetActiveAccountId,
+          activeAccountId: targetActiveAccount,
           accounts: fetchedAccounts
         };
 
@@ -168,10 +172,10 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           tier: finalTier,
           profile: formattedProfile,
           accounts: fetchedAccounts,
-          activeAccount: targetActiveAccountId,
+          activeAccount: targetActiveAccount,
           authStatus: 'authenticated'
         });
-        console.log("🔄 Client workspace successfully synced with live database source-of-truth.");
+        console.log("Client workspace successfully synced with live database source-of-truth.");
       } catch (err) {
         console.error("Critical error encountered during live network sync:", err);
         get().clearSlate();
@@ -189,14 +193,14 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         email: payload.user.email || '',
       };
 
-      const activeAccountId = payload.accounts[0]?.id || null;
+      const activeAccount = payload.accounts[0] || null;
 
       const localCacheState = {
         offlineLeaseJwt: payload.token,
         profile: formattedProfile,
         authStatus: 'authenticated',
         tier: payload.tier,
-        activeAccountId,
+        activeAccount,
         accounts: payload.accounts
       };
 
@@ -207,7 +211,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         userId: payload.user.id,
         profile: formattedProfile,
         tier: payload.tier,
-        activeAccount: activeAccountId, 
+        activeAccount: activeAccount, 
         accounts: payload.accounts,
         authStatus: 'authenticated'
       });
@@ -250,34 +254,44 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       if (!currentActiveAccount) return;
 
       try {
-        
         console.log("Syncing subscription tier with database...");
 
-        // get plan name given the active account ID
+        // Get plan name given the active account ID
         const { data, error } = await supabase
           .from('accounts')
           .select('plan_name')
-          .eq('id', currentActiveAccount)
+          .eq('id', currentActiveAccount.id)
           .single();
 
         if (data && !error) {
           const freshTier = (data.plan_name?.toLowerCase() || 'none') as UserTier;
           
+          // 1. Update the global tier shortcut
           set({ tier: freshTier });
 
+          // 2. Also update the specific activeAccount object in state so it matches
+          set({ activeAccount: { ...currentActiveAccount, plan_name: freshTier } });
+
+          // 3. Update the item inside the accounts array
           const currentAccounts = get().accounts;
           const updatedAccounts = currentAccounts.map(acc => 
-            acc.id === currentActiveAccount ? { ...acc, tier: freshTier } : acc
+            // 🟢 FIX 1: Compare ID to ID, not ID to the whole account object
+            // 🟢 FIX 2: Update 'plan_name' instead of adding an accidental 'tier' property
+            acc.id === currentActiveAccount.id 
+              ? { ...acc, plan_name: freshTier } 
+              : acc
           );
           set({ accounts: updatedAccounts });
           
+          // 4. Cache everything to localStorage
           const savedLease = localStorage.getItem('jungle_lease_v2');
           if (savedLease) {
             const parsed = JSON.parse(savedLease);
             localStorage.setItem('jungle_lease_v2', JSON.stringify({ 
               ...parsed, 
               tier: freshTier,
-              accounts: updatedAccounts
+              accounts: updatedAccounts,
+              activeAccount: { ...currentActiveAccount, plan_name: freshTier } // Keep cache sync'd
             }));
           }
           console.log(`✨ Local workspace sync complete! Current tier: ${freshTier}`);

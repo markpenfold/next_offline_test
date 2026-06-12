@@ -27,6 +27,19 @@ export const getProfile = cache(async () => {
 })
 
 
+// Using 'cache' ensures that if you call this 3 times in 
+// one request, it only hits the database ONCE.
+export async function getProfileFromUserId (uID:string){
+  const supabase = await createClient()
+  
+  const { data: profile } = await supabase
+    .from('profiles') // Ensure this matches your table name
+    .select('id, full_name, has_avatar, username, updated_at')
+    .eq('id', uID)
+    .single()
+  return profile;
+}
+
 
 export type AccountWithOwner = Pick<
   Tables<'accounts'>, 

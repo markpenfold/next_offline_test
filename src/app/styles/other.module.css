@@ -16,7 +16,7 @@
 
 .pageSection h1 {
   font-size: 2.5rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.025em;
   margin: 0;
 }
@@ -45,7 +45,7 @@
   position: relative; /* Crucial anchor for the absolute positioned 'Current Plan' tag */
   background-color: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border-radius: 6px;
   padding: 36px 28px;
   display: flex;
   flex-direction: column;
@@ -110,7 +110,7 @@
   font-size: 0.95rem;
   font-weight: 600;
   padding: 12px 24px;
-  border-radius: 10px;
+  border-radius: 3px;
   text-decoration: none;
   border: none;
   cursor: pointer;

@@ -9,6 +9,7 @@ import { useAppStore } from "@/providers/AppStoreProvider";
 import { SiteNav } from '@/components/SiteNav'
 
 
+
 export default function PricingPage() {
 
     const isOnline = useAppStore((s) => s.isOnline);

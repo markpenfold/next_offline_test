@@ -1,125 +1,134 @@
-.lnk {
-    padding:4px;
-    color:rgb(17, 225, 114);
-    font-size: 8pt;
-}
+/* =========================================================
+   CORE CONTAINER LAYOUTS & HEADERS
+   ========================================================= */
 
-.lnk:hover {
-    color:rgb(228, 13, 13);
-}
-
-.lnk_holder {
-    display: flex;
-  align-items: center;
-  justify-content: space-between; /* This forces Child 1 to the far left and Child 2 to the far right */
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;     
+  justify-content: flex-start; 
   width: 100%;
-  padding: 0.5rem 1rem;
+  min-height: 80vh; 
   box-sizing: border-box;
-  background-color: rgb(231, 231,231);
+  padding-left: 24px;
+  text-align: left;
 }
 
-.formHolder {
-    padding: 4px;
+.pageHeader {
+  padding: 12px;
 }
 
-.p4 {
-    padding:4px;
-}
-
-.right {
-    display: flex;
+.leftPageHeader {
+  width: 100%;               
+  max-width: 1200px;         
+  text-align: left;          
+  display: flex;
+  justify-content: flex-start; 
   align-items: center;
+  box-sizing: border-box;
 }
 
-.mr4 {
-    margin-right: 4px;
+.bigHeader {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color: var(--foreground);
 }
 
-.ml4 {
-    margin-left: 4px;
+.lightHeaded {
+  font-size: 2.5rem;
+  font-weight: 200;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color: var(--foreground);
 }
 
-.user_name {
-    color:rgb(17, 225, 114);
+.redText {
+   color: var(--red);
 }
 
-.bgRed {
-    background-color: rgb(225, 120, 120);
-    border:none;
-    padding:4px;
-    color:ivory;
+.pageSection {
+  width: 100%;
+  min-height: 100px;
+  padding: 8px;
 }
 
-.uploader {
-    padding:4px;
-}
-
-.loading_label {
-    padding: 4px;
-}
-
-.dashBox {
-    padding:4px;
-}
-
-.accBox {
-    padding:4px;
-    color:rgb(32, 145, 100)
-}
-
-.gapBig {
-    margin-top: 12px;
-    margin-bottom: 12px;
-    color: red;
-}
+/* =========================================================
+   SITE NAVIGATION STYLES
+   ========================================================= */
 
 .navBarID {
-    display: flex;
-  align-items: center;       /* Keeps name, avatar, and button centered together */
+  display: flex;
+  align-items: center;       
   gap: 12px;
 }
 
 .leftLinks {
-    display: flex;
+  display: flex;
   align-items: center;
 }
 
+.lnk_holder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; 
+  width: 100%;
+  padding: 0.5rem 1rem;
+  box-sizing: border-box;
+  background-color: var(--background);
+}
+
+.lnk {
+  padding: 4px;
+  color: rgb(17, 225, 114);
+  font-size: 8pt;
+}
+
+.lnk:hover {
+  color: rgb(228, 13, 13);
+}
+
+.brandLink {
+  color: #166534;
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.brandLink:hover {
+  opacity: 1;
+}
+
+/* =========================================================
+   AUTHENTICATION FORMS
+   ========================================================= */
 
 .fbox {
   display: flex;
   justify-content: center;
-  /* Remove align-items: center so it doesn't anchor to the dead center */
   align-items: flex-start; 
-  
-  /* Create a comfortable, natural buffer from the top nav bar */
   padding-top: 80px; 
-  
   width: 100%;
   min-height: 80vh; 
   box-sizing: border-box;
 }
 
-
-/* The parent form grid wrapper */
 .authForm {
   display: grid;
-  /* Column 1 auto-sizes to your longest label (Username/Full Name) */
-  /* Column 2 stretches to fill all remaining form space */
   grid-template-columns: max-content 1fr; 
-  gap: 16px 12px; /* 16px row spacing, 12px column spacing */
+  gap: 16px 12px; 
   width: 100%;
   max-width: 400px;
-  align-items: center; /* Vertically aligns text and inputs perfectly on the line */
+  align-items: center; 
 }
 
-/* Force headings, error blocks, and buttons to cross both layout columns */
 .authForm h2,
 .authForm p,
 .authForm button {
   grid-column: span 2;
 }
 
-/* Explicit inputs styling */
 .authForm input {
   width: 100%;
   padding: 6px 10px;
@@ -129,112 +138,86 @@
   font-size: 14px;
 }
 
-/* Clean fallback button just to look decent */
 .authForm button {
-  justify-self: start; /* Stops the button from stretching across the entire screen */
+  justify-self: start; 
   padding: 6px 16px;
   cursor: pointer;
 }
 
-/* Tells the checklist container to span both grid columns */
+.formHolder {
+  padding: 4px;
+}
+
 .checklist {
   grid-column: span 2;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: -4px; /* Pulls it slightly closer to the password field */
+  margin-top: -4px; 
   padding-left: 4px;
   font-size: 12px;
 }
 
-/* Red styling for unfulfilled rules */
 .invalid {
   color: #d93838;
   transition: color 0.2s ease;
 }
 
-.priceContainer {
-display: grid;
-  /* Column 1 auto-sizes to your longest label (Username/Full Name) */
-  /* Column 2 stretches to fill all remaining form space */
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
-  padding:12px;
+/* =========================================================
+   PRICING & TIERS GRID
+   ========================================================= */
 
+.priceContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
+  padding: 12px;
 }
 
 .priceBox {
-
   display: flex;
-  flex-direction: column; /* Stacks elements vertically */
-  align-items: center;    /* Centers elements horizontally */
-  justify-content: flex-start; /* Keeps items anchored to the top */
+  flex-direction: column; 
+  align-items: center;    
+  justify-content: flex-start; 
   max-width: 150px;
   min-height: 250px;
-  height:auto;
-  text-align: center;     /* Centers the inline text strings */
-  background-color: rgb(222,222,222);
-  /* Optional but helpful for layout: */
-  padding:4px;
+  height: auto;
+  text-align: center;     
+  background-color: var(--background);
+  padding: 4px;
   padding-top: 24px;
   padding-bottom: 24px;
-  gap: 16px;              /* Adds consistent space between titles, prices, and buttons */
-  margin:4px;
+  gap: 16px;              
+  margin: 4px;
 }
-
 
 .current_tag {
-    margin-top: -55px;
-    background-color: rgb(30,30,30);
-    color: rgb(231, 231,231);
-    padding:4px;
-    min-width: 150px;
-
+  margin-top: -55px;
+  background-color: var(--foreground);
+  color: var(--background);
+  padding: 4px;
+  min-width: 150px;
 }
-
 
 .buttonClass {
-    margin-top: auto;
-    background-color: rgb(30,30,30);
-    color: rgb(231, 231,231);
-    padding:8px;
-}
-
-.buttonClass :hover {
-    color: rgb(30,30,30);
-    background-color: rgb(231, 231,231);
-}
-
-
-.pageContainer {
-  display: flex;
-  flex-direction: column; /* Stacks elements vertically */
-  align-items: center;    /* Centers elements horizontally */
-  justify-content: flex-start; /* Keeps items anchored to the top */
-  width: 100%;
-  min-height: 80vh; 
-  box-sizing: border-box;
-  text-align: center;
-}
-
-
-.pageHeader {
-    display: flex;
-    align-items: center; 
-    width: 100%;
-    padding: 12px;
-    text-align: center;  
-}
-
-.pageSection {
-  width: 100%;
-  min-height: 100px;
+  margin-top: auto;
+  background-color: rgb(30, 30, 30);
+  color: var(--background);
   padding: 8px;
 }
+
+.buttonClass:hover {
+  color: rgb(30, 30, 30);
+  background-color: var(--background);
+}
+
+/* =========================================================
+   UTILITIES, RESPONSIVE COLUMNS, & BANNERS
+   ========================================================= */
 
 .container2Cols {
   display: grid;
   grid-template-columns: 1fr 1fr; 
-  padding:12px;
+  padding: 12px;
 }
 
 .container3Cols {
@@ -242,17 +225,8 @@ display: grid;
   grid-template-columns: auto auto 1fr; 
   grid-auto-rows: minmax(55px, auto);
   gap: 20px;
-  padding:12px;
+  padding: 12px;
 }
-
-.errorText {
-  color:rgba(224, 35, 35. 0.8);
-  font-size: small;
-
-}
-
-
-
 
 .warning_banner {
   background-color: #f0fdf4;
@@ -263,95 +237,27 @@ display: grid;
   text-align: center;
 }
 
-.brandLink {
-  color: #166534;
+.signInOutButton {
+  margin-top: auto;
+  margin-bottom: auto;
+  background-color: var(--foreground);
+  color: var(--background);
+  border: none;
+  border-radius: 3px;
   text-decoration: none;
-  opacity: 0.6;
-  transition: opacity 0.2s ease;
-}
-.brandLink:hover {
-  opacity: 1;
-}
-
-.avatarWorkspace {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: sans-serif;
-  letter-spacing: 0.1em;
-  padding: 40px 20px;
-}
-
-.dropZone {
+  padding: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
   cursor: pointer;
-  position: relative;
-  transition: transform 0.2s ease;
+  transition: background-color 0.15s ease;
 }
 
-.dropZone:hover .circleWrapper {
-  border-color: #000000;
-  transform: scale(1.02);
+.signInOutButton:hover {
+  background-color: #035503;
 }
 
-.dropZone:hover .overlay {
-  opacity: 1;
-}
-
-.hiddenInput {
-  display: none;
-}
-
-.circleWrapper {
-  width: 240px;
-  height: 240px;
-  border: 4px solid #111111;
-  border-radius: 50%;
-  overflow: hidden;
-  position: relative;
-  background-color: #f9f9f9;
-  transition: all 0.2s ease;
-}
-
-/* Lights up stark black when an image is physically dragged over it */
-.dragging .circleWrapper {
-  border-color: #000000;
-  background-color: #000000;
-  transform: scale(1.05);
-}
-
-.avatarImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Minimal hover overlay text */
-.overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.overlay span {
-  color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  border: 1px solid #ffffff;
-  padding: 6px 12px;
-}
-
-/* Stark Brutalist Error Styling */
 .errorText {
   color: #e11d48;
   font-size: 0.75rem;
@@ -362,32 +268,37 @@ display: grid;
   text-align: center;
 }
 
-/* Sharp, flat typography action button */
-.actionButton {
-  margin-top: 24px;
-  background-color: #000000;
-  color: #ffffff;
+.user_name {
+  color: rgb(17, 225, 114);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+}
+
+.dashBox {
+  padding: 4px;
+}
+
+.accBox {
+  padding: 4px;
+  color: rgb(32, 145, 100);
+}
+
+.gapBig {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  color: red;
+}
+
+.bgRed {
+  background-color: rgb(225, 120, 120);
   border: none;
-  padding: 12px 24px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  width: 240px;
+  padding: 4px;
+  color: ivory;
 }
 
-.actionButton:hover {
-  background-color: #222222;
-}
-
-.actionButton:disabled {
-  background-color: #a1a1aa;
-  cursor: not-allowed;
-}
-
-.uploadBox {
-  padding:8px;
-  padding-bottom: 24px;
-}
+.p4 { padding: 4px; }
+.mr4 { margin-right: 4px; }
+.ml4 { margin-left: 4px; }

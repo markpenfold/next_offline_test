@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { AppStoreContext } from "@/providers/AppStoreProvider"; // 🆕 Make sure to export the raw Context from your provider file!
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { LogoutButton } from "@/components/LogoutButton";
 import classes from '@/app/styles/sitenav.module.css'
-import { Circle } from 'lucide-react';
+import { Circle, EllipsisVertical } from 'lucide-react';
 import { AVATAR_BUCKET_URL } from '@/lib/utils/constants';
 
 // =========================================================
@@ -58,7 +57,10 @@ function AuthenticatedSiteNav() {
   // State to track if the current avatar URL fails to load
   const [imageError, setImageError] = useState(false)
   const avatarUrl = uID ? `${AVATAR_BUCKET_URL}/${uID}/avatar.png?v=${avatarVersion}` : null
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
+
+  console.log("HAS AVATAR in sitenav?", profile?.has_avatar)
   const getInitials = () => {
       const identifier = profile?.username || profile?.email || 'OL'
       return identifier
@@ -85,42 +87,48 @@ function AuthenticatedSiteNav() {
     <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
         <Link href="/" className={classes.brandLink}><Circle size={32} strokeWidth={3} /></Link>
-        <Link href="/dash" className={classes.link}>Dashboard</Link>
-        <Link href="/pricing" className={classes.link}>Pricing</Link>
+        
       </div>
 
       <div className={classes.userSection}>
         {!isOnline && <span className={classes.offlineBadge}>Offline Mode</span>}
         
-        <div className={classes.profileMeta}>
-          <span className={classes.userName}>{profile.username}</span>
-         
-          <span className={classes.usernameSub} style={{ fontSize: '10px', color: 'gold' }}>
-            Plan: {tier.toUpperCase()}
-          </span>
+      <div className={`${classes.collapsibleMenu} ${isMenuOpen ? classes.open : ''}`}>
+          <Link href="/pricing" className={classes.link}>Pricing</Link>
+           <Link href="/dash" className={classes.link}>Dashboard</Link>
+           <LogoutButton />
+          
         </div>
-      <div  className={classes.avatarHolder}>
-        {/* 🟢 Condition: Try loading the image only if we haven't hit a 404/error yet */}
-        {avatarUrl && !imageError ? (
-          <img 
-            src={avatarUrl} 
-            alt="User Avatar" 
-            className={classes.avatar}
-            crossOrigin="anonymous"
-            onError={() => {
-              // If the image doesn't exist (404) or they are offline and it's uncached, 
-              // this triggers and seamlessly flips the UI to the text fallback.
-              setImageError(true)
-            }}
-          />
-        ) : (
-          <div className={classes.avatarFallback}>
-            {getInitials()}
-          </div>
-        )}
-      </div>
 
-        <LogoutButton />
+        <button 
+          className={classes.menuToggleButton} 
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          <EllipsisVertical />
+        </button>
+          
+            <Link 
+              href="/dash" 
+              
+            >
+              <div className={classes.avatarHolder}>
+                {avatarUrl && !imageError ? (
+                  <img 
+                    src={avatarUrl} 
+                    alt="User Avatar" 
+                    className={classes.avatar}
+                    crossOrigin="anonymous"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className={classes.avatarFallback}>
+                    {getInitials()}
+                  </div>
+                )}
+              </div>
+            </Link> 
+
       </div>
     </nav>
   );

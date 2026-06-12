@@ -1,7 +1,7 @@
 import { Database } from '@/lib/database_types'
 import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/types'
 import { SupabaseClient } from '@supabase/supabase-js'
-
+import { createClient } from '@/lib/supabase/client'
 
 // From a user ID, get me their accounts and roles ///////
 export async function fetchUserAccounts(
@@ -33,7 +33,7 @@ export async function fetchUserAccounts(
       const acc = Array.isArray(mem.accounts) ? mem.accounts[0] : mem.accounts;
       if (!acc) return null;
 
-      return {
+      let returnValue = {
         id: acc.id,
         name: acc.name,
         plan_name: (acc.plan_name?.toLowerCase() || 'free') as UserTier,
@@ -41,7 +41,23 @@ export async function fetchUserAccounts(
         role: mem.role,
         is_personal: !!acc.is_personal
       };
+      console.log("ACCOUNTS COLLECTED: ", returnValue, typeof(returnValue));
+
+      return returnValue;
     })
     .filter((acc): acc is AccountContext => acc !== null);
 }
 
+
+// Using 'cache' ensures that if you call this 3 times in 
+// one request, it only hits the database ONCE.
+export async function getProfileFromUserId (uID:string){
+  const supabase = await createClient()
+  
+  const { data: profile } = await supabase
+    .from('profiles') // Ensure this matches your table name
+    .select('id, full_name, has_avatar, username, updated_at')
+    .eq('id', uID)
+    .single()
+  return profile;
+}

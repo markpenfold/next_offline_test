@@ -3,7 +3,8 @@
 
 import { useState } from 'react';
 import { logout } from '@/lib/auth/logout';
-import { LogOut } from 'lucide-react'; // optional icon
+import { Eclipse } from 'lucide-react'; // optional icon
+import classes from '@/app/styles/styles.module.css'
 
 export function LogoutButton() {
   const { executeLogout } = logout();
@@ -19,9 +20,8 @@ export function LogoutButton() {
     <button
       onClick={handleSignOut}
       disabled={isClearing}
-      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50 transition-colors"
-    >
-      <LogOut size={16} />
+      className={classes.signInOutButton} >
+
       {isClearing ? 'Clearing Lease...' : 'Sign Out'}
     </button>
   );

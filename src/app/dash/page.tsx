@@ -2,9 +2,9 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import DashboardClientWrapper from '@/components/DashWrap';
-import SecureServerData from '@/components/SecureAccountData';
-import { YourAccounts } from '@/components/YourAccounts';
 import { AvatarUpload } from '@/components/AvatarUpload';
+import AccountDetailsCard from '@/components/AccountDetailsCard';
+import { SandboxWorkspace } from "@/components/SandboxWorkspace" // Adjust path as needed
 
 
 export default async function DashboardPage() {
@@ -19,11 +19,9 @@ export default async function DashboardPage() {
   return (
     /* We nest the Server Component inside the Client Component */
     <DashboardClientWrapper>
-      <YourAccounts />
-      <div>
+      <AccountDetailsCard />
         <AvatarUpload userId={user.id}/>
-        </div>
-      
+            <SandboxWorkspace />
     </DashboardClientWrapper>
   );
 }

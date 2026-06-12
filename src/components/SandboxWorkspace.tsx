@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 // Make sure to adjust these paths based on where your store and SiteNav are actually located
 import { useAppStore } from "@/providers/AppStoreProvider";
-import { SiteNav } from '@/components/SiteNav';
+import styles from '@/app/styles/dashboard.module.css' 
 
 export function SandboxWorkspace() {
   // 1. Sync directly with our offline-first orchestration store
@@ -61,9 +61,9 @@ export function SandboxWorkspace() {
   };
 
   return (
-    <div style={{fontFamily: 'sans-serif', width: '100%', margin: 'auto' }}>
-      <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '500px', margin: 'auto' }}>
-        <h2>Sandbox for {activeAccount || profile?.username || 'Guest'}</h2>
+    <div className={styles.gridCard}>
+      <h1 className={styles.AccountCardHeader}>Sandbox</h1>
+        <p className={styles.detailText}> for account: {activeAccount?.id || profile?.username || 'Guest'}</p>
         
         <div style={{ padding: '15px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '20px' }}>
           <p style={{ marginTop: 0 }}>Cached Network State: <strong>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</strong></p>
@@ -111,6 +111,6 @@ export function SandboxWorkspace() {
           )}
         </div>
       </div>
-    </div>
+
   );
 }

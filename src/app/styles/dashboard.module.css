@@ -1,0 +1,357 @@
+/* 📄 src/app/styles/dashboard.module.css */
+
+
+.leftPageHeader {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 20px;
+  margin-bottom: 32px;
+}
+
+.bigHeader {
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.detailText {
+    font-size: 0.7rem;
+  font-weight: 200;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color:var(--foreground)
+}
+
+.AccountCardHeader {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color:var(--red)
+}
+
+.redText {
+  color: var(--red, #ff0000);
+  padding: 0 8px;
+}
+
+.lightHeaded {
+  font-weight: 200;
+}
+
+.switchButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.switchButton:hover {
+  background-color: #000;
+  color: #fff;
+}
+
+/* Selector Grid Layout */
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.sectionSubtitle {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0 0 24px 0;
+}
+
+.accountGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.accountCard {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 24px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.accountCard:hover {
+  border-color: #000000;
+  transform: translateY(-2px);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.cardInfoGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accountName {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.ownerIcon { color: #000; }
+.teamIcon { color: #666; }
+
+/* Badges */
+.badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.ownerBadge {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #000;
+}
+
+.teamBadge {
+  background-color: rgba(0, 0, 0, 0.02);
+  color: #666;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  padding-top: 12px;
+}
+
+/* Active Detail Space Styles */
+.activeWorkspaceArea {
+  width: 100%;
+}
+
+.dataCard {
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.privilegeNotice {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.ownerText { color: #155724; background: #d4edda; margin: 0; padding: 10px; border-radius: 4px; }
+.teamText { color: #004085; background: #cce5ff; margin: 0; padding: 10px; border-radius: 4px; }
+.loadingText { font-weight: 500; color: #666; }
+
+
+/* 📄 src/app/styles/dashboard.module.css */
+
+/* Full page alignment */
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.loadingContainer {
+  padding: 40px;
+  text-align: center;
+  font-family: var(--font-geist-sans), sans-serif;
+  color: #666666;
+}
+
+/* 🟢 The Master Grid Layout */
+.dashboardGrid {
+  display: grid;
+  /* Automatically wraps cards when they drop below 340px width */
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px; /* Crisp spacing between your dashboard modules */
+  width: 100%;
+  margin-top: 16px;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+/* 🟢 The Reusable Component Card Base */
+.gridCard {
+  background-color: #ffffff;
+  border: 1px solid var(--background);
+  border-radius: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 16px; 
+  height: 100%;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.gridCard:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+
+/* =========================================================
+   AVATAR UPLOAD MODULE (Move to dashboard.module.css)
+   ========================================================= */
+
+.avatarWorkspace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+  letter-spacing: 0.1em;
+  padding: 40px 20px;
+}
+
+.uploader {
+  padding: 4px;
+}
+
+.uploadBox {
+  padding: 8px;
+  padding-bottom: 24px;
+}
+
+.dropZone {
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.dropZone:hover .circleWrapper {
+  border-color: var(--foreground);
+  transform: scale(1.02);
+}
+
+.dropZone:hover .overlay {
+  opacity: 1;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.circleWrapper {
+  width: 240px;
+  height: 240px;
+  border: 4px solid var(--foreground);
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
+  background-color: var(--background);
+  transition: all 0.2s ease;
+}
+
+/* Lights up stark black when an image is physically dragged over it */
+.dragging .circleWrapper {
+  border-color: var(--background);
+  background-color: var(--background);
+  transform: scale(1.05);
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Minimal hover overlay text */
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(30, 30, 30, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.overlay span {
+  color: var(--background);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  border: 1px solid var(--background);
+  padding: 6px 12px;
+}
+
+/* Sharp, flat typography action button */
+.actionButton {
+  margin-top: 24px;
+  background-color: var(--foreground);
+  color: var(--background);
+  border: none;
+  padding: 12px 24px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  width: 240px;
+}
+
+.actionButton:hover {
+  background-color: #222222;
+}
+
+.actionButton:disabled {
+  background-color: #a1a1aa;
+  cursor: not-allowed;
+}
+
+.loading_label {
+  padding: 4px;
+}
