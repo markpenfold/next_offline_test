@@ -14,8 +14,18 @@
   text-align: left;
 }
 
-.pageHeader {
+.centerPageHeader {
+  width: 100%;               /* 1. Spans the complete horizontal width */
+  max-width: 1200px;         /* Optional: Matches your max-width boundaries */
+  margin: 0 auto;            /* 2. Centers the header block container itself */
   padding: 12px;
+  text-align: center;        /* 3. Centers regular inline/text elements */
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;    /* Stack elements (like a title and a subtitle) vertically */
+  justify-content: center;   /* 4. Centers flex items horizontally */
+  align-items: center;       /* 5. Centers flex items vertically */
 }
 
 .leftPageHeader {

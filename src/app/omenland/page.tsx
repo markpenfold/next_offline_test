@@ -13,11 +13,11 @@ export default async function OmenPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className={styles.formHolder}>
-        <div className={styles.p4}>
-            <h1>This is the Omen Land</h1>
+    <div className={styles.pageContainer}>
+        <div className={styles.centerPageHeader}>
+            <h1 className={styles.bigHeader}>This is the Omen Land</h1>
             <SuperSimpleTestHarness  />
         </div>
     </div>
-);
+    );
 }
