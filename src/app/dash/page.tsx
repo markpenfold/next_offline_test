@@ -1,10 +1,10 @@
 // 📄 src/app/dashboard/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import DashboardClientWrapper from '@/components/DashWrap';
-import { AvatarUpload } from '@/components/AvatarUpload';
-import AccountDetailsCard from '@/components/AccountDetailsCard';
-import { SandboxWorkspace } from "@/components/SandboxWorkspace" // Adjust path as needed
+import DashboardClientWrapper from '@/components/dash/DashWrap';
+import { AvatarUpload } from '@/components/dash/AvatarUpload';
+import AccountDetailsCard from '@/components/dash/AccountDetailsCard';
+import { SandboxWorkspace } from "@/components/dash/SandboxWorkspace" // Adjust path as needed
 
 
 export default async function DashboardPage() {

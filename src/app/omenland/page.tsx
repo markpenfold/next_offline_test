@@ -1,23 +1,26 @@
-import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import styles from '@/app/styles/styles.module.css';
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {SuperSimpleTestHarness} from '@/components/data/SuperSimpleTestHarness'
+import OmenWrap from '@/components/data/omenWrap';
 
 export default async function OmenPage() {
-  const cookieStore = await cookies();
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Hard block at the server level: unauthenticated traffic never sees the shell
+  if (!user) {
+    redirect('/login');
+  }
 
   return (
-    <div className={styles.pageContainer}>
-        <div className={styles.centerPageHeader}>
-            <h1 className={styles.bigHeader}>This is the Omen Land</h1>
-            <SuperSimpleTestHarness  />
+    <OmenWrap >
+        <div className={styles.pageContainer}>
+      
+                <SuperSimpleTestHarness  />
+   
         </div>
-    </div>
+    </OmenWrap>
     );
 }
