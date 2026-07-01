@@ -2,22 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { DuckDBManager } from '@/components/data/manager';
+import styles from "@/app/styles/styles.module.css";
 
-const TEST_SHARD_URL = "https://pub-da55962965ef442481b26138d7c59630.r2.dev/shard_0.parquet";
-const SHARD_ID = "shard_0";
+const R2_PRO_BASE_URL = "https://pub-da55962965ef442481b26138d7c59630.r2.dev";
+const R2_FREE_BASE_URL = "https://pub-ba9563169bb04753b6ccfd410a72cc4b.r2.dev";
 
 export function SuperSimpleTestHarness() {
   const [engineStatus, setEngineStatus] = useState("Booting database...");
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [totalCacheCount, setTotalCacheCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
-
-  // Added state to display rows pulled back from our new range functions
   const [previewRows, setPreviewRows] = useState<any[]>([]);
+
+  // 🎯 PARQUET FINDER STATES
+  const [tier, setTier] = useState<'free' | 'pro'>('free');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedEra, setSelectedEra] = useState<string>('pre_1900');
 
   const db = DuckDBManager.getInstance();
 
-  // Boot up the database context instantly on page-load
+  // Initialize DuckDB Engine
   useEffect(() => {
     db.connect((msg) => setEngineStatus(msg))
       .then(() => {
@@ -26,6 +31,28 @@ export function SuperSimpleTestHarness() {
       })
       .catch((err) => setEngineStatus(`🔴 Boot Fail: ${err.message}`));
   }, []);
+
+  // 🎯 PARQUET FINDER HOOK: Re-fetch category lists whenever the target bucket Tier drops down
+  useEffect(() => {
+    const bucketName = tier === 'free' ? 'history-files-free' : 'history-files';
+    setCategories([]);
+    setSelectedCategory('');
+
+    addLog(`Scanning bucket "${bucketName}" via Parquet Finder API...`);
+    
+    fetch(`/api/categories?bucket=${bucketName}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCategories(data);
+          if (data.length > 0) setSelectedCategory(data[0]);
+          addLog(`Finder complete: found ${data.length} active master categories in R2 storage.`);
+        } else {
+          addLog(`⚠️ Finder warning: Failed parsing response structure.`);
+        }
+      })
+      .catch(err => addLog(`❌ Finder Error: ${err.message}`));
+  }, [tier]);
 
   const refreshGlobalCount = async () => {
     try {
@@ -36,31 +63,26 @@ export function SuperSimpleTestHarness() {
     }
   };
 
-  const handleSyncSegment = async (segment: 'first' | 'second') => {
+  const handleFetchCategory = async () => {
+    if (!selectedCategory) return;
     setLoading(true);
     
-    // 🎯 Determine [offset, limit] parameters based on selection choice
-    // first half = rows 1-1000 (Offset 0, Pull 1000)
-    // second half = rows 1001-2000 (Offset 1000, Pull 1000)
-    const range: [number, number] = segment === 'first' ? [0, 1000] : [1000, 1000];
-    const rangeLabel = segment === 'first' ? "Rows 1-1000" : "Rows 1001-2000";
+    const baseUrl = tier === 'pro' ? R2_PRO_BASE_URL : R2_FREE_BASE_URL;
+    const targetBucketPath = `master_category=${selectedCategory}/era=${selectedEra}.parquet`;
+    const fullParquetUrl = `${baseUrl}/${targetBucketPath}`;
+    const uniqueShardId = `${tier}_${selectedCategory}_${selectedEra}`;
     
-    addLog(`Initiating incremental R2 stream request for ${rangeLabel}...`);
+    addLog(`Streaming from ${tier.toUpperCase()}: ${selectedCategory} (${selectedEra})...`);
 
     try {
-      // 1. Execute the incremental fetch routine from the Parquet cloud file
-      const newRowsCaptured = await db.getShard(SHARD_ID, TEST_SHARD_URL, range);
-      addLog(`Success! Net newly appended records into OPFS cache: +${newRowsCaptured} rows.`);
+      const newRowsCaptured = await db.getShard(uniqueShardId, fullParquetUrl, [0, 0]);
+      addLog(`Success! Appended records into local cache: +${newRowsCaptured} rows.`);
       
-      // 2. Instantly update the counter
       await refreshGlobalCount();
 
-      // 3. Let's pull a preview page of 5 items using our new getRecordsFromShard method 
-      // to prove data is moving down cleanly into our OPFS structured schema
-      const fetchedItems = await db.getRecordsFromShard(SHARD_ID, [segment === 'first' ? 0 : 1000, 5]);
+      const fetchedItems = await db.getRecordsFromShard(uniqueShardId, [0, 5]);
       setPreviewRows(fetchedItems);
-      addLog(`Pulled ${fetchedItems.length} local cache rows for screen display preview.`);
-
+      addLog(`Pulled ${fetchedItems.length} cache preview rows.`);
     } catch (err: any) {
       addLog(`❌ Error streaming segment: ${err.message}`);
     } finally {
@@ -73,68 +95,131 @@ export function SuperSimpleTestHarness() {
   };
 
   return (
-    <div className="p-8 max-w-xl mx-auto space-y-6 font-mono text-xs">
+    <div style={{ maxWidth: '800px', margin: '20px auto', padding: '20px', backgroundColor: '#111', color: '#fff', borderRadius: '8px' }}>
       {/* Engine Status Block */}
-      <div className="p-4 bg-gray-900 text-green-400 rounded border border-gray-800 shadow-md">
-        <p className="font-bold text-sm mb-1">System Engine Status:</p>
-        <p>{engineStatus}</p>
-        <div className="mt-3 pt-2 border-t border-gray-800 flex justify-between">
+      <div style={{ padding: '12px', border: '1px solid #333', borderRadius: '6px', marginBottom: '20px' }}>
+        <p style={{ margin: 0, color: '#aaa' }}>System Engine Status:</p>
+        <p style={{ fontWeight: 'bold', margin: '4px 0' }}>{engineStatus}</p>
+        <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid #333', display: 'flex', justifyContent: 'space-between' }}>
           <span>Total Records Active inside Local Cache:</span>
-          <span className="text-white font-bold text-sm">{totalCacheCount} rows</span>
+          <span style={{ color: '#4fc3f7', fontWeight: 'bold' }}>{totalCacheCount} rows</span>
         </div>
       </div>
 
-      {/* Control Buttons */}
-      <div className="grid grid-cols-2 gap-4">
-        <button
-          onClick={() => handleSyncSegment('first')}
-          disabled={loading}
-          className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold shadow disabled:bg-gray-300 transition text-left"
-        >
-          Button 0 <br /> 
-          <span className="font-normal text-[10px] opacity-80">Sync Rows: 1 - 1,000</span>
-        </button>
+      {/* 🎯 THE DYNAMIC CONTROL INTERFACE */}
+      <div style={{ border: '1px solid #333', padding: '16px', borderRadius: '6px', marginBottom: '20px', background: '#161616' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '16px' }}>📦 Dynamic R2 Dataset Ingestion</h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+          {/* Dropdown 1: Tier Selection */}
+          <div>
+            <label style={labelStyle}>Target Tier (Bucket)</label>
+            <select value={tier} onChange={(e) => setTier(e.target.value as any)} style={selectStyle}>
+              <option value="free">FREE Bucket (history-files-free)</option>
+              <option value="pro">PRO Bucket (history-files)</option>
+            </select>
+          </div>
 
-        <button
-          onClick={() => handleSyncSegment('second')}
-          disabled={loading}
-          className="p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold shadow disabled:bg-gray-300 transition text-left"
-        >
-          Button 1 <br /> 
-          <span className="font-normal text-[10px] opacity-80">Sync Rows: 1,001 - 2,000</span>
-        </button>
-      </div>
+          {/* Dropdown 2: Dynamic Categories discovered by Finder */}
+          <div>
+            <label style={labelStyle}>Master Category</label>
+            <select 
+              value={selectedCategory} 
+              onChange={(e) => setSelectedCategory(e.target.value)} 
+              style={selectStyle}
+              disabled={categories.length === 0}
+            >
+              {categories.length === 0 && <option>Scanning keys...</option>}
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
 
-      {/* Dynamic Data Preview Grid Block */}
-      {previewRows.length > 0 && (
-        <div className="p-4 border rounded-md bg-white shadow-sm space-y-2">
-          <p className="font-bold text-gray-800 border-b pb-1">⚡ OPFS Data View (First 5 Rows of Segment):</p>
-          <div className="space-y-3">
-            {previewRows.map((row) => (
-              <div key={row.id} className="p-2 bg-gray-50 rounded border border-gray-100">
-                <p className="font-bold text-blue-700">{row.label} ({row.id})</p>
-                <p className="text-gray-500 italic mt-0.5">{row.description}</p>
-                {row.core?.occupation && (
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    💼 Occupations: {row.core.occupation.join(', ')}
-                  </p>
-                )}
-              </div>
-            ))}
+          {/* Dropdown 3: Era Partition Selector */}
+          <div>
+            <label style={labelStyle}>Timeline Era</label>
+            <select value={selectedEra} onChange={(e) => setSelectedEra(e.target.value)} style={selectStyle}>
+              <option value="pre_1900">pre_1900</option>
+              <option value="post_1900">post_1900</option>
+            </select>
           </div>
         </div>
-      )}
+
+        <button
+          onClick={handleFetchCategory}
+          disabled={loading || !selectedCategory}
+          style={{
+            width: '100%',
+            padding: '12px',
+            background: loading ? '#333' : '#2e7d32',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            fontWeight: 'bold',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? "Streaming Parquet via DuckDB HTTP Core..." : `⚡ Ingest master_category=${selectedCategory} into OPFS`}
+        </button>
+      </div>
+
+
+
+      {/* Dynamic Data Preview Grid Block */}
+      {/* Dynamic Data Preview Grid Block */}
+        {previewRows.length > 0 && (
+          <div style={{ marginBottom: '20px', width: '100%', clear: 'both' }}>
+            <p style={{ color: '#81c784', margin: '16px 0 4px 0', fontWeight: 'bold' }}>
+              ⚡ OPFS Data View (First 5 Rows of Segment):
+            </p>
+            <hr style={{ borderColor: '#333', marginBottom: '8px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {previewRows.map((row, idx) => {
+                if (!row) return (<p>NOWT!</p>);
+
+                return (
+                  <div 
+                    key={row.id ?? idx} 
+                    style={{ 
+                      padding: '10px', 
+                      border: '1px solid #222',
+                      borderRadius: '4px',
+                      background: '#1a1a1a', 
+                      color: '#ffffff', // 🎯 Guarantees text visibility
+                      display: 'block',   // 🎯 Overrides any grid-collapsing bugs
+                      visibility: 'visible'
+                    }}
+                  >
+                    <p style={{ margin: '0 0 4px 0', fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>
+                      {row.subject || "No subject"} ({row.id ?? idx})
+                    </p>
+                    <p style={{ margin: '0 0 6px 0', fontSize: '13px', color: '#ccc', lineHeight: '1.4' }}>
+                      {row.description || "No Description"}
+                    </p>
+                    <span style={{ fontSize: '11px', background: '#333', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>
+                      {row.master_category || "Uncategorized"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
       {/* Logger Box */}
-      <div className="space-y-2">
-        <p className="font-bold text-gray-700">Live Ingestion Diagnostic Output Logs:</p>
-        <div className="h-41 border rounded bg-gray-50 p-3 overflow-y-auto space-y-1 text-gray-600 border-gray-200">
-          {syncLogs.length === 0 && <p className="text-gray-400 italic">Standby. Click a segment target above to fire pipeline...</p>}
+      <div>
+        <p style={{ margin: '0 0 4px 0', color: '#aaa' }}>Live Ingestion Diagnostic Output Logs:</p>
+        <div style={{ height: '150px', overflowY: 'auto', background: '#000', padding: '10px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px', border: '1px solid #222' }}>
+          {syncLogs.length === 0 && <p style={{ color: '#666' }}>Standby. Adjust filters above and execute fetch...</p>}
           {syncLogs.map((log, index) => (
-            <p key={index} className="leading-relaxed border-b border-gray-100 pb-1 last:border-0">{log}</p>
+            <p key={index} style={{ margin: '2px 0', color: log.includes('❌') ? '#ef5350' : log.includes('Success') ? '#81c784' : '#fff' }}>{log}</p>
           ))}
         </div>
       </div>
     </div>
   );
 }
+
+const labelStyle = { display: 'block', fontSize: '12px', color: '#aaa', marginBottom: '4px' };
+const selectStyle = { width: '100%', padding: '8px', background: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' };

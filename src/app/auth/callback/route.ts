@@ -35,6 +35,7 @@ export async function GET(request: Request) {
 
   // Got an error or missing user? Get out early.
   if (error || !data?.user) {
+    console.log("NO FUCKING USER")
     return NextResponse.redirect(new URL('/auth/auth-code-error', siteUrl).toString())
   }
     

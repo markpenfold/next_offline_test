@@ -2,7 +2,6 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { DuckDBConfig } from '@/lib/utils/constants';
 import { getCachedFileBlobUrl } from './cache';
 
-// Interface to structure the unified response data returned to your UI component
 export interface ShardProcessingResult {
   sourceStrategy: string;
   executionTimeMs: number;
@@ -12,8 +11,6 @@ export interface ShardProcessingResult {
 }
 
 export class DuckDBManager {
-  // static = belongs to the class itself, not an object
-  // Keeps track of whether the MANAGER has been built yet
   private static instance: DuckDBManager | null = null;
   private db: duckdb.AsyncDuckDB | null = null;
   private conn: duckdb.AsyncDuckDBConnection | null = null;
@@ -21,7 +18,6 @@ export class DuckDBManager {
 
   private constructor() {}
 
-  // Singleton pattern means only ONE duckDB operates on a strict exclusive write-lock policy.
   public static getInstance(): DuckDBManager {
     if (!DuckDBManager.instance) {
       DuckDBManager.instance = new DuckDBManager();
@@ -29,9 +25,6 @@ export class DuckDBManager {
     return DuckDBManager.instance;
   }
 
-  /**
-   * Initializes the engine using cached blobs and mounts the local OPFS database.
-   */
   public async connect(onStatusChange?: (msg: string) => void): Promise<duckdb.AsyncDuckDBConnection> {
     if (this.conn) return this.conn;
     if (this.initPromise) return this.initPromise;
@@ -52,12 +45,8 @@ export class DuckDBManager {
       this.db = new duckdb.AsyncDuckDB(logger, worker);
       await this.db.instantiate(localModuleUrl);
       
-      // =========================================================================
-      // 🌐 STORAGE ENGINE MOUNT ROUTINE (Bulletproof Native OPFS)
-      // =========================================================================
       try {
         onStatusChange?.("Connecting to persistent local SSD database...");
-        
         const rawPath = DuckDBConfig.DB_NAME;
         const cleanDbName = rawPath.endsWith('.db') ? rawPath : `${rawPath}.db`;
 
@@ -65,88 +54,91 @@ export class DuckDBManager {
           path: `opfs://${cleanDbName}`,
           accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
         });
-        
-        console.log(`🚀 Storage success: Connected natively to persistent OPFS drive: opfs://${cleanDbName}`);
+        console.log(`🚀 Connected natively to persistent OPFS drive: opfs://${cleanDbName}`);
       } catch (nativeError: any) {
-        console.warn("Native OPFS route blocked by browser kernel. Deploying secure in-memory engine fallback...", nativeError);
-        onStatusChange?.("Storage access restricted. Starting temporary volatile session...");
-        
-        try {
-          await this.db.open({
-            path: ':memory:',
-            accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
-          });
-          console.log("Storage fallback: Active running inside secure isolated memory space.");
-        } catch (fallbackError: any) {
-          throw new Error(`Critical Storage Failure: Completely unable to provision a database context. ${fallbackError.message}`);
-        }
+        console.warn("Native OPFS blocked. Falling back to temporary volatile memory...", nativeError);
+        onStatusChange?.("Storage access restricted. Starting temporary session...");
+        await this.db.open({
+          path: ':memory:',
+          accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
+        });
       }
 
-      onStatusChange?.("Optimizing local database parameters...");
-      
+      onStatusChange?.("Optimizing database loops, mofo...");
       this.conn = await this.db.connect();
-      
-      await this.conn.query(`SET wal_autocheckpoint = '0KB'; SET checkpoint_threshold = '0KB';`);
+      await this.conn.query(`
+        SET wal_autocheckpoint = '0KB'; 
+        SET checkpoint_threshold = '0KB';`
+      );
 
-      // 🛠️ UPDATED CRITICAL SCHEMA: Perfectly aligned to match your incoming nested JSONL properties
+      // 🛠️ OPFS STORAGE SCHEMA
       await this.conn.query(`
         CREATE TABLE IF NOT EXISTS cached_timeline_history (
           id VARCHAR,
-          label VARCHAR,
+          subject VARCHAR,
           description VARCHAR,
-          alias VARCHAR[],
-          core VARCHAR,        -- Clean textualized representation of the inner object
-          events VARCHAR,      -- Clean textualized representation of the object array
+          date VARCHAR,
+          event_type VARCHAR,
+          categories VARCHAR,        -- Will store stringified JSON
+          tags VARCHAR,              -- Will store stringified JSON
+          location VARCHAR,
+          event_precision VARCHAR,
+          media BLOB,
+          master_category VARCHAR,
           source_shard VARCHAR
         );
       `);
-
       return this.conn;
     })();
 
     return this.initPromise;
   }
 
-  /**
-   * Run a SQL query and get clean JSON objects back
-   */
   public async query(sql: string): Promise<any[]> {
-    if (!this.conn) throw new Error("Database connection not active. Call connect() first.");
+    if (!this.conn) throw new Error("Database connection not active.");
     const res = await this.conn.query(sql);
     return res.toArray().map((row) => row.toJSON());
   }
 
   /**
-   * Smart Ingestion Engine: Compares local cache with remote R2 states.
-   * Pulls down clean deterministic slice ranges directly over HTTP.
+   * Overhauled Ingestion Engine: Drops network slicing and pulls entire modern R2 files.
    */
   public async getShard(
     shardId: string, 
     parquetUrl: string, 
-    recordRange?: [number, number] // Slices by explicit Row Range [offset, limit] instead of old text clauses
+    recordRange?: [number, number] // Left intact for compatibility, but ignored if [0,0]
   ): Promise<number> {
     if (!this.conn) await this.connect();
   
     let remoteSource = `read_parquet('${parquetUrl}')`;
     
-    if (recordRange) {
+    // Check if we are passing an explicit, non-zero chunk range slice limit
+    if (recordRange && (recordRange[0] !== 0 || recordRange[1] !== 0)) {
       const [offset, limit] = recordRange;
-      console.log(`[DuckDB] Slicing remote parquet stream. Window: Offset ${offset}, pulling ${limit} rows.`);
+      console.log(`[DuckDB] Slicing partial window: Offset ${offset}, pulling ${limit} rows.`);
       remoteSource = `(SELECT * FROM read_parquet('${parquetUrl}') LIMIT ${limit} OFFSET ${offset})`;
+    } else {
+      console.log(`[DuckDB] Dynamic Stream Mode: Ingesting entire targeted file asset context.`);
     }
   
-    // 🎯 CAST AS VARCHAR: 
-    // DuckDB automatically serializes the complex struct arrays directly into clean 
-    // structured text strings before committing them to the storage disk.
+    // 🎯 Use JSON_SERIALIZE on your native JSON columns (categories, tags) 
+    // to cleanly convert them to stringified VARCHAR blocks in your database.
+    // 🎯 We drop JSON_SERIALIZE and use explicit VARCHAR casts.
+    // Core DuckDB handles this out of the box with zero extensions required!
     const incrementalSyncSql = `
       INSERT INTO cached_timeline_history
       SELECT 
         remote.id, 
-        remote.label, 
+        remote.subject, 
         remote.description, 
-        remote.alias,
-        CAST(remote.core AS VARCHAR) as core,   
-        CAST(remote.events AS VARCHAR) as events,
+        remote.date,
+        remote.event_type,
+        CAST(remote.categories AS VARCHAR) as categories,   
+        CAST(remote.tags AS VARCHAR) as tags,
+        remote.location,
+        remote.event_precision,
+        remote.media,
+        remote.master_category,
         '${shardId}' as source_shard
       FROM ${remoteSource} AS remote
       WHERE NOT EXISTS (
@@ -157,19 +149,19 @@ export class DuckDBManager {
       );
     `;
   
-    console.log(`Began checking differential disk state for shard: ${shardId}...`);
+    console.log(`Checking local storage map vs R2 for shard: ${shardId}...`);
     
+    // Execute the insertion statement and read back how many mutations occurred
     const syncResult = await this.conn!.query(incrementalSyncSql);
-    const rowsInserted = syncResult.toArray().map(r => r.toJSON())[0]?.Count ?? 0;
-    console.log(`Differential sync complete for shard: ${shardId}. Hard drive up to date.`);
     
-    return Number(rowsInserted);
+    // In duckdb-wasm, the mutation count can be inferred via rows affected or by looking up local state adjustments
+    const checkQuery = await this.query(`SELECT COUNT(*)::INTEGER as total FROM cached_timeline_history WHERE source_shard = '${shardId}';`);
+    
+    return checkQuery[0]?.total ?? 0;
   }
 
   /**
-   * GETTER FUNCTION 1: Get all cached records in a simple row pagination index range.
-   * @param shardId The shard identifier to pull from
-   * @param recordRange Array specifying [offset, limit] e.g., [0, 50]
+   * Overhauled Getter: Converts text-stringified columns back to rich JavaScript Objects.
    */
   public async getRecordsFromShard(
     shardId: string,
@@ -180,65 +172,95 @@ export class DuckDBManager {
     const [offset, limit] = recordRange;
     
     const selectSql = `
-      SELECT id, label, description, alias, core, events, source_shard
+      SELECT *
       FROM cached_timeline_history
       WHERE source_shard = '${shardId}'
       ORDER BY id ASC
       LIMIT ${limit} OFFSET ${offset};
     `;
 
-    console.log(`Fetching local rows from ${shardId} (Offset: ${offset}, Limit: ${limit})...`);
-    return await this.query(selectSql);
+    const rawRows = await this.query(selectSql);
+
+    // Post-processing mapping layer: parses categories and tags text blocks back to genuine JSON arrays
+    return rawRows.map(row => {
+      // Replace lines 189-190 inside your row mapping loop with this safer pattern:
+      let parsedCategories: string[] = [];
+      let parsedTags: string[] = [];
+
+      if (row.categories) {
+        try {
+          parsedCategories = typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories;
+        } catch (e) {
+          // Fallback: If it's a pythonic list string like "['A', 'B']", clean it up manually
+          parsedCategories = String(row.categories).replace(/[\[\]']/g, '').split(',').map(s => s.trim());
+        }
+      }
+
+      if (row.tags) {
+        try {
+          parsedTags = typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags;
+        } catch (e) {
+          // Fallback: turns "[United Kingdom]" cleanly into ["United Kingdom"]
+          parsedTags = String(row.tags).replace(/[\[\]']/g, '').split(',').map(s => s.trim());
+        }
+      }
+
+      return {
+        ...row,
+        categories: parsedCategories,
+        tags: parsedTags
+      };
+
+
+
+    });
   }
 
   /**
-   * GETTER FUNCTION 2: Filter nested events arrays inside your local OPFS cache table.
-   * Supports evaluating dates 'later' or 'earlier' relative to a given targeted boundary.
+   * GETTER FUNCTION 2: Filters records based on historical date boundaries.
+   * Extracts the year from your flat text 'date' column for comparison.
    * @param shardId Target shard filter
    * @param operator 'later' (>) or 'earlier' (<)
-   * @param targetDate ISO Date string format (e.g., "1950-00-00" or "1973-09-11")
-   * @param recordRange Optional pagination bounds configuration [offset, limit]
+   * @param targetYear Calendar year integer (e.g., 1900)
+   * @param recordRange Pagination bounds configuration [offset, limit]
    */
   public async getRecordsWithEventFilter(
     shardId: string,
     operator: 'later' | 'earlier',
-    targetDate: string,
+    targetYear: number,
     recordRange: [number, number] = [0, 50]
   ): Promise<any[]> {
     if (!this.conn) await this.connect();
 
     const [offset, limit] = recordRange;
-    // Because 'events' is stored as a structured text block, we can use fast native SQL 
-    // regex pattern matching to evaluate date markers without initializing any external libraries.
-    const regexPattern = operator === 'later' 
-      ? `date: ([2-9][0-9][0-9][0-9]|19[6-9][0-9])` // Quick conceptual regex example for dating matches
-      : `date: (1[0-8][0-9][0-9])`;
+    const sqlOperator = operator === 'later' ? '>' : '<';
 
+    // Using regexp_extract to grab the first 4-digit sequence (the year) from your text date column
     const selectSql = `
-      SELECT id, label, description, alias, core, events, source_shard
+      SELECT id, subject, description, date, event_type, categories, tags, location, event_precision, media, master_category, source_shard
       FROM cached_timeline_history
       WHERE source_shard = '${shardId}'
-        AND regexp_matches(events, '${regexPattern}')
+        AND TRY_CAST(REGEXP_EXTRACT(date, '([0-9]{4})', 1) AS INTEGER) ${sqlOperator} ${targetYear}
       ORDER BY id ASC
       LIMIT ${limit} OFFSET ${offset};
     `;
 
-    console.log(`⚡ Filtering local database where event date is ${operator} than ${targetDate}...`);
-    return await this.query(selectSql);
-  }
+    console.log(`⚡ Filtering local OPFS rows where date year is ${operator} than ${targetYear}...`);
+    const rawRows = await this.query(selectSql);
 
-  /**
-   * Evaluates browser NetworkInformation API to deduce connectivity limits
-   */
-  private checkConnectionStrength(): boolean {
-    if (typeof navigator === 'undefined') return true; 
-    
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
-    if (!connection) return true; 
+    // Keep your JSON parsing post-processing clean for categories and tags arrays
+    return rawRows.map(row => {
+      let parsedCategories = [];
+      let parsedTags = [];
 
-    if (connection.saveData || ['slow-2g', '2g', '3g'].includes(connection.effectiveType) || connection.downlink < 5) {
-      return false; 
-    }
-    return true; 
+      try { if (row.categories) parsedCategories = JSON.parse(row.categories); } catch (e) { console.error("Categories filter parse error:", e); }
+      try { if (row.tags) parsedTags = JSON.parse(row.tags); } catch (e) { console.error("Tags filter parse error:", e); }
+
+      return {
+        ...row,
+        categories: parsedCategories,
+        tags: parsedTags
+      };
+    });
   }
 }

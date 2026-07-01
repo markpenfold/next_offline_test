@@ -134,7 +134,7 @@ export interface AppState {
   userId: string | null;
   profile: UserProfile | null;
   offlineLeaseJwt: string | null;
-  activeAccount: string | null;
+  activeAccount: AccountContext | null;
   accounts: AccountContext[];
   avatarVersion: string; 
   
