@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLocalCacheManifest, getShard, loadShardIntoEngine } from "./storage";
+import { getLocalCacheManifest, getShard, loadShardIntoEngine, getRandomRows } from "./storage";
 
 const BUCKET_CONFIGS = [
   { id: "free", name: "history-files-free", label: "Free Shards", color: "#0070f3" },
@@ -14,6 +14,7 @@ export function ShardSelector() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [samples, setSamples] = useState<any[]>([]);
 
   const addLog = (message: string) => {
     setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
@@ -66,19 +67,33 @@ export function ShardSelector() {
     }
   };
 
-  const handleLoadClick = async (category: string, bucketName: string) => {
-    addLog(`🚀 Load initiated for "${category}"...`);
-    // 1. Check/Pull data via unified storage worker
-    const isReady = await getShard(category, bucketName, addLog);
-    if (!isReady) {
+const handleLoadClick = async (category: string, bucketName: string) => {
+    setSamples([]); 
+    addLog(`🚀 Load workflow initiated for "${category}"...`);
+
+    // 1. Run the safety check and grab the verified filename string from getShard
+    const { success, fileName } = await getShard(category, bucketName, addLog);
+    
+    if (!success) {
       addLog(`❌ Load aborted because the file could not be retrieved.`);
       return;
     }
-    // 2. Ensure UI button color updates to black if it was just cached
+
+    // Print the definitive filename out to your UI logs for validation
+    addLog(`filename is ${fileName}`);
+
     await syncCacheManifest();
-    // 3. Fire the DuckDB engine load utility using the unified file name structure
-    const currentFileName = `${bucketName}__${category}__post_1900.parquet`;
-    await loadShardIntoEngine(currentFileName, addLog);
+    
+    // 2. Pass that exact verified string straight into the loaders
+    const mountedSuccessfully = await loadShardIntoEngine(fileName, addLog);
+    if (!mountedSuccessfully) return;
+
+    // 3. Query the exact same verified filename workspace
+    const dataSample = await getRandomRows(fileName, 5, addLog);
+    
+    if (dataSample && dataSample.length > 0) {
+      setSamples(dataSample); 
+    }
   };
 
   return (
@@ -169,6 +184,8 @@ export function ShardSelector() {
         );
       })}
 
+
+        {/* 1. The Log Console layout (Existing) */}
       <div style={{ background: "#1e1e1e", color: "#00ff00", padding: "1rem", borderRadius: "6px", fontFamily: "monospace", minHeight: "150px", maxHeight: "250px", overflowY: "auto" }}>
         <div style={{ borderBottom: "1px solid #333", paddingBottom: "0.25rem", marginBottom: "0.5rem", color: "#aaa", fontSize: "0.85rem" }}>
          Log Console
@@ -178,6 +195,70 @@ export function ShardSelector() {
           <div key={idx} style={{ marginBottom: "0.25rem", fontSize: "0.7rem" }}>{log}</div>
         ))}
       </div>
+
+      {/* 💡 2. NEW: Shard Sampling Results Block (Placed right underneath the logs) */}
+      {samples.length > 0 && (
+        <div 
+          style={{ 
+            marginTop: "2rem", 
+            padding: "1.25rem", 
+            background: "#ffffff", 
+            borderRadius: "8px", 
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" 
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "between", alignItems: "center", marginBottom: "1rem" }}>
+            <h3 style={{ margin: 0, color: "#1e293b", fontSize: "1.1rem", fontWeight: "bold" }}>
+              🎲 Random Shard Sampling Results (5 Rows)
+            </h3>
+            <span style={{ fontSize: "0.75rem", background: "#f1f5f9", color: "#64748b", padding: "0.25rem 0.5rem", borderRadius: "4px", fontFamily: "monospace" }}>
+              source: duckdb
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {samples.map((row, index) => (
+              <div 
+                key={index}
+                style={{
+                  position: "relative",
+                  background: "#f8fafc",
+                  border: "1px solid #f1f5f9",
+                  borderRadius: "6px",
+                  padding: "1rem",
+                  overflow: "hidden"
+                }}
+              >
+                {/* Small indicator label for row sequencing */}
+                <div style={{ position: "absolute", top: "4px", right: "8px", fontSize: "0.65rem", color: "#cbd5e1", fontFamily: "monospace" }}>
+                  ROW #{index + 1}
+                </div>
+                
+                <pre 
+                  style={{ 
+                    margin: 0, 
+                    fontSize: "0.8rem", 
+                    fontFamily: "monospace",
+                    color: "#334155",
+                    overflowX: "auto",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all"
+                  }}
+                >
+                  {JSON.stringify(row, null, 2)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
+
+
+
+
     </div>
   );
 }
