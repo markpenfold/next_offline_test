@@ -24,6 +24,7 @@ export function ShardSelector() {
     setLocalCache(manifest);
   };
 
+
   useEffect(() => {
     async function initComponent() {
       try {
@@ -57,16 +58,27 @@ export function ShardSelector() {
     initComponent();
   }, []);
 
+// Triggered when clicking the left side of the pill (Download)
   const handleDownloadClick = async (category: string, bucketName: string) => {
     const success = await getShard(category, bucketName, addLog);
     if (success) {
-      await syncCacheManifest();
+      await syncCacheManifest(); // Turns button black
     }
   };
 
-  // 💡 New click handler for the second half of the pill capsule
-  const handleLoadClick = async (fileName: string) => {
-    await loadShardIntoEngine(fileName, addLog);
+  const handleLoadClick = async (category: string, bucketName: string) => {
+    addLog(`🚀 Load initiated for "${category}"...`);
+    // 1. Check/Pull data via unified storage worker
+    const isReady = await getShard(category, bucketName, addLog);
+    if (!isReady) {
+      addLog(`❌ Load aborted because the file could not be retrieved.`);
+      return;
+    }
+    // 2. Ensure UI button color updates to black if it was just cached
+    await syncCacheManifest();
+    // 3. Fire the DuckDB engine load utility using the unified file name structure
+    const currentFileName = `${bucketName}__${category}__post_1900.parquet`;
+    await loadShardIntoEngine(currentFileName, addLog);
   };
 
   return (
@@ -130,7 +142,7 @@ export function ShardSelector() {
 
                       {/* Right Side: Load Controller */}
                       <button
-                        onClick={() => handleLoadClick(currentFileName)}
+                        onClick={() => handleLoadClick(currentFileName, config.name)}
                         style={{
                           padding: "0.5rem 1rem",
                           background: "#ffffff",

@@ -54,14 +54,23 @@ export async function writeBlobToOPFS(fileName: string, data: Blob): Promise<voi
  * Accepts an optional onLog callback to pass string statuses back to the UI.
  */
 export async function getShard(
-  category: string, 
+  categoryOrFileName: string, 
   bucketName: string, 
   onLog?: (msg: string) => void
 ): Promise<boolean> {
+  // 🧠 REVERSE ENGINEER SAFEGUARD: 
+  // If this contains double underscores, it's a local file name. Extract just the category!
+  let category = categoryOrFileName;
+  if (categoryOrFileName.includes("__")) {
+    const parts = categoryOrFileName.split("__");
+    // Parts pattern: ["history-files-free", "aircraft", "post_1900.parquet"]
+    category = parts[1]; 
+  }
+
+  // Now these paths will compile perfectly every single time
   const targetFile = `master_category=${category}/era=post_1900.parquet`;
   const safeLocalFileName = `${bucketName}__${category}__post_1900.parquet`;
 
-  // Safely trigger the logging callback if the UI provided one
   const log = (msg: string) => onLog?.(msg);
 
   log(`🔍 Checking local cache for: "${category}"...`);
@@ -71,10 +80,11 @@ export async function getShard(
 
     if (fileExists) {
       log(`⚡ Cache Hit! "${safeLocalFileName}" is active. Skipping download loop.`);
-      return true; // Returns true indicating the file is ready locally
+      return true; 
     }
 
     log(`📡 Cache Miss. Fetching shard from remote R2 bucket...`);
+    // 🎯 targetFile is now guaranteed to be clean: "master_category=aircraft/era=post_1900.parquet"
     const response = await fetch(`/api/download?bucket=${bucketName}&file=${encodeURIComponent(targetFile)}`);      
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     
@@ -87,7 +97,7 @@ export async function getShard(
     return true; 
   } catch (err: any) {
     log(`❌ Process Error: ${err.message}`);
-    return false; // Returns false indicating the pipeline failed
+    return false; 
   }
 }
 
