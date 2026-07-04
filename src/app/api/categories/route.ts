@@ -21,6 +21,8 @@ export async function GET(request: Request) {
     }, { status: 500 });
   }
 
+
+
   try {
     const r2 = new S3Client({
       region: "auto",
@@ -40,7 +42,7 @@ export async function GET(request: Request) {
     const response = await r2.send(command);
     const categories = new Set<string>();
 
-    // 🎯 SAFETY FIX: Handle undefined Contents arrays safely instead of crashing
+    // Handle undefined Contents arrays safely instead of crashing
     if (response.Contents && Array.isArray(response.Contents)) {
       for (const obj of response.Contents) {
         if (!obj.Key) continue;
@@ -54,7 +56,7 @@ export async function GET(request: Request) {
     return NextResponse.json(Array.from(categories).sort());
   } catch (err: any) {
     // This logs the precise underlying SDK crash directly into your terminal output
-    console.error("❌ [API ERROR] R2 Listing Core Failure:", err);
+    console.error("[API ERROR] R2 Listing Failure:", err);
     
     return NextResponse.json({ 
       error: err.message || "Failed listing R2 contents" 

@@ -1,26 +1,35 @@
 import type { NextConfig } from "next";
-// next.config.js
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@duckdb/node-api', '@duckdb/node-bindings'],
   output: 'standalone',
   async headers() {
     return [
+      // 1. Global Baseline (Applies COOP to everything)
       {
         source: '/:path*',
         headers: [
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          // Remove COEP globally
         ],
       },
+      // 2. Target your specific page (Combines BOTH for DuckDB)
       {
-        // Only apply COEP to routes that actually need it (e.g. DuckDB WASM)
-        source: '/dash/:path*',
+        source: '/omenland',
         headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
         ],
       },
+      // 3. Just in case you have sub-pages under omenland later (e.g., /omenland/settings)
       {
-        // Explicitly disable COEP for checkout
+        source: '/omenland/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      // 4. Checkout Exemption (Explicitly force COEP off for Stripe/Payments)
+      {
         source: '/api/checkout/:path*',
         headers: [
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },

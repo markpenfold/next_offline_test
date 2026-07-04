@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import styles from '@/app/styles/styles.module.css';
 import { redirect } from 'next/navigation'
-import {SuperSimpleTestHarness} from '@/components/data/SuperSimpleTestHarness'
+import  BasicDuck  from '@/components/data/BasicDuck'
 import OmenWrap from '@/components/data/omenWrap';
+import {ShardSelector} from '@/components/data/ShardSelector';
+
 
 export default async function OmenPage() {
 
@@ -16,11 +18,7 @@ const supabase = await createClient();
 
   return (
     <OmenWrap >
-        <div className={styles.pageContainer}>
-      
-                <SuperSimpleTestHarness  />
-   
-        </div>
+      <ShardSelector />
     </OmenWrap>
     );
 }
