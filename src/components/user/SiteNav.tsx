@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAppStore } from "@/providers/AppStoreProvider";
-import { LogoutButton } from "@/components/LogoutButton";
+import { LogoutButton } from "@/components/user/LogoutButton";
 import classes from '@/app/styles/sitenav.module.css'
 import { Circle, EllipsisVertical } from 'lucide-react';
 import { AVATAR_BUCKET_URL } from '@/lib/utils/constants';

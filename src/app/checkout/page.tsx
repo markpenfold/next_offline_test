@@ -1,6 +1,6 @@
 
 import { createClient } from '@/lib/supabase/server'
-import { SignupForm } from '@/components/SignupForm'
+import { SignupForm } from '@/components/user/SignupForm'
 import { redirect } from 'next/navigation'
 import classes from '@/app/styles/styles.module.css'
 

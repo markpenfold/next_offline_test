@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { LoginForm } from '@/components/LoginForm'
+import { LoginForm } from '@/components/user/LoginForm'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import classes from '@/app/styles/styles.module.css'
-import { SiteNav } from '@/components/SiteNav'
+import { SiteNav } from '@/components/user/SiteNav'
 
 type LoginProps = {
   searchParams: Promise<{ message?: string, verified?:string }>

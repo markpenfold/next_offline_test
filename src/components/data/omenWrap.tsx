@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from "@/providers/AppStoreProvider"
-import { SiteNav } from "@/components/SiteNav" // Adjust path as needed
+import { SiteNav } from "@/components/user/SiteNav" // Adjust path as needed
 import styles from '@/app/styles/dashboard.module.css' 
 
 export default function OmenWrap({ children }: { children: React.ReactNode }) {
