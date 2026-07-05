@@ -79,41 +79,28 @@ export async function getLocalCacheManifest(): Promise<Set<string>> {
 }
 
 /**
- * Checks if a specific file name exists in local storage and is not empty.
+ * Streams blob data straight into your OPFS space
  */
-export async function checkFileExists(fileName: string): Promise<boolean> {
-  try {
-    const root = await navigator.storage.getDirectory();
-    const handle = await root.getFileHandle(fileName);
-    const file = await handle.getFile();
-    return file.size > 0;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Directly commits a binary Blob into a designated target file slot in OPFS.
- */
-export async function writeBlobToOPFS(fileName: string, data: Blob): Promise<void> {
+async function writeBlobToOPFS(fileName: string, blob: Blob): Promise<void> {
   const root = await navigator.storage.getDirectory();
   const fileHandle = await root.getFileHandle(fileName, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(data);
+  const writable = await (fileHandle as any).createWritable(); // Cast depending on your TS configuration
+  await writable.write(blob);
   await writable.close();
 }
 
+
 /**
- * 💡 NEW: Orchestrates the cache check, network fetch, and OPFS storage pipeline.
- * Accepts an optional onLog callback to pass string statuses back to the UI.
+ * Orchestrates cache validation, network retrieval, and OPFS persistence.
  */
 export async function getShard(
   categoryOrFileName: string, 
   bucketName: string, 
   onLog?: (msg: string) => void
 ): Promise<{ success: boolean; fileName: string }> {
-  
-  // Extract clean category name safely
+  const log = (msg: string) => onLog?.(msg);
+
+  // Parse category out safely if passed full raw file nomenclature
   let category = categoryOrFileName;
   if (categoryOrFileName.includes("__")) {
     const parts = categoryOrFileName.split("__");
@@ -121,11 +108,7 @@ export async function getShard(
   }
 
   const targetFile = `master_category=${category}/era=post_1900.parquet`;
-  
-  // 🎯 USE THE UNIFIED FILENAME BUILDER HERE
   const safeLocalFileName = buildLocalFileName(bucketName, category);
-  
-  const log = (msg: string) => onLog?.(msg);
 
   log(`🔍 Checking local cache for: "${category}"...`);
 
@@ -154,10 +137,8 @@ export async function getShard(
   }
 }
 
-
 /**
- * LOADS SHARD INTO DUCKDB
- * Pulls the handle from OPFS and registers it onto the virtual database instance.
+ * Loads Shard Into DuckDB context memory.
  */
 export async function loadShardIntoEngine(
   fileName: string,
@@ -165,7 +146,7 @@ export async function loadShardIntoEngine(
 ): Promise<boolean> {
   const log = (msg: string) => onLog?.(msg);
   log(`⚙️ Registering shard window into analytics sandbox engine...`);
-  log( `filename is ${fileName}`);
+  log(`Filename target: ${fileName}`);
 
   try {
     const db = await getSharedDuckDBEngine();
@@ -176,7 +157,6 @@ export async function loadShardIntoEngine(
     const file = await fileHandle.getFile();
 
     log(`⚡ Mounting local stream into table context: "${fileName}"`);
-    // Native file mapping registration step
     await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, false);
     
     log(`🟢 "${fileName}" is successfully mapped into DuckDB context.`);
@@ -187,6 +167,129 @@ export async function loadShardIntoEngine(
     return false;
   }
 }
+
+/**
+ * Discards shard from OPFS memory maps cleanly.
+ */
+export async function deleteShardFromCache(
+  fileName: string, 
+  onLog?: (msg: string) => void
+): Promise<boolean> {
+  const log = (msg: string) => onLog?.(msg);
+
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry(fileName);
+    log(`🗑️ Storage: "${fileName}" successfully removed from OPFS cache.`);
+    return true;
+  } catch (error: any) {
+    if (error.name === "NotFoundError") {
+      log(`⚠️ Storage warning: "${fileName}" was already missing or cleared.`);
+      return true; 
+    }
+    log(`❌ Storage Error clearing "${fileName}": ${error.message}`);
+    return false;
+  }
+}
+
+
+/**
+ * MULTI-SHARD TIMELINE COMPILER (FIXED FOR STRING DATES)
+ * Extracts the 4-digit year dynamically from mixed date formats and aggregates.
+ */
+export async function syncSessionAggregations(
+  activeFileNames: string[],
+  onLog?: (msg: string) => void
+): Promise<any[] | null> {
+  const log = (msg: string) => onLog?.(msg);
+
+  if (activeFileNames.length === 0) {
+    log("⚠️ No active dataset views mounted.");
+    try {
+      const db = await getSharedDuckDBEngine();
+      const conn = await db.connect();
+      await conn.query(`DROP VIEW IF EXISTS aggregated_history;`);
+      await conn.close();
+    } catch {}
+    return [];
+  }
+
+  log(`🧮 Compiling cross-shard category matrix across: [${activeFileNames.join(", ")}]`);
+
+  try {
+    const db = await getSharedDuckDBEngine();
+    const conn = await db.connect();
+
+    // Inject the clean category label name while keeping original schema
+    const unionChain = activeFileNames
+      .map(fileName => {
+        let cleanCategory = fileName;
+        if (fileName.includes("__")) {
+          cleanCategory = fileName.split("__")[1];
+        }
+        return `SELECT *, '${cleanCategory}' AS shard_category FROM "${fileName}"`;
+      })
+      .join(" UNION ALL ");
+
+    await conn.query(`CREATE OR REPLACE VIEW aggregated_history AS ${unionChain};`);
+
+    // 🎯 THE FIX:
+    // 1. Use 'id' instead of 'uuid' to match your schema keys
+    // 2. Extract the first 4 digits from the 'date' string via regex and cast to integer
+   const sqlQuery = `
+        WITH parsed_timeline AS (
+            SELECT 
+            id,
+            shard_category,
+            -- 🎯 The Fix: Match exactly a 4-digit block (\b\d{4}\b) anywhere in the string
+            TRY_CAST(REGEXP_EXTRACT(date, '\\b\\d{4}\\b') AS INTEGER) AS extracted_year
+            FROM aggregated_history
+            WHERE date IS NOT NULL
+        )
+        SELECT 
+            extracted_year AS year,
+            shard_category,
+            COUNT(id)::INTEGER AS event_count,
+            LIST(id) AS uuids
+        FROM parsed_timeline
+        WHERE extracted_year IS NOT NULL 
+            AND extracted_year >= 1900 -- Added guard to match your "post_1900" intent
+        GROUP BY extracted_year, shard_category
+        ORDER BY extracted_year ASC, shard_category ASC;
+        `;
+
+    const arrowResult = await conn.query(sqlQuery);
+    await conn.close();
+
+    return arrowResult.toArray().map((row) => row.toJSON());
+  } catch (err: any) {
+    log(`❌ Matrix Compilation Error: ${err.message}`);
+    console.error(err);
+    return null;
+  }
+}
+
+/**
+ * Centralized filename normalizer. 
+ * Prevents underscore drift or duplicate stitching bugs.
+ */
+export function buildLocalFileName(bucketName: string, category: string): string {
+  return `${bucketName}__${category}__post_1900.parquet`;
+}
+
+/**
+ * Checks if a specific file exists within the OPFS workspace
+ */
+async function checkFileExists(fileName: string): Promise<boolean> {
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.getFileHandle(fileName, { create: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 
 
@@ -221,15 +324,31 @@ export async function getRandomRows(
   }
 }
 
-
-
-
 /**
- * Centralized filename normalizer. 
- * Prevents underscore drift or duplicate stitching bugs.
+ * UNLOADS SHARD FROM DUCKDB
+ * Drops the registered file handle and frees internal engine memory.
  */
-export function buildLocalFileName(bucketName: string, category: string): string {
-  // If the bucket config name already slipped into the category, clean it out first
-  const cleanCategory = category.replace(`${bucketName}__`, "").split("__")[0] || category;
-  return `${bucketName}__${cleanCategory}__post_1900.parquet`;
+export async function unloadShardFromEngine(
+  fileName: string,
+  onLog?: (msg: string) => void
+): Promise<boolean> {
+  const log = (msg: string) => onLog?.(msg);
+  log(`⚙️ Unregistering shard window from analytics sandbox engine...`);
+  log(`Filename target: ${fileName}`);
+
+  try {
+    const db = await getSharedDuckDBEngine();
+    
+    // Drop the file registration from DuckDB's internal virtual file system mapping
+    await db.dropFile(fileName);
+    
+    log(`🟢 "${fileName}" successfully unmounted from DuckDB context.`);
+    return true;
+  } catch (err: any) {
+    log(`❌ Unload Mounting Error: ${err.message}`);
+    console.error(err);
+    return false;
+  }
 }
+
+
