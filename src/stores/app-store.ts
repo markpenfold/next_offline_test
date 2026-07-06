@@ -28,7 +28,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     setAvatarVersion: (version) => set({ avatarVersion: version }),
     
     setActiveAccount:(accChoice:AccountContext) => {
-      activeAccount: accChoice || null;
+      set({ activeAccount: accChoice || null });
     },
 
     // Rules engine
@@ -291,7 +291,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
               ...parsed, 
               tier: freshTier,
               accounts: updatedAccounts,
-              activeAccount: { ...currentActiveAccount, plan_name: freshTier } // Keep cache sync'd
+              activeAccountId: currentActiveAccount.id
+              // WAS: activeAccount: { ...currentActiveAccount, plan_name: freshTier } // Keep cache sync'd
             }));
           }
           console.log(`✨ Local workspace sync complete! Current tier: ${freshTier}`);

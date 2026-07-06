@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import  BasicDuck  from '@/components/data/BasicDuck'
 import OmenWrap from '@/components/data/omenWrap';
 import {ShardSelector} from '@/components/data/ShardSelector';
+import {IndexLoader} from '@/components/data/IndexLoader';
 
 
 export default async function OmenPage() {
@@ -19,6 +20,7 @@ const supabase = await createClient();
   return (
     <OmenWrap >
       <ShardSelector />
+      <IndexLoader/>
     </OmenWrap>
     );
 }

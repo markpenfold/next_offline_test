@@ -1,0 +1,61 @@
+/* densityGraph.module.css */
+.graphContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  touch-action: none;
+  width: 80%;
+  background-color: #1248dd; /* gray-700 to match your UI */
+  margin-left:10%;
+  margin-right: 10%;
+  margin-bottom: 1%;
+  margin-top: 1%;;
+}
+
+.end {
+  width: 50px;
+  font-size: x-small;
+  height: 20px;
+  margin-left: 5px;
+  color: rgb(214, 206, 206);
+}
+
+.checkHolder {
+  float: left;
+}
+
+
+
+.thin-range-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(251, 235, 42, 0.85);
+  cursor: pointer;
+  border: none;
+}
+
+.tabColors{
+  position: relative;
+  background: #ef4444; 
+  top: 0px;
+  color: white;
+  padding:8px 6px;
+  font-size: 11px;
+  font-weight: bold;
+  white-space: nowrap;
+  z-index: 10;
+  height: 42px;
+  cursor: ew-resize;  
+
+}
+
+.tabColors:hover{
+  background: #dc2626; 
+  cursor: ew-resize;
+}
+
+.tabColors:active{
+  background: #b91c1c; 
+}

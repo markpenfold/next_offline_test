@@ -52,6 +52,7 @@ export function ShardSelector() {
         setError(null);
         await syncCacheManifest();
 
+        // set up the data fetch
         const fetchPromises = BUCKET_CONFIGS.map(async (bucket) => {
           const res = await fetch(`/api/categories?bucket=${bucket.name}`);
           if (!res.ok) throw new Error(`Failed fetching ${bucket.label}`);
@@ -59,13 +60,16 @@ export function ShardSelector() {
           return { id: bucket.id, categories };
         });
 
+          // get results then make into usable shape
         const results = await Promise.all(fetchPromises);
         const newDataMap = results.reduce((acc, curr) => {
           acc[curr.id] = curr.categories;
           return acc;
         }, {} as Record<string, string[]>);
 
+        // display the data
         setShardData(newDataMap);
+
         addLog(`Loaded catalog. Cross-referencing local cache structures...`);
       } catch (err: any) {
         setError(err.message);
@@ -141,9 +145,9 @@ export function ShardSelector() {
   };
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif", width: "700px", margin: "0 auto" }}>
-      <h2>Historical Data Shards</h2>
-      <p style={{ color: "#666" }}>Select a category shard to pull from Cloudflare R2 storage.</p>
+    <div style={{backgroundColor:blue, padding: "2rem", fontFamily: "sans-serif", width: "auto", margin: "0 auto" }}>
+      <h2 style={{color: white}} >Historical Data Shards</h2>
+  
       
       <hr style={{ margin: "1.5rem 0", borderColor: "#eaeaea" }} />
 
@@ -158,7 +162,7 @@ export function ShardSelector() {
         const categories = shardData[config.id] || [];
         return (
           <div key={config.id} style={{ marginBottom: "2rem" }}>
-            <h3 style={{ fontSize: "1.1rem", color: "#333", marginBottom: "0.5rem" }}>{config.label}</h3>
+            <h3 style={{ fontSize: "1.1rem", color: white, marginBottom: "0.5rem" }}>{config.label}</h3>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               {categories.length === 0 ? (
                 <p style={{ color: "#888", fontSize: "0.9rem" }}>No shards available in this tier.</p>
@@ -184,34 +188,34 @@ export function ShardSelector() {
                       <button
                         onClick={() => handleDownloadClick(category, config.name)}
                         style={{
-                          padding: "0.5rem 1rem",
+                          padding: "0.15rem 1rem",
                           background: isCached ? "#111111" : config.color,
                           color: "#fff",
                           border: "none",
                           cursor: "pointer",
                           fontWeight: "bold",
                           textTransform: "capitalize",
-                          fontSize: "0.85rem",
+                          fontSize: "0.55rem",
                           transition: "opacity 0.2s ease"
                         }}
                         onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
                         onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
                       >
-                        {isCached ? `✓ ${category}` : `Download ${category}`}
+                        {isCached ? `✓ ${category}` : `${category}`}
                       </button>
 
                       {/* Middle Segment: Load Controller */}
                       <button
                         onClick={() => handleLoadClick(category, config.name)}
                         style={{
-                          padding: "0.5rem 1rem",
+                          padding: "0.15rem 1rem",
                           background: isLoaded ? "#79797b" : "#ffffff",
                           color: isCached ? black : config.color, 
                           border: "none",
                           borderLeft: `1px solid ${isCached ? black : config.color}`,
                           cursor: "pointer",
                           fontWeight: "bold",
-                          fontSize: "0.85rem",
+                          fontSize: "0.55rem",
                           transition: "background 0.2s ease"
                         }}
                         onMouseEnter={(e) => (e.currentTarget.style.background = isLoaded ? "#d4d4d8" : "#f4f4f5")}
@@ -226,14 +230,14 @@ export function ShardSelector() {
                           onClick={() => handleDeleteClick(category, config.name)}
                           title="Delete local cache file"
                           style={{
-                            padding: "0.5rem 0.75rem",
+                            padding: "0.15rem 0.75rem",
                             background: white,
                             color: red, 
                             border: "none",
                             borderLeft: `1px solid #333`,
                             cursor: "pointer",
                             fontWeight: "bold",
-                            fontSize: "0.85rem",
+                            fontSize: "0.55rem",
                             transition: "all 0.2s ease text-align"
                           }}
                           onMouseEnter={(e) => {

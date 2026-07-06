@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { Readable } from "stream"; // 🎯 Added to process Node streams cleanly
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const bucket = searchParams.get("bucket");
   const file = searchParams.get("file");
 
-  // Validate incoming parameters
   if (!bucket || !file) {
     return NextResponse.json({ error: "Missing bucket or file parameters" }, { status: 400 });
   }
 
-  // Ensure environment keys exist before constructing the client
   const accountId = process.env.R2_ACCOUNT_ID;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
@@ -24,7 +23,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Initialize the S3 Client matching your structure exactly
     const r2 = new S3Client({
       region: "auto",
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -34,32 +32,36 @@ export async function GET(request: Request) {
       },
     });
 
-    // 2. Build the command targeting your unique parquet resource path
+    // 🎯 Properly targets 'data/master_category=x/era=y.parquet'
     const command = new GetObjectCommand({
       Bucket: bucket,
-      Key: file, // e.g. "master_category=hitler/era=post_1900.parquet"
+      Key: `data/${file}`, 
     });
 
-    // 3. Request the object from Cloudflare R2
     const s3Response = await r2.send(command);
 
     if (!s3Response.Body) {
       throw new Error("No data body payload returned from storage endpoint.");
     }
 
-    // 4. Transform the S3 response body into a clean stream Next.js can pass along
-    const stream = s3Response.Body as ReadableStream;
+    // 🎯 FIX: Safely convert the Node.js Stream into a Next.js-compatible Web ReadableStream
+    const nodeStream = s3Response.Body as Readable;
+    const webStream = new ReadableStream({
+      start(controller) {
+        nodeStream.on("data", (chunk) => controller.enqueue(chunk));
+        nodeStream.on("end", () => controller.close());
+        nodeStream.on("error", (err) => controller.error(err));
+      }
+    });
 
-    // Extract the raw file name out of the path for the header metadata
     const cleanFileName = file.split('/').pop() || 'data.parquet';
 
-    // 5. Send back the response with correct binary attachment headers
-    return new NextResponse(stream, {
+    return new NextResponse(webStream, {
       status: 200,
       headers: {
         "Content-Type": "application/octet-stream",
         "Content-Disposition": `attachment; filename="${cleanFileName}"`,
-        "Cache-Control": "no-store", // Prevents Next.js from aggressively caching the API file output
+        "Cache-Control": "no-store", 
       },
     });
 

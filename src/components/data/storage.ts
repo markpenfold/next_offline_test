@@ -4,14 +4,17 @@
  */
 import * as duckdb from "@duckdb/duckdb-wasm";
 
+
 // 🔒 THE CONCURRENCY LOCKS
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
+// Concurrency lock to prevent DuckDB catalog race conditions
+let isIndexLoading = false;
 
-/**
- * Coalesces concurrent boot requests into a single shared execution thread.
- */
-async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
+export const INDEX_TABLE_NAME = 'main.test_index';
+
+/*** Coalesces concurrent boot requests into a single shared execution thread.*/
+export async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
   if (dbInstance) return dbInstance;
   if (initPromise) return initPromise;
 
@@ -30,20 +33,12 @@ async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
     const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
     
     // 🧠 THE WORKER CORS BYPASS WORKAROUND:
-    // 1. Fetch the raw worker code text from the CDN link
     const response = await fetch(bundle.mainWorker!);
     const workerCode = await response.text();
     
-    // 2. Create a blob container labeled explicitly as JavaScript code bits
     const blob = new Blob([workerCode], { type: "application/javascript" });
-    
-    // 3. Generate a temporary "blob:http://localhost:3000/..." absolute path
     const blobURL = URL.createObjectURL(blob);
-    
-    // 4. Instantiate the Worker using our localized origin proxy string
     const worker = new Worker(blobURL);
-    
-    // Clean up the URL allocation after execution begins to free memory
     URL.revokeObjectURL(blobURL);
 
     const logger = new duckdb.ConsoleLogger();
@@ -57,11 +52,9 @@ async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
   return initPromise;
 }
 
-/**
- * Scans the root directory of the OPFS storage layer and compiles 
- * a Set of all available filenames.
- */
+/*** Scans the root directory of the OPFS storage layer and compiles a Set of all available filenames.*/
 export async function getLocalCacheManifest(): Promise<Set<string>> {
+  
   try {
     const root = await navigator.storage.getDirectory();
     const existingFiles = new Set<string>();
@@ -71,6 +64,7 @@ export async function getLocalCacheManifest(): Promise<Set<string>> {
         existingFiles.add(entry.name);
       }
     }
+    console.log("Get local cache manifest, existingFiles ->", existingFiles)
     return existingFiles;
   } catch (err) {
     console.error("Failed to read OPFS directory maps:", err);
@@ -78,29 +72,24 @@ export async function getLocalCacheManifest(): Promise<Set<string>> {
   }
 }
 
-/**
- * Streams blob data straight into your OPFS space
- */
+/*** Streams blob data straight into your OPFS space */
 async function writeBlobToOPFS(fileName: string, blob: Blob): Promise<void> {
   const root = await navigator.storage.getDirectory();
   const fileHandle = await root.getFileHandle(fileName, { create: true });
-  const writable = await (fileHandle as any).createWritable(); // Cast depending on your TS configuration
+  const writable = await (fileHandle as any).createWritable(); 
   await writable.write(blob);
   await writable.close();
 }
 
-
-/**
- * Orchestrates cache validation, network retrieval, and OPFS persistence.
- */
+/*** Orchestrates cache validation, network retrieval, and OPFS persistence.*/
 export async function getShard(
   categoryOrFileName: string, 
   bucketName: string, 
   onLog?: (msg: string) => void
 ): Promise<{ success: boolean; fileName: string }> {
   const log = (msg: string) => onLog?.(msg);
+  console.log("Getting a shard, ", categoryOrFileName)
 
-  // Parse category out safely if passed full raw file nomenclature
   let category = categoryOrFileName;
   if (categoryOrFileName.includes("__")) {
     const parts = categoryOrFileName.split("__");
@@ -137,29 +126,21 @@ export async function getShard(
   }
 }
 
-/**
- * Loads Shard Into DuckDB context memory.
- */
+/*** Loads Shard Into DuckDB context memory. */
 export async function loadShardIntoEngine(
   fileName: string,
   onLog?: (msg: string) => void
 ): Promise<boolean> {
   const log = (msg: string) => onLog?.(msg);
-  log(`⚙️ Registering shard window into analytics sandbox engine...`);
-  log(`Filename target: ${fileName}`);
+  console.log("loading shard:", fileName);
 
   try {
     const db = await getSharedDuckDBEngine();
-    
-    log(`📁 Opening local file handles inside OPFS...`);
     const root = await navigator.storage.getDirectory();
     const fileHandle = await root.getFileHandle(fileName);
     const file = await fileHandle.getFile();
 
-    log(`⚡ Mounting local stream into table context: "${fileName}"`);
     await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, false);
-    
-    log(`🟢 "${fileName}" is successfully mapped into DuckDB context.`);
     return true;
   } catch (err: any) {
     log(`❌ Load Mounting Error: ${err.message}`);
@@ -168,9 +149,7 @@ export async function loadShardIntoEngine(
   }
 }
 
-/**
- * Discards shard from OPFS memory maps cleanly.
- */
+/*** Discards shard from OPFS memory maps cleanly.*/
 export async function deleteShardFromCache(
   fileName: string, 
   onLog?: (msg: string) => void
@@ -192,11 +171,7 @@ export async function deleteShardFromCache(
   }
 }
 
-
-/**
- * MULTI-SHARD TIMELINE COMPILER (FIXED FOR STRING DATES)
- * Extracts the 4-digit year dynamically from mixed date formats and aggregates.
- */
+/** * Extracts the 4-digit year dynamically from mixed date formats and aggregates.*/
 export async function syncSessionAggregations(
   activeFileNames: string[],
   onLog?: (msg: string) => void
@@ -220,7 +195,6 @@ export async function syncSessionAggregations(
     const db = await getSharedDuckDBEngine();
     const conn = await db.connect();
 
-    // Inject the clean category label name while keeping original schema
     const unionChain = activeFileNames
       .map(fileName => {
         let cleanCategory = fileName;
@@ -233,15 +207,11 @@ export async function syncSessionAggregations(
 
     await conn.query(`CREATE OR REPLACE VIEW aggregated_history AS ${unionChain};`);
 
-    // 🎯 THE FIX:
-    // 1. Use 'id' instead of 'uuid' to match your schema keys
-    // 2. Extract the first 4 digits from the 'date' string via regex and cast to integer
-   const sqlQuery = `
+    const sqlQuery = `
         WITH parsed_timeline AS (
             SELECT 
             id,
             shard_category,
-            -- 🎯 The Fix: Match exactly a 4-digit block (\b\d{4}\b) anywhere in the string
             TRY_CAST(REGEXP_EXTRACT(date, '\\b\\d{4}\\b') AS INTEGER) AS extracted_year
             FROM aggregated_history
             WHERE date IS NOT NULL
@@ -253,7 +223,7 @@ export async function syncSessionAggregations(
             LIST(id) AS uuids
         FROM parsed_timeline
         WHERE extracted_year IS NOT NULL 
-            AND extracted_year >= 1900 -- Added guard to match your "post_1900" intent
+            AND extracted_year >= 1900
         GROUP BY extracted_year, shard_category
         ORDER BY extracted_year ASC, shard_category ASC;
         `;
@@ -269,17 +239,12 @@ export async function syncSessionAggregations(
   }
 }
 
-/**
- * Centralized filename normalizer. 
- * Prevents underscore drift or duplicate stitching bugs.
- */
+/*** Centralized filename normalizer. */
 export function buildLocalFileName(bucketName: string, category: string): string {
   return `${bucketName}__${category}__post_1900.parquet`;
 }
 
-/**
- * Checks if a specific file exists within the OPFS workspace
- */
+/**Checks if a specific file exists within the OPFS workspace*/
 async function checkFileExists(fileName: string): Promise<boolean> {
   try {
     const root = await navigator.storage.getDirectory();
@@ -290,13 +255,7 @@ async function checkFileExists(fileName: string): Promise<boolean> {
   }
 }
 
-
-
-
-/**
- * STANDALONE QUERY FUNCTION
- * Connects to the database and pulls random data rows from a specified table workspace name.
- */
+/*** STANDALONE QUERY FUNCTION */
 export async function getRandomRows(
   tableName: string,
   limit: number = 5,
@@ -311,12 +270,9 @@ export async function getRandomRows(
 
     const sqlQuery = `SELECT * FROM "${tableName}" ORDER BY random() LIMIT ${limit};`;
     const arrowResult = await conn.query(sqlQuery);
-    
     await conn.close();
 
-    const rows = arrowResult.toArray().map((row) => row.toJSON());
-    log(`🟢 Isolated sample collection complete.`);
-    return rows;
+    return arrowResult.toArray().map((row) => row.toJSON());
   } catch (err: any) {
     log(`❌ Query Pipeline Error: ${err.message}`);
     console.error(err);
@@ -324,31 +280,294 @@ export async function getRandomRows(
   }
 }
 
-/**
- * UNLOADS SHARD FROM DUCKDB
- * Drops the registered file handle and frees internal engine memory.
- */
+/*** UNLOADS SHARD FROM DUCKDB */
 export async function unloadShardFromEngine(
   fileName: string,
   onLog?: (msg: string) => void
 ): Promise<boolean> {
-  const log = (msg: string) => onLog?.(msg);
-  log(`⚙️ Unregistering shard window from analytics sandbox engine...`);
-  log(`Filename target: ${fileName}`);
-
   try {
     const db = await getSharedDuckDBEngine();
-    
-    // Drop the file registration from DuckDB's internal virtual file system mapping
     await db.dropFile(fileName);
-    
-    log(`🟢 "${fileName}" successfully unmounted from DuckDB context.`);
     return true;
   } catch (err: any) {
-    log(`❌ Unload Mounting Error: ${err.message}`);
-    console.error(err);
+    console.error(`Failed dropping VFS file handle for ${fileName}:`, err);
     return false;
   }
 }
 
+// list indexes using the API
+export async function fetchAvailableIndexes(): Promise<AvailableIndex[]> {
+  try {
+    const response = await fetch("/api/aggregates/list"); 
+    if (!response.ok) throw new Error("Failed to compile remote scanning manifests");
+    return await response.json();
+  } catch (err) {
+    console.error("Error pulling scanned remote catalog list:", err);
+    return [];
+  }
+}
 
+// get a particular index from R2
+export async function getMasterIndex(
+  era: string,
+  tier: string,
+  fileName: string,
+  onLog?: (msg: string) => void
+): Promise<{ success: boolean }> {
+  const log = (msg: string) => onLog?.(msg);
+
+  log(`📡 Fetching master index layer from remote storage: "${fileName}"...`);
+
+  try {
+    const root = await navigator.storage.getDirectory();
+
+    const response = await fetch(`/api/aggregates?era=${era}&tier=${tier}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    log("Streaming index dataset content across proxy...");
+    const blob = await response.blob();
+    const fileHandle = await root.getFileHandle(fileName, {
+      create: true,
+    });
+
+    const writable = await (fileHandle as any).createWritable();
+
+    await writable.write(blob);
+    await writable.close();
+
+    // Verify the file that was written
+    const savedFile = await fileHandle.getFile();
+
+    log(`🟢 Successfully downloaded and saved index layer: ${fileName}`);
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Master index download failed:", err);
+    log(`❌ Master Index Process Error: ${err.message}`);
+    return { success: false };
+  }
+}
+
+// Optional utility helper to clear files from local cache
+export async function deleteIndexFromOPFS(fileName: string): Promise<void> {
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry(fileName);
+  } catch (err) {
+    console.warn(`File already deleted or missing: ${fileName}`, err);
+  }
+}
+
+
+export interface AvailableIndex {
+  fileName: string;
+  tier: string;
+  era: string;
+  sizeBytes: number;
+  handle: FileSystemFileHandle; 
+}
+
+export async function scanLocalOPFSIndexes(onLog?: (msg: string) => void): Promise<AvailableIndex[]> {
+  const log = (msg: string) => onLog?.(msg);
+  const foundIndexes: AvailableIndex[] = [];
+
+  try {
+    const root = await navigator.storage.getDirectory();
+
+    // @ts-ignore - TS sometimes forgets OPFS directories are async iterable
+    for await (const [name, handle] of root.entries()) {
+      if (handle.kind === 'file' && name.endsWith('.parquet') && name.startsWith('index__')) {
+        
+        const parts = name.replace('.parquet', '').split('__');
+        const tier = parts[1] || 'unknown';
+        const era = parts[2] || 'unknown';
+        
+        const file = await handle.getFile();
+
+        foundIndexes.push({
+          fileName: name,
+          tier,
+          era,
+          sizeBytes: file.size,
+          handle: handle as FileSystemFileHandle 
+        });
+      }
+    }
+    
+    log(`✅ Discovered ${foundIndexes.length} parquet index files in OPFS cache.`);
+    return foundIndexes;
+    
+  } catch (err: any) {
+    log(`❌ Error scanning OPFS directory: ${err.message}`);
+    console.error(err);
+    return [];
+  }
+}
+
+
+// Define your expected return shape for an index entry
+export interface IndexRow {
+  year: string;
+  folderName: string;
+  eventCount: string;
+  eventUuids: string[];
+}
+
+
+// add index file to the master local Index
+export async function insertIndex(
+  fileName: string, 
+  fileHandle: FileSystemFileHandle, // 👈 Accept the handle from your scanner
+  onLog?: (msg: string) => void
+): Promise<void> {
+  const log = (msg: string) => onLog?.(msg);
+  
+  const db = await getSharedDuckDBEngine();
+  const conn = await db.connect();
+
+  try {
+    log(`⚡ Extracting ${fileName} from OPFS and registering to VFS...`);
+    
+    // 1. Read the file from the handle and register it in DuckDB memory
+    const file = await fileHandle.getFile();
+    const arrayBuffer = await file.arrayBuffer();
+    await db.registerFileBuffer(fileName, new Uint8Array(arrayBuffer));
+
+    // 2. Corrected CREATE TABLE syntax
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ${INDEX_TABLE_NAME} (
+        year BIGINT,
+        folder_name VARCHAR,
+        event_count BIGINT,
+        event_uuids VARCHAR[]
+      );
+    `);
+
+    log(`📥 Inserting data into ${INDEX_TABLE_NAME} from ${fileName}...`);
+    
+    // 3. Insert the data
+    await conn.query(`
+      INSERT INTO ${INDEX_TABLE_NAME} 
+      SELECT year, folder_name, event_count, event_uuids 
+      FROM read_parquet('${fileName}');
+    `);
+
+    log(`✅ Successfully inserted ${fileName}!`);
+
+  } catch (err: any) {
+    log(`❌ Error inserting index: ${err.message}`);
+    console.error(err);
+  } finally {
+    // 4. Critical cleanup to prevent memory leaks!
+    log(`🧹 Dropping ${fileName} from memory...`);
+    try {
+      await db.dropFile(fileName);
+    } catch (cleanupErr) {
+      // Ignore cleanup errors if file was never registered
+    }
+    await conn.close();
+  }
+}
+
+
+export async function buildLocalIndex(onLog?: (msg: string) => void){
+  const localIndexFiles = await scanLocalOPFSIndexes(onLog);
+  for (const index of localIndexFiles) {
+  // Pass the fileName AND the handle we saved in the previous step
+  await insertIndex(index.fileName, index.handle, onLog);
+  }
+}
+
+
+export async function readMainLocalIndex(){}
+
+export async function readIndexToTable(onLog?: (msg: string) => void): Promise<IndexRow[]> {
+  if (isIndexLoading) {
+    console.warn("Index load already in progress, returning empty array...");
+    return []; 
+  }
+
+  isIndexLoading = true;
+  const log = (msg: string) => onLog?.(msg);
+  log("🔄 loading single index file into db");
+
+  const fileName = 'index__pro__pre_1900.parquet';
+  const db = await getSharedDuckDBEngine();
+  const conn = await db.connect();
+
+  try {
+    // 1. Clean slate with explicit 'main' schema
+    await conn.query(`DROP TABLE IF EXISTS ${INDEX_TABLE_NAME};`);
+    await conn.query(`
+      CREATE TABLE ${INDEX_TABLE_NAME} (
+        year BIGINT,
+        folder_name VARCHAR,
+        event_count BIGINT,
+        event_uuids VARCHAR[]
+      );
+    `);
+
+    // 2. Access OPFS
+    const root = await navigator.storage.getDirectory();
+    let fileHandle: FileSystemFileHandle;
+    try {
+      fileHandle = await root.getFileHandle(fileName, { create: false });
+    } catch (e) {
+      throw new Error(`File '${fileName}' not found in OPFS root directory.`);
+    }
+
+    log(`📂 Found file in OPFS, reading contents...`);
+    const file = await fileHandle.getFile();
+    const arrayBuffer = await file.arrayBuffer();
+
+    log(`⚡ Registering file buffer with DuckDB VFS...`);
+    await db.registerFileBuffer(fileName, new Uint8Array(arrayBuffer));
+
+    let desc = await conn.query(`DESCRIBE SELECT * FROM read_parquet('${fileName}')`);
+    log(`Parquet schema: ${desc}`);
+
+    log(`📥 Inserting data into test_index from ${fileName}...`);
+    await conn.query(`
+      INSERT INTO ${INDEX_TABLE_NAME} 
+      SELECT year, folder_name, event_count, event_uuids FROM read_parquet('${fileName}');
+    `);
+
+    log(`✅ Successfully loaded ${fileName} into test_index table.`);
+
+    // 3. Clean up the virtual file buffer to free up WASM memory
+    await db.dropFile(fileName);
+  
+    // 4. Fetch rows
+    log("📜 Fetching row contents from test_index...");
+    const result = await conn.query(`SELECT * FROM ${INDEX_TABLE_NAME} LIMIT 100;`);
+    const rows = result.toArray();
+
+    log(`📋 Found ${rows.length} rows. Formatting for return...`);
+
+    // 5. Map the rows to your interface and handle BigInt conversions safely
+    const formattedData: IndexRow[] = rows.map((row) => {
+      return {
+        year: row.year?.toString() ?? 'N/A',
+        folderName: row.folder_name ?? 'N/A',
+        eventCount: row.event_count?.toString() ?? 'N/A',
+        eventUuids: row.event_uuids ? Array.from(row.event_uuids) : [] 
+      };
+    });
+
+    return formattedData;
+
+  } catch (err: any) {
+    log(`❌ PRINTING DB LOAD ERROR: ${err.message}`);
+    console.error(err);
+    
+    // Re-throw so the calling function (e.g., your React component) knows it failed
+    throw err; 
+  } finally {
+    await conn.close();
+    // Always release the lock, even if an error occurred
+    isIndexLoading = false;
+  }
+}

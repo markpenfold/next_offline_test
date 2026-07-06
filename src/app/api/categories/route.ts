@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     // We use a clean ListObjectsV2 setup to scan the top-level virtual paths
     const command = new ListObjectsV2Command({
       Bucket: bucket,
-      Prefix: "master_category=",
+      Prefix: "data/master_category=",
     });
 
     const response = await r2.send(command);
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     if (response.Contents && Array.isArray(response.Contents)) {
       for (const obj of response.Contents) {
         if (!obj.Key) continue;
-        const match = obj.Key.match(/master_category=([^/]+)/);
+        const match = obj.Key.match(/data\/master_category=([^/]+)/);
         if (match && match[1]) {
           categories.add(match[1]);
         }
