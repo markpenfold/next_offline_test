@@ -13,7 +13,7 @@ export default async function DashboardPage() {
 
   // Hard block at the server level: unauthenticated traffic never sees the shell
   if (!user) {
-    redirect('/offlinedash.');
+    redirect('/login');
   }
 
   return (

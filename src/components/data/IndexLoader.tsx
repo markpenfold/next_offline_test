@@ -7,8 +7,12 @@ import {
   getMasterIndex,
   deleteShardFromCache,
   AvailableIndex,
-  readIndexToTable
+  buildLocalIndex,
+  buildLocalIndexFileName
 } from "./storage"; 
+import { useAppStore } from '@/providers/AppStoreProvider';
+
+import {getIndex} from './analytics';
 
 const white = 'rgb(245,245,245)';
 const red = 'rgb(162, 5, 5)';
@@ -21,6 +25,9 @@ export function IndexLoader() {
   const [loading, setLoading] = useState<boolean>(true);
   const [logs, setLogs] = useState<string[]>([]);
   const [index, setIndex] = useState<any[]>([]);
+
+  const activeAccount = useAppStore((s) => s.activeAccount);
+  const currentTier = useAppStore((s) => s.tier);
   
 
 
@@ -31,32 +38,65 @@ export function IndexLoader() {
   // Complete loop state sync coordinator
   const syncWorkspaceState = async () => {
     // 3. Update cache mapping flags and table readouts
-    const manifest = await getLocalCacheManifest();
-    console.log("Cache manifest for index ", manifest)
+    const manifest = await getLocalCacheManifest('indexes');
+    addLog(`[syncWorkspaceState] Cache manifest for index ${ manifest }`)
     setLocalCache(manifest);
   };
 
   // 🚀 Live Scan & Initialize on Mount
   useEffect(() => {
+    let isMounted = true;
+
     async function initComponent() {
+
+      // 1. Guard check for TypeScript & hydration safety
+      if (!activeAccount?.id) {
+        addLog("⚠️ Waiting for active account context...");
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         addLog("Scanning R2 buckets for available historical indexes...");
         
-        const scannedList = await fetchAvailableIndexes();
+        //check with R2, given current Active Account ID
+        const scannedList = await fetchAvailableIndexes(activeAccount.id);
+        console.log("scanneList is:", scannedList)
+        if (!isMounted) return;
         setAvailableIndexes(scannedList);
-        addLog(`Scan complete! Discovered ${scannedList.length} total index components available.`);
+        addLog(`Scan complete! Discovered ${scannedList.length} total indexes available for download.`);
 
+        // Set available files in INDEXES and DATA OPFS directories
         await syncWorkspaceState();
 
-        let results = await readIndexToTable((msg: string) => {
-        // Append each database log directly to our UI state
-          setLogs((prev) => [...prev, msg]);
-          
-        });
-        setIndex(results);
+        //Build local index and capture the diagnostic report
+        addLog("🏗️ Reassembling master index tables from OPFS storage...");
+        const buildReport = await buildLocalIndex(addLog);
 
+        // 2. Handle partial or total index building failure
+        if (!buildReport.success) {
+          addLog(`⚠️ Local index built with warnings! Failed targets: ${buildReport.failedFiles.join(', ')}`);
 
+          // Example: toast.error(`Failed loading index files: ${buildReport.errorMessage}`);
+        } else if (buildReport.totalFilesProcessed > 0) {
+          addLog("Local unified master index successfully compiled.");
+        } else {
+          addLog("Local disk storage cache is currently empty. Ready for downlinks.");
+        }
+
+        //We know index has been built by buildLocalIndex
+        //Destructure the safe payload from getIndex()
+        const { data, error } = await getIndex(100);
+        if (error) {
+          addLog(`❌ Query Failed: ${error}`);
+          // Show a toast or update a separate error state banner
+          // toast.error("Could not query master index."); 
+          // Fall back to a safe, empty array so mapping over state doesn't crash the UI
+          setIndex([]); 
+        } else {
+          addLog(`✅ Successfully loaded ${data.length} rows into view.`);
+          setIndex(data);
+        }
       } catch (err: any) {
         addLog(`❌ Sync Error during boot sequence: ${err.message}`);
       } finally {
@@ -64,18 +104,28 @@ export function IndexLoader() {
       }
     }
     initComponent();
-  }, []);
+  }, [activeAccount?.id]);
 
   // 📡 Handle Dynamic Download Action
   const handleDownloadAndMountClick = async (item: AvailableIndex) => {
-    addLog(`📡 Preparing download parameters for: "${item.fileName}"...`);
-    const { success } = await getMasterIndex(item.era, item.tier, item.fileName, addLog);
-    
-    if (success) {
-      await syncWorkspaceState();
-      addLog(`🟢 "${item.fileName}" loaded and synced into unified database space.`);
-    }
-  };
+  if (!activeAccount?.id) {
+    addLog(`❌ Cannot download index: No active account selected.`);
+    return;
+  }
+
+  addLog(`📡 Preparing download parameters for: "${item.fileName}"...`);
+
+  const { success, targetFileName } = await getMasterIndex({
+    item,
+    accountId: activeAccount.id,
+    onLog: addLog,
+  });
+
+  if (success) {
+    await syncWorkspaceState();
+    addLog(`🟢 "${targetFileName}" loaded and synced into unified database space.`);
+  }
+};
 
   // 🗑️ Handle Cache Eviction Action
   const handleDeleteClick = async (fileName: string) => {
@@ -119,13 +169,31 @@ export function IndexLoader() {
               <p style={{ fontStyle: "italic", opacity: 0.6 }}>No indices found in the scanned buckets.</p>
             ) : (
               availableIndexes.map((item) => {
-                const isCached = localCache.has(item.fileName);
+                const localFileName = buildLocalIndexFileName(
+                  item.tier,
+                  item.cube,
+                  item.era,
+                  item.version || "v1"
+                );
+                console.log("item filename: ", localFileName)
+                const isCached = localCache.has(localFileName);
                 const cleanEraLabel = item.era.replace("_", " ");
-                const readableEra = cleanEraLabel.charAt(0).toUpperCase() + cleanEraLabel.slice(1);
                 
+                // Dynamic Extraction: Convert "wiki_shards_final" -> "Wiki Shards Final"
+                const readableCube = item.cube
+                  ? item.cube
+                      .replace("history_cube", "")
+                      .split("_")
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(" ")
+                  : "";
+
+                const readableEra = cleanEraLabel.charAt(0).toUpperCase() + cleanEraLabel.slice(1) + ' '+ readableCube;
+
+
                 return (
                   <div 
-                    key={item.fileName} 
+                    key={`${item.fileName}-${item.era}-${item.cube}-${item.tier}`}
                     style={{ 
                       display: "flex", 
                       alignItems: "center", 
@@ -140,7 +208,7 @@ export function IndexLoader() {
                       <span style={{ fontSize: "0.75rem", background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)", padding: "2px 6px", borderRadius: "4px", marginRight: "10px", fontWeight: "bold", textTransform: "uppercase" }}>
                         {item.tier}
                       </span>
-                      <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>{readableEra} Matrix Segment</span>
+                      <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>{readableEra} Index</span>
                     </div>
                     
                     <div style={{ display: "inline-flex", borderRadius: "20px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
@@ -196,6 +264,13 @@ export function IndexLoader() {
         ))}
       </div>
 
+
+
+
+
+
+
+
       {/* Real-time Compiled Data Matrix Preview Grid */}
       <div style={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", padding: "16px", fontFamily: "monospace", color: "#d4d4d8", fontSize: "0.75rem" }}>
   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #27272a", paddingBottom: "8px", marginBottom: "12px" }}>
@@ -217,16 +292,16 @@ export function IndexLoader() {
       </div>
       
       {index.slice(0, 10).map((row, idx) => {
-        // ✨ Clean Win: row.eventUuids is already a guaranteed JS Array from our fetch function!
-        const uuids = row.eventUuids; 
+       // convert from raw duckdb/Apache Arrow 
+      const uuids = Array.from(row.event_uuids || []);
 
         return (
           <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 2fr", gap: "8px", padding: "4px 0", borderBottom: "1px solid #222" }}>
             <div style={{ color: "#fbbf24", fontWeight: "bold" }}>{row.year}</div>
             <div style={{ color: "#38bdf8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {row.folderName}
+              {row.folder_name}
             </div>
-            <div style={{ color: "#34d399" }}>{row.eventCount} events</div>
+            <div style={{ color: "#34d399" }}>{row.event_count} events</div>
             <div style={{ color: "#52525b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               [{uuids.slice(0, 2).join(', ')}{uuids.length > 2 ? '...' : ''}] ({uuids.length} items)
             </div>

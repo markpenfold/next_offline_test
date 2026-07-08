@@ -154,6 +154,74 @@ export async function getAccountOwner(accountId:string): Promise<string | null> 
   return profile?.email || null
 }
 
+export async function checkAccountMembership(user_id:string, accountId:string){
+  const supabase = await createClient()
+
+  if (!accountId || !user_id ) return null
+
+    // 1. Get the owner's user_id from memberships
+  const { data: membership, error: memError } = await supabase
+    .from('memberships')
+    .select('role')
+    .eq('account_id', accountId)
+    .eq('user_id', user_id)
+    .maybeSingle()
+
+    if (memError) {
+    console.error(`[Query Error checkAccountMembership] User ${user_id} not a member of account: ${accountId}`, memError?.message)
+    return null
+  }
+
+  return membership?.role;
+
+}
+
+export async function checkAccountTier(accountId:string){
+  const supabase = await createClient()
+
+  if (!accountId) return null
+
+  // 1. Get the owner's user_id from memberships
+  const { data: accessLevel, error: memError } = await supabase
+    .from('accounts')
+    .select('plan_name')
+    .eq('id', accountId)
+    .maybeSingle()
+
+  if (memError ) {
+    console.error(`[Query Error getAccountOwner] No owner found for account ${accountId}`, memError?.message)
+    return null
+  }
+
+  return accessLevel?.plan_name;
+
+}
+
+export async function checkMembershipAndAccess(userId: string, accountId: string) {
+  if (!accountId || !userId) return null;
+
+  const supabase = await createClient();
+
+  // 1 query checks membership AND fetches account tier
+  const { data: membership, error } = await supabase
+    .from('memberships')
+    .select(`
+      role,
+      accounts (
+        plan_name
+      )
+    `)
+    .eq('account_id', accountId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !membership) return null;
+
+  // Extract the plan name (e.g. 'pro', 'free')
+  const planName = (membership.accounts as any)?.plan_name;
+  
+  return planName ? planName.toLowerCase() : 'free';
+}
 
 // get SINGLE user account where they are the owner
 export async function getActiveUserAccount( user_id: string) {
@@ -325,6 +393,7 @@ const getAccountContextQuery = (supabase: SupabaseClient, userId: string, accoun
 type MembershipQueryResult = QueryData<ReturnType<typeof getAccountContextQuery>>
 
 /** Safely fetches context for a workspace, validating that the user is the owner.*/
+// STRIPE STUFF
 export async function getAccountContext(
   supabase: SupabaseClient, 
   userId: string, 

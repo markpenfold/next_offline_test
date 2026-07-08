@@ -27,8 +27,35 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
   
     setAvatarVersion: (version) => set({ avatarVersion: version }),
     
-    setActiveAccount:(accChoice:AccountContext) => {
-      set({ activeAccount: accChoice || null });
+    setActiveAccount: (accChoice: AccountContext) => {
+      set((state) => {
+        // 1. Get the new tier from the chosen account (fallback to current state tier if undefined)
+        const newTier = accChoice?.plan_name || state.tier;
+
+        // 2. Sync the updated selection to localStorage so refreshes keep the context
+        try {
+          const rawCache = localStorage.getItem('jungle_lease_v2');
+          if (rawCache) {
+            const cache = JSON.parse(rawCache);
+            localStorage.setItem(
+              'jungle_lease_v2',
+              JSON.stringify({
+                ...cache,
+                activeAccount: accChoice || null,
+                tier: newTier,
+              })
+            );
+          }
+        } catch (err) {
+          console.error('Failed to sync active account to localStorage:', err);
+        }
+
+    // 3. Update active state
+    return {
+      activeAccount: accChoice || null,
+      tier: newTier,
+    };
+  });
     },
 
     // Rules engine

@@ -1,78 +1,107 @@
-import { NextResponse } from "next/server";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { NextRequest, NextResponse } from "next/server";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createClient } from "@/lib/supabase/server";
+import { checkMembershipAndAccess } from "@/lib/supabase/queries";
 
-export async function GET() {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+// 1. Initialize R2 Client
+const r2 = new S3Client({
+  region: "auto",
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
 
-  const proBucket = process.env.R2_PRO_BUCKET_NAME;
-  const freeBucket = process.env.R2_FREE_BUCKET_NAME;
+const BUCKET_NAME = process.env.R2_INDEX_BUCKET_NAME || "indexes";
 
-  if (!accountId || !accessKeyId || !secretAccessKey) {
-    return NextResponse.json({ error: "Missing storage credentials" }, { status: 500 });
-  }
-
-  // Define target scanning matrix mappings
-  const tiers = [
-    { id: "free" as const, bucket: freeBucket },
-    { id: "pro" as const, bucket: proBucket }
-  ];
-
-  const r2 = new S3Client({
-    region: "auto",
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId, secretAccessKey },
-  });
-
-  const discoveredIndexes = [];
-
+export async function POST(req: NextRequest) {
   try {
-    for (const tier of tiers) {
-      if (!tier.bucket) continue;
+    const supabase = await createClient();
 
-      // Scan items within this specific storage container context
-      const command = new ListObjectsV2Command({
-        Bucket: tier.bucket,
-        Prefix: "history_cube/", // Target directory containing the master aggregates
-      });
-
-      const response = await r2.send(command);
-      
-      if (!response.Contents) continue;
-
-      for (const object of response.Contents) {
-        const key = object.Key || "";
-        
-        // Match key structures such as: history_cube/era=post_1900/data.parquet
-        // This regex extracts the era value dynamically
-        const eraMatch = key.match(/history_cube\/era=([^/]+)\/data\.parquet/);
-        
-        if (eraMatch) {
-          const era = eraMatch[1]; // e.g. "post_1900" or "pre_1900"
-          
-          // Clean up the label for presentation logic UI 
-          const cleanEraLabel = era.replace("_", " ");
-          const capitalizedLabel = cleanEraLabel.charAt(0).toUpperCase() + cleanEraLabel.slice(1);
-
-          discoveredIndexes.push({
-            era: era,
-            tier: tier.id,
-            label: `${tier.id.toUpperCase()} - ${capitalizedLabel}`,
-            // Keep your local client-side filenames strictly deterministic for easy OPFS mapping
-            fileName: `index__${tier.id}__${era}.parquet` 
-          });
-        }
-      }
+    // 2. Authenticate user session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return NextResponse.json(discoveredIndexes, {
-      status: 200,
-      headers: { "Cache-Control": "no-store" }
+    // 3. Extract active account ID from body
+    const body = await req.json().catch(() => ({}));
+    const { accountId } = body;
+
+    if (!accountId) {
+      return NextResponse.json({ error: "Missing required accountId" }, { status: 400 });
+    }
+
+    // 4. Verify membership & retrieve user's tier
+    const accessAllowed = await checkMembershipAndAccess(user.id, accountId);
+
+    if (!accessAllowed) {
+      return NextResponse.json(
+        { error: "Forbidden: You are not a member of this account" },
+        { status: 403 }
+      );
+    }
+
+    const normalizedTier = accessAllowed.toLowerCase();
+
+    // 5. Query the 'indexes' bucket under prefix 'free/' or 'pro/'
+    const prefix = `${normalizedTier}/`;
+
+    const listCommand = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: prefix,
     });
 
-  } catch (err: any) {
-    console.error("❌ [SCANNER ERROR] Failed listing remote bucket contents:", err);
-    return NextResponse.json({ error: err.message || "Failed scanning storage paths" }, { status: 500 });
+    const r2Response = await r2.send(listCommand);
+    const availableIndexes = [];
+
+    if (r2Response.Contents) {
+        for (const object of r2Response.Contents) {
+            if (!object.Key || object.Key.endsWith("/")) continue;
+
+            // Split: ['free', 'history_cube', 'era=post_1900', 'v1', 'filename.parquet']
+            const parts = object.Key.split("/");
+            
+            const tier     = parts[0] || normalizedTier;
+            const cube     = parts[1] || "history_cube";
+            const rawEra   = parts[2] || "era=post_1900";
+            const era      = rawEra.replace("era=", "");
+            const version  = parts[parts.length - 2] || "v1"; // Immediate parent folder
+            const fileName = parts[parts.length - 1];         // File name
+
+            const getObjectCmd = new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: object.Key,
+            });
+            const downloadUrl = await getSignedUrl(r2, getObjectCmd, { expiresIn: 3600 });
+
+            availableIndexes.push({
+            key: object.Key,
+            fileName,
+            cube,
+            era,
+            tier,
+            version, // Clean "v1" string
+            size: object.Size,
+            lastModified: object.LastModified,
+            downloadUrl,
+            });
+        }
+        }
+
+    return NextResponse.json({
+      activeTier: normalizedTier,
+      bucketUsed: BUCKET_NAME,
+      indexes: availableIndexes,
+    });
+
+  } catch (error: any) {
+    console.error("Error listing R2 indexes:", error);
+    return NextResponse.json(
+      { error: "Failed to compile remote scanning manifests" },
+      { status: 500 }
+    );
   }
 }

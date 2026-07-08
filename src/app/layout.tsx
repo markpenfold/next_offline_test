@@ -2,7 +2,7 @@
 import "@/app/styles/globals.css";
 import { AppStoreProvider } from "@/providers/AppStoreProvider";
 import { Geist, Geist_Mono } from "next/font/google";
-
+import { Toaster } from 'react-hot-toast';
 
 
 const geistSans = Geist({
@@ -30,6 +30,7 @@ export default function RootLayout({
         <AppStoreProvider initialTier="none">
               {children}
         </AppStoreProvider>
+        <Toaster position="top-center"/>
         </body>
     </html>
   );
