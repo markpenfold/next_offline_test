@@ -318,35 +318,40 @@ export async function fetchAvailableIndexes(accountId: string): Promise<Availabl
   try {
     const response = await fetch("/api/aggregates/list", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accountId }),
     });
 
-    if (!response.ok) {
-      throw new Error("Failed to compile remote scanning manifests");
-    }
+    if (!response.ok) throw new Error("Failed to compile remote scanning manifests");
 
     const data = await response.json();
     const rawIndexes = data.indexes || [];
 
-    // Map response keys cleanly into AvailableIndex interface
-    return rawIndexes.map((item: any) => ({
-      fileName: item.fileName,
-      version:item.version,
-      tier: item.tier,
-      era: item.era,
-      cube: item.cube,
-      s3Key: item.key || item.s3Key, // Capture R2 Key
-      sizeBytes: item.size,
-    }));
+    return rawIndexes.map((item: any) => {
+      // 1. Compute the standardized local OPFS name upfront
+      const localFileName = buildLocalIndexFileName(
+        item.tier,
+        item.cube,
+        item.era,
+        item.version || "v1"
+      );
+
+      return {
+        // 2. Set fileName to the local standardized name everywhere
+        fileName: localFileName,
+        version: item.version || "v1",
+        tier: item.tier,
+        era: item.era,
+        cube: item.cube,
+        s3Key: item.s3Key || item.key || item.fileName, // Keep original remote R2 object key here
+        sizeBytes: item.size,
+      };
+    });
   } catch (err) {
     console.error("Error pulling scanned remote catalog list:", err);
     return [];
   }
 }
-
 //using POST request with accountId and s3Key support
 export interface DownloadIndexOptions {
   item: AvailableIndex;
@@ -361,15 +366,7 @@ export async function getMasterIndex({
 }: DownloadIndexOptions): Promise<{ success: boolean; targetFileName: string }> {
   const log = (msg: string) => onLog?.(msg);
 
-  // 1. Calculate the target local OPFS filename upfront
-  const fName = buildLocalIndexFileName(
-    item.tier,
-    item.cube,
-    item.version || "v1",
-    item.era
-  );
-
-  log(`📡 Fetching master index layer from remote storage: "${fName}"...`);
+  log(`📡 Fetching master index layer from remote storage: "${item.fileName}"...`);
 
   try {
     const response = await fetch("/api/aggregates/download/", {
@@ -395,15 +392,15 @@ export async function getMasterIndex({
     const arrayBuffer = await response.arrayBuffer();
 
     // 💾 Save directly to the /indexes/ OPFS folder using fName
-    await saveToOPFSFolder("indexes", fName, arrayBuffer);
+    await saveToOPFSFolder("indexes", item.fileName, arrayBuffer);
 
-    log(`🟢 Successfully downloaded and saved index layer: /indexes/${fName}`);
+    log(`🟢 Successfully downloaded and saved index layer: /indexes/${item.fileName}`);
 
-    return { success: true, targetFileName: fName };
+    return { success: true, targetFileName: item.fileName, };
   } catch (err: any) {
     console.error("Master index download failed:", err);
     log(`❌ Master Index Process Error: ${err.message}`);
-    return { success: false, targetFileName: fName };
+    return { success: false, targetFileName: item.fileName, };
   }
 }
 
@@ -519,8 +516,13 @@ export async function buildLocalIndex(onLog?: (msg: string) => void) {
         event_uuids VARCHAR[]
       );
     `);
+
+    // TRUNCATE table to wipe existing memory rows before rebuilding
+    await conn.query(`TRUNCATE ${INDEX_TABLE_NAME};`);
+
+
   } catch (err: any) {
-    log(`❌ Failed to initialize table schema: ${err.message}`);
+    log(`Failed to initialize table schema: ${err.message}`);
     report.success = false;
     report.errorMessage = err.message;
     
@@ -534,20 +536,20 @@ export async function buildLocalIndex(onLog?: (msg: string) => void) {
   report.totalFilesProcessed = localIndexFiles.length;
 
   if (localIndexFiles.length === 0) {
-    log("ℹ️ No local index shards found in OPFS to merge.");
+    log(" No local index shards found in OPFS to merge.");
     return report;
   }
 
   for (const index of localIndexFiles) {
     try {
       if (!index.handle) {
-        log(`⚠️ Skipping ${index.fileName}: Found in cache list but missing a local disk handle.`);
+        log(`Skipping ${index.fileName}: Found in cache list but missing a local disk handle.`);
         report.failedFiles.push(index.fileName);
         continue;
       }
       await insertIndex(index.fileName, index.handle, onLog);
     } catch (err: any) {
-      log(`❌ Failed compiling shard: ${index.fileName}`);
+      log(`Failed compiling shard: ${index.fileName}`);
       report.success = false;
       report.failedFiles.push(index.fileName);
       report.errorMessage = err.message; 

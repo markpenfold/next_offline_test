@@ -5,14 +5,12 @@ import {
   fetchAvailableIndexes,
   getLocalCacheManifest, 
   getMasterIndex,
-  deleteShardFromCache,
   AvailableIndex,
   buildLocalIndex,
-  buildLocalIndexFileName
 } from "./storage"; 
 import { useAppStore } from '@/providers/AppStoreProvider';
-
-import {getIndex} from './analytics';
+import { deleteOPFSFile } from './manageOPFS';
+import { getIndex } from './analytics';
 
 const white = 'rgb(245,245,245)';
 const red = 'rgb(162, 5, 5)';
@@ -21,26 +19,45 @@ const blue = 'rgb(65,105,225)';
 export function IndexLoader() {
   const [availableIndexes, setAvailableIndexes] = useState<AvailableIndex[]>([]);
   const [localCache, setLocalCache] = useState<Set<string>>(new Set());
-  const [timelineMatrix, setTimelineMatrix] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [logs, setLogs] = useState<string[]>([]);
   const [index, setIndex] = useState<any[]>([]);
 
   const activeAccount = useAppStore((s) => s.activeAccount);
-  const currentTier = useAppStore((s) => s.tier);
   
-
-
   const addLog = (message: string) => {
     setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
   };
 
   // Complete loop state sync coordinator
   const syncWorkspaceState = async () => {
-    // 3. Update cache mapping flags and table readouts
     const manifest = await getLocalCacheManifest('indexes');
-    addLog(`[syncWorkspaceState] Cache manifest for index ${ manifest }`)
+    addLog(`[syncWorkspaceState] Cache manifest contains ${manifest.size} cached indexes.`);
     setLocalCache(manifest);
+    return manifest;
+  };
+
+  // Rebuild & Reload Pipeline
+  const rebuildAndLoadIndex = async () => {
+    addLog("🏗️ Reassembling master index tables from OPFS storage...");
+    const buildReport = await buildLocalIndex(addLog);
+
+    if (!buildReport.success) {
+      addLog(`⚠️ Local index built with warnings! Failed targets: ${buildReport.failedFiles.join(', ')}`);
+    } else if (buildReport.totalFilesProcessed > 0) {
+      addLog("🟢 Local unified master index successfully compiled.");
+    } else {
+      addLog("Local disk storage cache is currently empty.");
+    }
+
+    const { data, error } = await getIndex(100);
+    if (error) {
+      addLog(`Index Query Failed: ${error}`);
+      setIndex([]);
+    } else {
+      addLog(`Successfully loaded ${data.length} rows into view.`);
+      setIndex(data);
+    }
   };
 
   // 🚀 Live Scan & Initialize on Mount
@@ -48,93 +65,73 @@ export function IndexLoader() {
     let isMounted = true;
 
     async function initComponent() {
-
-      // 1. Guard check for TypeScript & hydration safety
       if (!activeAccount?.id) {
         addLog("⚠️ Waiting for active account context...");
-        setLoading(false);
+        if (isMounted) setLoading(false);
         return;
       }
+
       try {
-        setLoading(true);
+        if (isMounted) setLoading(true);
         addLog("Scanning R2 buckets for available historical indexes...");
         
-        //check with R2, given current Active Account ID
         const scannedList = await fetchAvailableIndexes(activeAccount.id);
-        console.log("scanneList is:", scannedList)
         if (!isMounted) return;
+        
         setAvailableIndexes(scannedList);
         addLog(`Scan complete! Discovered ${scannedList.length} total indexes available for download.`);
 
-        // Set available files in INDEXES and DATA OPFS directories
         await syncWorkspaceState();
+        await rebuildAndLoadIndex();
 
-        //Build local index and capture the diagnostic report
-        addLog("🏗️ Reassembling master index tables from OPFS storage...");
-        const buildReport = await buildLocalIndex(addLog);
-
-        // 2. Handle partial or total index building failure
-        if (!buildReport.success) {
-          addLog(`⚠️ Local index built with warnings! Failed targets: ${buildReport.failedFiles.join(', ')}`);
-
-          // Example: toast.error(`Failed loading index files: ${buildReport.errorMessage}`);
-        } else if (buildReport.totalFilesProcessed > 0) {
-          addLog("Local unified master index successfully compiled.");
-        } else {
-          addLog("Local disk storage cache is currently empty. Ready for downlinks.");
-        }
-
-        //We know index has been built by buildLocalIndex
-        //Destructure the safe payload from getIndex()
-        const { data, error } = await getIndex(100);
-        if (error) {
-          addLog(`❌ Query Failed: ${error}`);
-          // Show a toast or update a separate error state banner
-          // toast.error("Could not query master index."); 
-          // Fall back to a safe, empty array so mapping over state doesn't crash the UI
-          setIndex([]); 
-        } else {
-          addLog(`✅ Successfully loaded ${data.length} rows into view.`);
-          setIndex(data);
-        }
       } catch (err: any) {
-        addLog(`❌ Sync Error during boot sequence: ${err.message}`);
+        if (isMounted) addLog(`❌ Sync Error during boot sequence: ${err.message}`);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
+
     initComponent();
+
+    return () => {
+      isMounted = false;
+    };
   }, [activeAccount?.id]);
 
-  // 📡 Handle Dynamic Download Action
+  // Handle Dynamic Download Action
   const handleDownloadAndMountClick = async (item: AvailableIndex) => {
-  if (!activeAccount?.id) {
-    addLog(`❌ Cannot download index: No active account selected.`);
-    return;
-  }
+    if (!activeAccount?.id) {
+      addLog(`Cannot download index: No active account selected.`);
+      return;
+    }
 
-  addLog(`📡 Preparing download parameters for: "${item.fileName}"...`);
+    addLog(`Preparing download parameters for: "${item.fileName}"...`);
 
-  const { success, targetFileName } = await getMasterIndex({
-    item,
-    accountId: activeAccount.id,
-    onLog: addLog,
-  });
+    const { success, targetFileName } = await getMasterIndex({
+      item,
+      accountId: activeAccount.id,
+      onLog: addLog,
+    });
 
-  if (success) {
-    await syncWorkspaceState();
-    addLog(`🟢 "${targetFileName}" loaded and synced into unified database space.`);
-  }
-};
+    if (success) {
+      await syncWorkspaceState();
+      await rebuildAndLoadIndex();
+    }
+  };
 
   // 🗑️ Handle Cache Eviction Action
   const handleDeleteClick = async (fileName: string) => {
-    addLog(`🗑️ Evicting index byte fragments from browser OPFS disk: "${fileName}"...`);
-    await deleteShardFromCache(fileName, addLog);
-    await syncWorkspaceState();
-    addLog(`🟢 Cache maps cleared for ${fileName}. Metrics updated.`);
+    addLog(`Evicting index byte fragments from browser OPFS disk: "${fileName}"...`);
+    const result = await deleteOPFSFile('indexes', fileName);
+    
+    if (!result) {
+      addLog(`❌ Delete failed for ${fileName}`);
+    } else {
+      await syncWorkspaceState();
+      await rebuildAndLoadIndex();
+      addLog(`🟢 Cache maps cleared for ${fileName}. Metrics updated.`);
+    }
   };
-
 
 
   return (
@@ -169,14 +166,8 @@ export function IndexLoader() {
               <p style={{ fontStyle: "italic", opacity: 0.6 }}>No indices found in the scanned buckets.</p>
             ) : (
               availableIndexes.map((item) => {
-                const localFileName = buildLocalIndexFileName(
-                  item.tier,
-                  item.cube,
-                  item.era,
-                  item.version || "v1"
-                );
-                console.log("item filename: ", localFileName)
-                const isCached = localCache.has(localFileName);
+                //console.log("item filename: ", localFileName)
+                const isCached = localCache.has(item.fileName);
                 const cleanEraLabel = item.era.replace("_", " ");
                 
                 // Dynamic Extraction: Convert "wiki_shards_final" -> "Wiki Shards Final"
