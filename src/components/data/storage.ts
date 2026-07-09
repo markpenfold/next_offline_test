@@ -9,6 +9,7 @@ import {
   deleteOPFSFile, 
   getDirectory 
 } from "./manageOPFS";
+import { Eraser } from "lucide-react";
 
 // 🔒 THE CONCURRENCY LOCKS
 let dbInstance: duckdb.AsyncDuckDB | null = null;
@@ -94,53 +95,88 @@ export async function getLocalCacheManifest(dirName: "indexes" | "data" = "data"
   }
 }
 
+//shard.masterCategory, shard.tier, shard.version, shard.era, shard.downloadUrl, addLog, 
 /*** Orchestrates cache validation, network retrieval, and OPFS persistence for DATA SHARDS.*/
-export async function getShard(
-  categoryOrFileName: string, 
-  bucketName: string, 
-  onLog?: (msg: string) => void
-): Promise<{ success: boolean; fileName: string }> {
-  const log = (msg: string) => onLog?.(msg);
-  console.log("Getting a shard: ", categoryOrFileName);
+export interface GetShardParams {
+  item: AvailableDataShard;
+  accountId?: string;
+  onLog?: (msg: string) => void;
+}
 
-  let category = categoryOrFileName;
-  if (categoryOrFileName.includes("__")) {
-    const parts = categoryOrFileName.split("__");
-    category = parts[1]; 
+export async function getShard({
+  item,
+  accountId,
+  onLog,
+}: GetShardParams): Promise<{ success: boolean; fileName: string }> {
+  const log = (msg: string) => onLog?.(msg);
+
+  if (!accountId) {
+    log("❌ Action aborted: Active account context is missing or null.");
+    return { success: false, fileName: item.fileName };
   }
 
-  const targetFile = `master_category=${category}/era=post_1900.parquet`;
-  const safeLocalFileName = buildLocalFileName(bucketName, category);
+  log(`🔍 Checking local cache for data shard: "${item.masterCategory}"...`);
 
-  log(`🔍 Checking local cache for data shard: "${category}"...`);
+  // Use the standardized local filename directly from item
+  const safeLocalFileName = item.fileName;
 
   try {
+    // 1. Check local cache first
     const fileExists = await checkFileExists("data", safeLocalFileName);
 
     if (fileExists) {
       log(`⚡ Cache Hit! "/data/${safeLocalFileName}" is active.`);
-      return { success: true, fileName: safeLocalFileName }; 
+      return { success: true, fileName: safeLocalFileName };
     }
 
-    log(`📡 Cache Miss. Fetching shard from remote R2 bucket...`);
-    const response = await fetch(`/api/download?bucket=${bucketName}&file=${encodeURIComponent(targetFile)}`);      
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    
+    log(`📡 Cache Miss. Fetching shard from remote R2 repository...`);
+
+    // 2. Fetch using POST endpoint
+    const response = await fetch("/api/categories/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accountId,
+        key: item.s3Key,
+        tier: item.tier,
+      }),
+    });
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}));
+      throw new Error(errJson.error || `HTTP error! status: ${response.status}`);
+    }
+
     log("Streaming dataset binary content across proxy...");
     const arrayBuffer = await response.arrayBuffer();
-    
-    // 💾 Use new manager function directly
+
+    // 3. Save to local OPFS folder
     await saveToOPFSFolder("data", safeLocalFileName, arrayBuffer);
     log(`🟢 Successfully downloaded and saved to: /data/${safeLocalFileName}`);
-    
-    return { success: true, fileName: safeLocalFileName }; 
+
+    return { success: true, fileName: safeLocalFileName };
   } catch (err: any) {
     log(`❌ Process Error: ${err.message}`);
-    return { success: false, fileName: safeLocalFileName }; 
+    return { success: false, fileName: safeLocalFileName };
   }
 }
 
-// Loads Shard Into DuckDB context memory from the /data directory.
+export async function deleteShardFromCache(
+  fileName: string, 
+  onLog?: (msg: string) => void
+): Promise<boolean> {
+  const log = (msg: string) => onLog?.(msg);
+
+  // Defaulting to "data" for standard shards, use another func or passing param if needed for indexes
+  const success = await deleteOPFSFile("data", fileName);
+  if (success) {
+    log(`🗑️ Storage: "${fileName}" successfully removed from OPFS cache (/data).`);
+  } else {
+    log(`⚠️ Storage warning: "${fileName}" was missing or failed to clear.`);
+  }
+  return success;
+}
+
 export async function loadShardIntoEngine(
   fileName: string,
   onLog?: (msg: string) => void
@@ -163,96 +199,6 @@ export async function loadShardIntoEngine(
     log(`❌ Load Mounting Error: ${err.message}`);
     console.error(err);
     return false;
-  }
-}
-
-
-
-//Discards shard from OPFS memory maps cleanly.*/
-export async function deleteShardFromCache(
-  fileName: string, 
-  onLog?: (msg: string) => void
-): Promise<boolean> {
-  const log = (msg: string) => onLog?.(msg);
-
-  // Defaulting to "data" for standard shards, use another func or passing param if needed for indexes
-  const success = await deleteOPFSFile("data", fileName);
-  if (success) {
-    log(`🗑️ Storage: "${fileName}" successfully removed from OPFS cache (/data).`);
-  } else {
-    log(`⚠️ Storage warning: "${fileName}" was missing or failed to clear.`);
-  }
-  return success;
-}
-
-
-
-
-//Extracts the 4-digit year dynamically from mixed date formats and aggregates.
-export async function syncSessionAggregations(
-  activeFileNames: string[],
-  onLog?: (msg: string) => void
-): Promise<any[] | null> {
-  const log = (msg: string) => onLog?.(msg);
-
-  if (activeFileNames.length === 0) {
-    log("⚠️ No active dataset views mounted.");
-    try {
-      const db = await getSharedDuckDBEngine();
-      const conn = await db.connect();
-      await conn.query(`DROP VIEW IF EXISTS aggregated_history;`);
-      await conn.close();
-    } catch {}
-    return [];
-  }
-
-  log(`🧮 Compiling cross-shard category matrix across: [${activeFileNames.join(", ")}]`);
-
-  try {
-    const db = await getSharedDuckDBEngine();
-    const conn = await db.connect();
-
-    const unionChain = activeFileNames
-      .map(fileName => {
-        let cleanCategory = fileName;
-        if (fileName.includes("__")) {
-          cleanCategory = fileName.split("__")[1];
-        }
-        return `SELECT *, '${cleanCategory}' AS shard_category FROM "${fileName}"`;
-      })
-      .join(" UNION ALL ");
-
-    await conn.query(`CREATE OR REPLACE VIEW aggregated_history AS ${unionChain};`);
-
-    const sqlQuery = `
-        WITH parsed_timeline AS (
-            SELECT 
-            id,
-            shard_category,
-            TRY_CAST(REGEXP_EXTRACT(date, '\\b\\d{4}\\b') AS INTEGER) AS extracted_year
-            FROM aggregated_history
-            WHERE date IS NOT NULL
-        )
-        SELECT 
-            extracted_year AS year,
-            shard_category,
-            COUNT(id)::INTEGER AS event_count,
-            LIST(id) AS uuids
-        FROM parsed_timeline
-        WHERE extracted_year IS NOT NULL 
-            AND extracted_year >= 1900
-        GROUP BY extracted_year, shard_category
-        ORDER BY extracted_year ASC, shard_category ASC;
-        `;
-
-    const arrowResult = await conn.query(sqlQuery);
-    await conn.close();
-
-    return arrowResult.toArray().map((row) => row.toJSON());
-  } catch (err: any) {
-    log(`❌ Matrix Compilation Error: ${err.message}`);
-    console.error(err);
-    return null;
   }
 }
 
@@ -352,6 +298,76 @@ export async function fetchAvailableIndexes(accountId: string): Promise<Availabl
     return [];
   }
 }
+
+export interface AvailableDataShard {
+  fileName: string;        // Local standardized OPFS filename (e.g., "pro_african_post_1900_v1.parquet")
+  s3Key: string;           // Remote R2 Key (e.g., "data/african/era=post_1900/v1/data.parquet")
+  masterCategory: string; // e.g., "african"
+  era: string;            // e.g., "post_1900"
+  tier: string;           // "free" | "pro"
+  version: string;        // "v1"
+  sizeBytes: number;
+  downloadUrl?: string;   // Pre-signed URL returned from API
+}
+
+/**
+ * Generates a consistent, standardized filename for local OPFS storage
+ */
+export function buildLocalDataShardFileName(
+  tier: string,
+  masterCategory: string,
+  era: string,
+  version: string = "v1"
+): string {
+  // e.g. "pro_african_post_1900_v1.parquet"
+  const cleanEra = era.replace("era=", "");
+  return `${tier.toLowerCase()}_${masterCategory.toLowerCase()}_${cleanEra.toLowerCase()}_${version.toLowerCase()}.parquet`;
+}
+
+/**
+ * Standalone fetch function for remote data shards
+ */
+export async function fetchAvailableDataShards(accountId: string): Promise<AvailableDataShard[]> {
+  try {
+    const response = await fetch("/api/categories/list", { // Adjust endpoint URL to match your route path
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to compile remote scanning manifests for data shards");
+    }
+
+    const data = await response.json();
+    const rawShards = data.dataShards || [];
+
+    return rawShards.map((item: any) => {
+      // 1. Derive standardized local OPFS filename
+      const localFileName = buildLocalDataShardFileName(
+        item.tier,
+        item.masterCategory,
+        item.era,
+        item.version || "v1"
+      );
+
+      return {
+        fileName: localFileName,
+        s3Key: item.key || item.s3Key,
+        masterCategory: item.masterCategory,
+        era: item.era,
+        tier: item.tier,
+        version: item.version || "v1",
+        sizeBytes: item.sizeBytes || item.size || 0,
+        downloadUrl: item.downloadUrl,
+      };
+    });
+  } catch (err) {
+    console.error("Error pulling scanned remote data shards list:", err);
+    return [];
+  }
+}
+
 //using POST request with accountId and s3Key support
 export interface DownloadIndexOptions {
   item: AvailableIndex;
@@ -404,9 +420,8 @@ export async function getMasterIndex({
   }
 }
 
-/**
- * Standard Order: index__<tier>__<cube>__<era>__<version>.parquet
- */
+
+//Standard Order: index__<tier>__<cube>__<era>__<version>.parquet
 export function buildLocalIndexFileName(
   tier: string,
   cube: string,
@@ -417,9 +432,6 @@ export function buildLocalIndexFileName(
   const cleanVersion = version || "v1";
   return `index__${tier}__${cube}__${cleanEra}__${cleanVersion}.parquet`;
 }
-
-
-
 
 export async function scanLocalOPFSIndexes(onLog?: (msg: string) => void): Promise<AvailableIndex[]> {
   const log = (msg: string) => onLog?.(msg);
@@ -589,4 +601,72 @@ export async function wipeOPFS(): Promise<boolean> {
     return false;
   }
 }
+
+export async function syncSessionAggregations(
+  activeFileNames: string[],
+  onLog?: (msg: string) => void
+): Promise<any[] | null> {
+  const log = (msg: string) => onLog?.(msg);
+
+  if (activeFileNames.length === 0) {
+    log("⚠️ No active dataset views mounted.");
+    try {
+      const db = await getSharedDuckDBEngine();
+      const conn = await db.connect();
+      await conn.query(`DROP VIEW IF EXISTS aggregated_history;`);
+      await conn.close();
+    } catch {}
+    return [];
+  }
+
+  log(`🧮 Compiling cross-shard category matrix across: [${activeFileNames.join(", ")}]`);
+
+  try {
+    const db = await getSharedDuckDBEngine();
+    const conn = await db.connect();
+
+    const unionChain = activeFileNames
+      .map(fileName => {
+        let cleanCategory = fileName;
+        if (fileName.includes("__")) {
+          cleanCategory = fileName.split("__")[1];
+        }
+        return `SELECT *, '${cleanCategory}' AS shard_category FROM "${fileName}"`;
+      })
+      .join(" UNION ALL ");
+
+    await conn.query(`CREATE OR REPLACE VIEW aggregated_history AS ${unionChain};`);
+
+    const sqlQuery = `
+        WITH parsed_timeline AS (
+            SELECT 
+            id,
+            shard_category,
+            TRY_CAST(REGEXP_EXTRACT(date, '\\b\\d{4}\\b') AS INTEGER) AS extracted_year
+            FROM aggregated_history
+            WHERE date IS NOT NULL
+        )
+        SELECT 
+            extracted_year AS year,
+            shard_category,
+            COUNT(id)::INTEGER AS event_count,
+            LIST(id) AS uuids
+        FROM parsed_timeline
+        WHERE extracted_year IS NOT NULL 
+            AND extracted_year >= 1900
+        GROUP BY extracted_year, shard_category
+        ORDER BY extracted_year ASC, shard_category ASC;
+        `;
+
+    const arrowResult = await conn.query(sqlQuery);
+    await conn.close();
+
+    return arrowResult.toArray().map((row) => row.toJSON());
+  } catch (err: any) {
+    log(`❌ Matrix Compilation Error: ${err.message}`);
+    console.error(err);
+    return null;
+  }
+}
+
 
