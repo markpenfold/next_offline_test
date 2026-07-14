@@ -20,6 +20,7 @@ let isIndexLoading = false;
 export const INDEX_TABLE_NAME = 'main.test_index';
 
 export interface AvailableIndex {
+  key:string;
   fileName: string;
   tier: "free" | "pro"; 
   era: string;
@@ -200,26 +201,43 @@ export async function deleteShardFromCache(
   return success;
 }
 
+// Helper to navigate down relative folder paths in OPFS
+async function getSubdirectoryHandle(
+  dirPath: string
+): Promise<FileSystemDirectoryHandle> {
+  let currentHandle = await navigator.storage.getDirectory();
+
+  // Strip leading/trailing slashes and split path into segments
+  const segments = dirPath.split("/").filter((s) => s.length > 0);
+
+  for (const segment of segments) {
+    currentHandle = await currentHandle.getDirectoryHandle(segment);
+  }
+
+  return currentHandle;
+}
+
 
 // called when user selects a history
 // means we only then need to call await conn.query(`SELECT * FROM read_parquet('${fileName}')`);
 export async function loadShardIntoEngine(
+  dir:string,
   fileName: string,
   onLog?: (msg: string) => void
 ): Promise<string | null> {
   const log = (msg: string) => onLog?.(msg);
-  console.log("loading shard:", fileName);
+  console.log("loading shard:", fileName, ' from dir:', dir);
 
   try {
     const db = await getSharedDuckDBEngine();
-    
-    // 🎯 Target the /data subfolder specifically
-    const dirHandle = await getDirectory("data");
+    const dirHandle = await getSubdirectoryHandle(dir);
+    // Get the actual File object from OPFS
     const fileHandle = await dirHandle.getFileHandle(fileName);
     const file = await fileHandle.getFile();
 
     // Registering the file makes DuckDB know it as `fileName` inside SQL
     await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, false);
+    
     return fileName;
     
   } catch (err: any) {
@@ -244,6 +262,7 @@ async function checkFileExists(dirName: "indexes" | "data", fileName: string): P
     return false;
   }
 }
+
 
 /*** STANDALONE QUERY FUNCTION */
 export async function getRandomRows(
@@ -301,7 +320,7 @@ export async function fetchAvailableIndexes(accountId: string): Promise<Availabl
     const rawIndexes = data.indexes || [];
 
     return rawIndexes.map((item: any) => {
-      // 1. Compute the standardized local OPFS name upfront
+      // Compute the standardized local OPFS name upfront
       const localFileName = buildLocalIndexFileName(
         item.tier,
         item.cube,
@@ -310,13 +329,12 @@ export async function fetchAvailableIndexes(accountId: string): Promise<Availabl
       );
 
       return {
-        // 2. Set fileName to the local standardized name everywhere
-        fileName: localFileName,
+        key: item.key || item.fileName, // R2 storage path key
+        fileName: localFileName,        // Local OPFS file name
         version: item.version || "v1",
         tier: item.tier,
         era: item.era,
         cube: item.cube,
-        s3Key: item.s3Key || item.key || item.fileName, // Keep original remote R2 object key here
         sizeBytes: item.size,
       };
     });
@@ -419,7 +437,8 @@ export async function getMasterIndex({
       },
       body: JSON.stringify({
         accountId,
-        s3Key: item.s3Key, // Exact object path in R2 bucket
+        key: item.key, // Exact object path in R2 bucket
+        cube: item.cube,
         version: item.version || "v1",
         era: item.era,
         tier: item.tier,
@@ -476,19 +495,19 @@ export async function scanLocalOPFSIndexes(onLog?: (msg: string) => void): Promi
         const tier = (parts[1] as "free" | "pro") || 'free';
         const cube = parts[2] || 'unknown';
         const era = parts[3] || 'unknown';
-        const version = parts[4] || 'v1'; // 👈 Extracted version
+        const version = parts[4] || 'v1';
         
         const file = await handle.getFile();
 
         foundIndexes.push({
+          key: name, // Unique string key identifier for local OPFS files
           fileName: name,
           tier,
           cube,
           era,
-          version, // 👈 Included version
+          version,
           sizeBytes: file.size,
           handle,
-          s3Key: "", // Local files don't have an s3Key
         });
       }
     }

@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import styles from '@/app/styles/styles.module.css';
 import { redirect } from 'next/navigation'
-import  BasicDuck  from '@/components/data/BasicDuck'
 import OmenWrap from '@/components/data/omenWrap';
 import {ShardSelector} from '@/components/data/ShardSelector';
 import {IndexLoader} from '@/components/data/IndexLoader';
+import { DataView } from '@/components/data/DataView';
 
 
 export default async function OmenPage() {
@@ -19,7 +19,7 @@ const supabase = await createClient();
 
   return (
     <OmenWrap >
-      <ShardSelector />
+  <DataView />
       <IndexLoader/>
     </OmenWrap>
     );

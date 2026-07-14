@@ -1,10 +1,8 @@
 // db/analytics.ts
-import { getSharedDuckDBEngine } from "./storage";
+import { getSharedDuckDBEngine, loadShardIntoEngine } from "./storage";
 import {INDEX_TABLE_NAME} from './storage'
 
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
-
-console.log(INDEX_TABLE_NAME)
 
 //Gets or creates a reusable connection for blazing-fast reads.*/
 export async function getReadConnection() {
@@ -15,13 +13,8 @@ export async function getReadConnection() {
   return sharedReadConn;
 }
 
-/**
- * A generic wrapper to run queries and return clean JS objects.
- */
-/**
- * A guarded generic wrapper to run queries safely.
- * Always returns an object with { data, error }.
- */
+
+
 export async function runQuery(sql: string) {
   try {
     const conn = await getReadConnection();
@@ -61,4 +54,170 @@ export async function getIndex(limit: number = 100) {
   }
 
   return { data, error: null };
+}
+
+
+export async function getDataView(loadedIndexes:string[]){
+  let rtn = '';
+  for(let i=0; i<loadedIndexes.length; i++ )
+    rtn += ' hello';
+  return rtn;
+}
+
+
+export async function syncTerrainTable(loadedIndexes: string[]) {
+  if (!loadedIndexes || loadedIndexes.length === 0) {
+    // Clear out the table if no indexes are loaded
+    await runQuery(`DROP TABLE IF EXISTS master_terrain`);
+    return { success: true, message: "Cleared master view" };
+  }
+  // 🛡️ Guard: Ensure every index in state is registered in DuckDB VFS
+  for (const fileName of loadedIndexes) {
+    await loadShardIntoEngine('indexes', fileName);
+  }
+  console.log("LOADED INDEXES In syncTerrainTable:", loadedIndexes);
+
+
+  const parquetFiles = loadedIndexes.map(f => `'${f}'`).join(', ');
+
+  // Creates a highly optimized, pre-aggregated table in DuckDB memory
+  const sql = `
+  CREATE OR REPLACE TABLE master_terrain AS 
+  SELECT 
+      year, 
+      category, 
+      SUM(event_count) AS cat_count,
+      MAX(highest_precision) AS cat_precision,
+      flatten(list(uuids)) AS cat_uuids
+  FROM read_parquet([${parquetFiles}])
+  GROUP BY year, category
+  ORDER BY year ASC, category ASC;
+`;
+
+  try {
+    await runQuery(sql);
+    console.log("🟢 Master Terrain Table successfully compiled in DuckDB");
+    // 2. 🔍 Preview top 5 rows in the console
+const preview = await runQuery(`SELECT * FROM master_terrain LIMIT 5;`);
+
+if (preview.data) {
+  console.log("📊 master_terrain Preview (Top 5 Rows):");
+  console.table(
+    preview.data.map((row: any) => ({
+      year: row.year,
+      total_event_count: row.total_event_count,
+      // Truncate breakdown preview so console table stays readable
+      breakdown: row.breakdown_json ? JSON.parse(row.breakdown_json) : row.category_breakdown,
+    }))
+  );
+}
+
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Failed to compile master terrain table:", error);
+    return { success: false, error };
+  }
+}
+
+// Define the exact tuple shape you requested
+export type TerrainTuple = [
+  number,      // [0] year
+  string[],    // [1] [category, category, ...]
+  number[],    // [2] [event_count, event_count, ...]
+  number,      // [3] highest_precision
+  string[][]   // [4] [[uuids], [uuids], ...]
+];
+
+// analytics.ts -> getTerrainShaderMatrix
+
+export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
+  const { data: results, error } = await runQuery(
+    `SELECT * FROM master_terrain ORDER BY year ASC, category ASC`
+  );
+
+  if (error || !results) return [];
+
+  // 1. 🌍 Build a Global Category Legend
+  // Collect all unique categories across the entire dataset and sort them.
+  // Example: ["accidents", "aircraft", "natural_disasters"]
+  const allCategories = Array.from(
+    new Set(results.map((r: any) => String(r.category)))
+  ).sort();
+
+  const numCategories = allCategories.length;
+  const matrixMap = new Map<number, TerrainTuple>();
+
+  for (const row of results) {
+    const year = Number(row.year);
+    const category = String(row.category);
+    const count = Number(row.cat_count);
+    const precision = Number(row.cat_precision);
+    const uuids = row.cat_uuids ? Array.from(row.cat_uuids).map(String) : [];
+
+    // 2. 🏗️ Initialize the year with Zero-Padded Arrays
+    if (!matrixMap.has(year)) {
+      matrixMap.set(year, [
+        year,
+        [...allCategories],                               // [1] Always the full category list
+        new Array(numCategories).fill(0),                 // [2] Pre-fill counts with 0s
+        0,                                                // [3] Precision
+        new Array(numCategories).fill(null).map(() => []) // [4] Pre-fill empty arrays for UUIDs
+      ]);
+    }
+
+    const tuple = matrixMap.get(year)!;
+    
+    // Find where this category belongs in the global vector
+    const catIndex = allCategories.indexOf(category);
+
+    // 3. 🎯 Slot the data into the exact correct position
+    tuple[2][catIndex] = count;
+    tuple[4][catIndex] = uuids;
+    
+    // Track highest precision for the year
+    if (precision > tuple[3]) {
+      tuple[3] = precision;
+    }
+  }
+
+  // Return flat array of tuples sorted by year
+  return Array.from(matrixMap.values()).sort((a, b) => a[0] - b[0]);
+}
+
+// 1. Each category in category_breakdown holds its own count AND uuids
+export interface CategoryEntry {
+  category: string;
+  count: number | bigint;
+  uuids: string[]; // 👈 Category-specific UUIDs
+}
+
+// 2. Updated Master Terrain Row
+export interface TerrainRow {
+  year: number | bigint;
+  total_event_count: number | bigint;
+  category_breakdown: CategoryEntry[];
+  year_uuids: string[]; // 👈 All UUIDs for the entire year across categories
+}
+
+
+export interface TerrainFilterOptions {
+  minYear?: number;
+  maxYear?: number;
+}
+
+export interface FormattedTerrainStep {
+  year: number;
+  totalEventCount: number;
+  /** Fixed-length height/banding vector strictly aligned with `categoryLegend` indices */
+  vector: number[];
+  /** Full category details including category-specific UUIDs */
+  categoryBreakdown: CategoryEntry[];
+  /** Combined list of all event UUIDs for this year across all categories */
+  yearUuids: string[];
+}
+
+export interface TerrainShaderMatrixResult {
+  shaderMatrix: FormattedTerrainStep[];
+  /** Alphabetical list establishing index order for the shader vectors */
+  categoryLegend: string[];
 }
