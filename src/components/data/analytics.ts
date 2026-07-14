@@ -43,7 +43,22 @@ export async function runQuery(sql: string) {
 }
 
 
-export async function getIndex(limit:number = 100) {
-  // 1. Destructure the safe response (and remember to await!)
-    return await runQuery(`SELECT * FROM ${INDEX_TABLE_NAME} LIMIT ${limit};`);
+export async function getIndex(limit: number = 100) {
+  // 🎯 Cast BIGINT year to INTEGER in SQL so Arrow serializes standard JS numbers
+  const { data, error } = await runQuery(`
+    SELECT 
+      CAST(year AS BIGINT) AS year, 
+      category, 
+      CAST(event_count AS INTEGER) AS event_count, 
+      highest_precision,
+      uuids 
+    FROM ${INDEX_TABLE_NAME} 
+    LIMIT ${limit};
+  `);
+
+  if (error || !data) {
+    return { data: [], error };
+  }
+
+  return { data, error: null };
 }

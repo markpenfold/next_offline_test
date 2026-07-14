@@ -43,38 +43,61 @@ export async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
-      mvp: {
-        mainModule: "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-mvp.wasm",
-        mainWorker: "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-mvp.worker.js",
-      },
-      eh: {
-        mainModule: "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-eh.wasm",
-        mainWorker: "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-browser-eh.worker.js",
+    let blobURL: string | null = null;
+
+    try {
+      const DUCKDB_VERSION = "1.28.0";
+      const CDN_BASE = `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${DUCKDB_VERSION}/dist`;
+
+      const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
+        mvp: {
+          mainModule: `${CDN_BASE}/duckdb-mvp.wasm`,
+          mainWorker: `${CDN_BASE}/duckdb-browser-mvp.worker.js`,
+        },
+        eh: {
+          mainModule: `${CDN_BASE}/duckdb-eh.wasm`,
+          mainWorker: `${CDN_BASE}/duckdb-browser-eh.worker.js`,
+        },
+      };
+
+      const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
+      
+      // Fetch worker code and create Blob URL to bypass CORS
+      const response = await fetch(bundle.mainWorker!);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch DuckDB worker script: ${response.statusText}`);
       }
-    };
-
-    const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
-    
-    // 🧠 THE WORKER CORS BYPASS WORKAROUND:
-    const response = await fetch(bundle.mainWorker!);
-    const workerCode = await response.text();
-    
-    const blob = new Blob([workerCode], { type: "application/javascript" });
-    const blobURL = URL.createObjectURL(blob);
-    const worker = new Worker(blobURL);
-    URL.revokeObjectURL(blobURL);
-
-    const logger = new duckdb.ConsoleLogger();
-    const db = new duckdb.AsyncDuckDB(logger, worker);
-    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-    
-    dbInstance = db;
-    return db;
+      
+      const workerCode = await response.text();
+      const blob = new Blob([workerCode], { type: "application/javascript" });
+      blobURL = URL.createObjectURL(blob);
+      
+      const worker = new Worker(blobURL);
+      const logger = new duckdb.ConsoleLogger();
+      const db = new duckdb.AsyncDuckDB(logger, worker);
+      
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      
+      dbInstance = db;
+      return db;
+    } catch (error) {
+      // Clear initPromise on error so future calls can retry
+      initPromise = null;
+      throw error;
+    } finally {
+      // Safely revoke Blob URL only after instantiation finishes
+      if (blobURL) {
+        URL.revokeObjectURL(blobURL);
+      }
+    }
   })();
 
   return initPromise;
 }
+
+
+
+
 
 /*** Scans indexes/data OPFS subdirectory and compiles a Set of available filenames.*/
 export async function getLocalCacheManifest(dirName: "indexes" | "data" = "data"): Promise<Set<string>> {
@@ -177,10 +200,13 @@ export async function deleteShardFromCache(
   return success;
 }
 
+
+// called when user selects a history
+// means we only then need to call await conn.query(`SELECT * FROM read_parquet('${fileName}')`);
 export async function loadShardIntoEngine(
   fileName: string,
   onLog?: (msg: string) => void
-): Promise<boolean> {
+): Promise<string | null> {
   const log = (msg: string) => onLog?.(msg);
   console.log("loading shard:", fileName);
 
@@ -194,11 +220,12 @@ export async function loadShardIntoEngine(
 
     // Registering the file makes DuckDB know it as `fileName` inside SQL
     await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, false);
-    return true;
+    return fileName;
+    
   } catch (err: any) {
     log(`❌ Load Mounting Error: ${err.message}`);
     console.error(err);
-    return false;
+    return null;
   }
 }
 
@@ -491,10 +518,24 @@ export async function insertIndex(
     const arrayBuffer = await file.arrayBuffer();
     await db.registerFileBuffer(fileName, new Uint8Array(arrayBuffer));
 
+    const inspection = await conn.query(`
+      SELECT year, typeof(year) as yr_type, category,  highest_precision
+      FROM read_parquet('${fileName}') 
+      LIMIT 5;
+    `);
+    console.log("RAW PARQUET VALUES:", inspection.toArray().map(r => r.toJSON()));
+
+    // 🔍 1. Log incoming Parquet schema to inspect actual column names & ordering
+    const schemaCheck = await conn.query(`DESCRIBE SELECT * FROM read_parquet('${fileName}');`);
+    log(`📊 [${fileName}] Parquet Columns: ${schemaCheck.toArray().map((r: any) => `${r.column_name} (${r.column_type})`).join(', ')}`);
+
     log(`📥 Merging blocks from ${fileName}...`);
+
+    // 🎯 2. Explicitly specify target columns on INSERT so position doesn't corrupt data
     await conn.query(`
-      INSERT INTO ${INDEX_TABLE_NAME} 
-      SELECT year, folder_name, event_count, event_uuids FROM read_parquet('${fileName}');
+      INSERT INTO ${INDEX_TABLE_NAME} BY NAME
+      SELECT year,highest_precision,  category, event_count, uuids 
+      FROM read_parquet('${fileName}', hive_partitioning = true);
     `);
   } catch (err) {
     throw err; 
@@ -523,9 +564,10 @@ export async function buildLocalIndex(onLog?: (msg: string) => void) {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS ${INDEX_TABLE_NAME} (
         year BIGINT,
-        folder_name VARCHAR,
+        category VARCHAR,
         event_count BIGINT,
-        event_uuids VARCHAR[]
+        highest_precision VARCHAR,
+        uuids VARCHAR[]
       );
     `);
 

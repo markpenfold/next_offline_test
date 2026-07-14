@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       Bucket: BUCKET_NAME,
       Prefix: prefix,
     });
-
+  
     const r2Response = await r2.send(listCommand);
     const availableIndexes = [];
 

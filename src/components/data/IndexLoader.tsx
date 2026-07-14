@@ -135,175 +135,216 @@ export function IndexLoader() {
 
 
   return (
-    <div style={{ backgroundColor: blue, padding: "2rem", fontFamily: "sans-serif", color: white, maxWidth: "900px", borderRadius: "12px" }}>
-      <h2 style={{ color: white, marginTop: 0 }}>Data-Driven Master Index Matrix</h2>
-      <p style={{ marginTop: "-10px", fontSize: "0.85rem", opacity: 0.8 }}>System dynamically reads bucket allocations to populate application controllers.</p>
-      
-      <hr style={{ margin: "1.5rem 0", borderColor: "rgba(255,255,255,0.2)" }} />
+  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "600px", margin: "0 auto", fontFamily: "sans-serif" }}>
+    
+    {/* WINDOW 1: INDEX SHARD SELECTION PILLS */}
+    <div style={{ 
+      backgroundColor: blue, 
+      padding: "1.25rem", 
+      color: white, 
+      borderRadius: "12px", 
+      height: "260px", 
+      display: "flex", 
+      flexDirection: "column" 
+    }}>
+      <div style={{ flexShrink: 0, marginBottom: "0.85rem" }}>
+        <h2 style={{ color: white, margin: 0, fontSize: "1.1rem" }}>Data-Driven Master Index Matrix</h2>
+        <p style={{ margin: "2px 0 0 0", fontSize: "0.75rem", opacity: 0.8 }}>
+          Select and manage active index buckets loaded into the local engine.
+        </p>
+      </div>
 
-      {/* 💾 LIVE STORAGE SIZE FOOTPRINT METRICS PANE */}
-      <div style={{ 
-        background: "rgba(0, 0, 0, 0.25)", 
-        border: "1px solid rgba(255,255,255,0.1)", 
-        borderRadius: "8px", 
-        padding: "1.2rem 1.5rem", 
-        marginBottom: "2rem",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: "1.5rem"
-      }}>
-        
+      {loading ? (
+        <p style={{ fontSize: "0.85rem", opacity: 0.7 }}>Scanning remote repositories...</p>
+      ) : (
+        <div style={{ 
+          display: "flex", 
+          flexDirection: "column", 
+          gap: "6px", 
+          overflowY: "auto", 
+          flex: 1, 
+          paddingRight: "6px" 
+        }}>
+          {availableIndexes.length === 0 ? (
+            <p style={{ fontStyle: "italic", opacity: 0.6, fontSize: "0.8rem" }}>No indices found in scanned buckets.</p>
+          ) : (
+            availableIndexes.map((item) => {
+              const isCached = localCache.has(item.fileName);
+              const cleanEraLabel = item.era.replace("_", " ");
+              
+              const readableCube = item.cube
+                ? item.cube
+                    .replace("history_cube", "")
+                    .split("_")
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(" ")
+                : "";
 
-      {loading && <p>Scanning remote repositories and reading current cache structures...</p>}
+              const readableEra = `${cleanEraLabel} ${readableCube}`.trim();
 
-      {!loading && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h3 style={{ fontSize: "1.1rem", color: white, marginBottom: "0.8rem" }}>Available Repositories (Discovered dynamically)</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {availableIndexes.length === 0 ? (
-              <p style={{ fontStyle: "italic", opacity: 0.6 }}>No indices found in the scanned buckets.</p>
-            ) : (
-              availableIndexes.map((item) => {
-                //console.log("item filename: ", localFileName)
-                const isCached = localCache.has(item.fileName);
-                const cleanEraLabel = item.era.replace("_", " ");
-                
-                // Dynamic Extraction: Convert "wiki_shards_final" -> "Wiki Shards Final"
-                const readableCube = item.cube
-                  ? item.cube
-                      .replace("history_cube", "")
-                      .split("_")
-                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                      .join(" ")
-                  : "";
+              return (
+                <div 
+                  key={`${item.fileName}-${item.era}-${item.cube}-${item.tier}`}
+                  style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "1fr auto auto", 
+                    gap: "12px",
+                    alignItems: "center", 
+                    background: "rgba(0,0,0,0.2)", 
+                    padding: "6px 8px 6px 12px", 
+                    borderRadius: "999px", 
+                    fontSize: "0.85rem",
+                    flexShrink: 0
+                  }}
+                >
+                  {/* LEFT: Abbreviated Name & Badge */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", whiteSpace: "nowrap" }}>
+                    <span style={{ 
+                      fontSize: "0.6rem", 
+                      background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)", 
+                      padding: "2px 6px", 
+                      borderRadius: "999px", 
+                      fontWeight: "bold", 
+                      textTransform: "uppercase" 
+                    }}>
+                      {item.tier.charAt(0)}
+                    </span>
+                    <span style={{ fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden", textTransform: "capitalize" }}>
+                      {readableEra} <span style={{ opacity: 0.6, fontWeight: "normal" }}>Index</span>
+                    </span>
+                  </div>
 
-                const readableEra = cleanEraLabel.charAt(0).toUpperCase() + cleanEraLabel.slice(1) + ' '+ readableCube;
-
-
-                return (
-                  <div 
-                    key={`${item.fileName}-${item.era}-${item.cube}-${item.tier}`}
-                    style={{ 
-                      display: "flex", 
-                      alignItems: "center", 
-                      justifyContent: "space-between", 
-                      background: "rgba(0,0,0,0.15)", 
-                      padding: "12px 18px", 
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.05)"
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: "0.75rem", background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)", padding: "2px 6px", borderRadius: "4px", marginRight: "10px", fontWeight: "bold", textTransform: "uppercase" }}>
-                        {item.tier}
-                      </span>
-                      <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>{readableEra} Index</span>
-                    </div>
-                    
-                    <div style={{ display: "inline-flex", borderRadius: "20px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.2)" }}>
+                  {/* MIDDLE: Download / Delete */}
+                  <div style={{ minWidth: "75px", textAlign: "center" }}>
+                    {!isCached ? (
                       <button
-                        onClick={() => !isCached && handleDownloadAndMountClick(item)}
-                        disabled={isCached}
-                        style={{
-                          padding: "6px 14px",
-                          background: isCached ? "#15803d" : "rgba(255,255,255,0.2)",
-                          color: white,
-                          border: "none",
-                          cursor: isCached ? "default" : "pointer",
-                          fontSize: "0.7rem",
-                          fontWeight: "bold"
+                        onClick={() => handleDownloadAndMountClick(item)}
+                        style={{ 
+                          background: "transparent", 
+                          color: white, 
+                          border: "1px solid rgba(255,255,255,0.3)", 
+                          borderRadius: "999px", 
+                          padding: "4px 10px", 
+                          fontSize: "0.75rem", 
+                          cursor: "pointer", 
+                          width: "100%" 
                         }}
                       >
-                        {isCached ? "✓ Loaded into Engine" : "Download & Mount"}
+                        Download
                       </button>
-
-                      {isCached && (
-                        <button
-                          onClick={() => handleDeleteClick(item.fileName)}
-                          style={{
-                            padding: "6px 10px",
-                            background: white,
-                            color: red,
-                            border: "none",
-                            borderLeft: "1px solid rgba(0,0,0,0.15)",
-                            cursor: "pointer",
-                            fontSize: "0.7rem",
-                            fontWeight: "bold"
-                          }}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <button
+                        onClick={() => handleDeleteClick(item.fileName)}
+                        style={{ 
+                          background: "transparent", 
+                          color: red, 
+                          border: `1px solid ${red}`, 
+                          borderRadius: "999px", 
+                          padding: "4px 10px", 
+                          fontSize: "0.75rem", 
+                          cursor: "pointer", 
+                          width: "100%" 
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
-                );
-              })
-            )}
-          </div>
+
+                  {/* RIGHT: Engine Status */}
+                  <div style={{ minWidth: "85px", textAlign: "center" }}>
+                    <span style={{ 
+                      display: "block",
+                      background: isCached ? "#15803d" : "transparent", 
+                      color: isCached ? white : "rgba(255,255,255,0.4)", 
+                      border: `1px solid ${isCached ? "#15803d" : "rgba(255,255,255,0.2)"}`, 
+                      borderRadius: "999px", 
+                      padding: "4px 8px", 
+                      fontSize: "0.7rem", 
+                      fontWeight: isCached ? "bold" : "normal"
+                    }}>
+                      {isCached ? "✓ Mounted" : "Unmounted"}
+                    </span>
+                  </div>
+
+                </div>
+              );
+            })
+          )}
         </div>
       )}
+    </div>
 
-      {/* Activity Logger Tracking UI */}
-      <div style={{ background: "#1e1e1e", color: "#00ff00", padding: "1rem", borderRadius: "6px", fontFamily: "monospace", minHeight: "120px", maxHeight: "150px", overflowY: "auto", marginBottom: "20px" }}>
-        <div style={{ borderBottom: "1px solid #333", paddingBottom: "0.25rem", marginBottom: "0.5rem", color: "#aaa", fontSize: "0.85rem" }}>
-          Engine Execution Console
-        </div>
-        {logs.map((log, idx) => (
-          <div key={idx} style={{ marginBottom: "0.25rem", fontSize: "0.7rem" }}>{log}</div>
-        ))}
+    {/* WINDOW 2: ENGINE EXECUTION CONSOLE */}
+    <div style={{ 
+      background: "#1e1e1e", 
+      color: "#00ff00", 
+      padding: "1rem", 
+      borderRadius: "8px", 
+      fontFamily: "monospace", 
+      fontSize: "0.75rem",
+      boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+    }}>
+      <div style={{ borderBottom: "1px solid #333", paddingBottom: "0.35rem", marginBottom: "0.5rem", color: "#aaa", fontSize: "0.8rem", fontWeight: "bold" }}>
+        Engine Execution Console
+      </div>
+      <div style={{ maxHeight: "110px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
+        {logs.length === 0 ? (
+          <div style={{ color: "#555", fontStyle: "italic" }}>Console ready. Awaiting commands...</div>
+        ) : (
+          logs.map((log, idx) => (
+            <div key={idx} style={{ lineHeight: "1.3" }}>{log}</div>
+          ))
+        )}
+      </div>
+    </div>
+
+    {/* WINDOW 3: PRE-AGGREGATED INDEX MATRIX SUMMARY GRID */}
+    <div style={{ 
+      background: "#18181b", 
+      border: "1px solid #27272a", 
+      borderRadius: "8px", 
+      padding: "1rem", 
+      fontFamily: "monospace", 
+      color: "#d4d4d8", 
+      fontSize: "0.75rem",
+      boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #27272a", paddingBottom: "8px", marginBottom: "10px" }}>
+        <h3 style={{ margin: 0, color: "#f4f4f5", fontSize: "0.8rem" }}>📈 Pre-Aggregated Index Matrix Summary</h3>
+        <span style={{ fontSize: "10px", color: "#71717a" }}>Total Groups: {index.length}</span>
       </div>
 
-
-
-
-
-
-
-
-      {/* Real-time Compiled Data Matrix Preview Grid */}
-      <div style={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", padding: "16px", fontFamily: "monospace", color: "#d4d4d8", fontSize: "0.75rem" }}>
-  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #27272a", paddingBottom: "8px", marginBottom: "12px" }}>
-    <h3 style={{ margin: 0, color: "#f4f4f5", fontSize: "0.85rem" }}>📈 Pre-Aggregated Index Matrix Summary (Top 10 rows from master_index)</h3>
-    <span style={{ fontSize: "10px", color: "#71717a" }}>
-      Total unique groups matched: {index.length}
-    </span>
-  </div>
-
-  {index.length === 0 ? (
-    <p style={{ color: "#71717a", fontStyle: "italic"}}>No indices loaded into context. Download any repository shard layer capsule above to populate the local engine.</p>
-  ) : (
-    <div style={{ maxHeight: "240px", overflowY: "auto" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 2fr", gap: "8px", borderBottom: "1px solid #27272a", paddingBottom: "4px", color: "#a1a1aa", fontWeight: "bold", marginBottom: "8px" }}>
-        <div>Year</div>
-        <div>Category Group</div>
-        <div>Calculated Count</div>
-        <div>UUID Vectors Snapshot</div>
-      </div>
-      
-      {index.slice(0, 10).map((row, idx) => {
-       // convert from raw duckdb/Apache Arrow 
-      const uuids = Array.from(row.event_uuids || []);
-
-        return (
-          <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 2fr", gap: "8px", padding: "4px 0", borderBottom: "1px solid #222" }}>
-            <div style={{ color: "#fbbf24", fontWeight: "bold" }}>{row.year}</div>
-            <div style={{ color: "#38bdf8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {row.folder_name}
-            </div>
-            <div style={{ color: "#34d399" }}>{row.event_count} events</div>
-            <div style={{ color: "#52525b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              [{uuids.slice(0, 2).join(', ')}{uuids.length > 2 ? '...' : ''}] ({uuids.length} items)
-            </div>
+      {index.length === 0 ? (
+        <p style={{ color: "#71717a", fontStyle: "italic", margin: 0 }}>
+          No indices loaded into context. Download any repository shard layer above to populate the local engine.
+        </p>
+      ) : (
+        <div style={{ maxHeight: "180px", overflowY: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 2fr", gap: "8px", borderBottom: "1px solid #27272a", paddingBottom: "6px", color: "#a1a1aa", fontWeight: "bold", position: "sticky", top: 0, background: "#18181b" }}>
+            <div>Year</div>
+            <div>Category Group</div>
+            <div>Count</div>
+            <div>UUID Vectors</div>
           </div>
-        );
-      })}
+          
+          {index.slice(0, 100).map((row, idx) => {
+            const uuids = Array.from(row.uuids || []);
+            return (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 2fr", gap: "8px", padding: "4px 0", borderBottom: "1px solid #222" }}>
+                <div style={{ color: "#fbbf24", fontWeight: "bold" }}>{row.year}</div>
+                <div style={{ color: "#38bdf8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.category}</div>
+                <div style={{ color: "#34d399" }}>{row.event_count}</div>
+                <div style={{ color: "#52525b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  [{uuids.slice(0, 2).join(', ')}{uuids.length > 2 ? '...' : ''}] ({uuids.length})
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
-  )}
-</div>
 
-    </div>
-    </div>
-  );
+  </div>
+);
 }

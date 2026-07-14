@@ -87,8 +87,12 @@ export function ShardSelector() {
     if (success) {
       await syncWorkspaceState();
       addLog(`🚀 Mounting "${shard.fileName}" into engine...`);
-      await loadShardIntoEngine(shard.fileName, addLog);
+      let result = await loadShardIntoEngine(shard.fileName, addLog);
       
+      if(!result){
+        console.log("problem loading file into db")
+        return null}
+
       const newActive = new Set(activeSessionShards).add(shard.fileName);
       setActiveSessionShards(newActive);
       await refreshTimeline(newActive);
@@ -125,36 +129,121 @@ export function ShardSelector() {
   };
 
   return (
-    <div style={{ backgroundColor: blue, padding: "2rem", color: white, borderRadius: "12px", maxWidth: "900px", margin: "0 auto" }}>
-      <h2>Historical Data Shards</h2>
-      <hr style={{ margin: "1.5rem 0", borderColor: "rgba(255,255,255,0.2)" }} />
+  <div style={{ 
+    backgroundColor: blue, 
+    padding: "1.5rem", 
+    color: white, 
+    borderRadius: "4px", 
+    maxWidth: "500px", 
+    margin: "0 auto",
+    height: "300px",         // Fixed height constraint
+    display: "flex",         // Flex layout to manage scrolling
+    flexDirection: "column" 
+  }}>
+    {/* flexShrink: 0 prevents the header from getting crushed by the scrolling list */}
+    <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.2rem", flexShrink: 0 }}>
+      Historical Data Shards
+    </h2>
 
-      {loading ? <p>Scanning repositories...</p> : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {availableShards.map((shard) => {
-            const isCached = localCache.has(shard.fileName);
-            const isLoaded = activeSessionShards.has(shard.fileName);
-            
-            return (
-              <div key={shard.fileName} style={{ display: "flex", justifyContent: "space-between", background: "rgba(0,0,0,0.15)", padding: "12px", borderRadius: "8px" }}>
-                <div>
-                  <span style={{ fontSize: "0.7rem", background: shard.tier === 'pro' ? brick : green, padding: "2px 6px", borderRadius: "4px", marginRight: "10px", textTransform: "uppercase" }}>{shard.tier}</span>
-                  <span style={{ fontWeight: "bold" }}>{shard.masterCategory.replace(/^master_category=/, "")}</span>
-                  <span style={{ fontWeight: "bold" }}> {shard.era}</span>
-                </div>
-                <div style={{ display: "flex", gap: "5px" }}>
-                  <button onClick={() => isCached ? handleToggleLoad(shard) : handleDownloadAndLoad(shard)}>
-                    {isLoaded ? "Unload" : (isCached ? "Load" : "Download & Mount")}
-                  </button>
-                  {isCached && <button onClick={() => handleDeleteClick(shard)} style={{ color: red }}>✕</button>}
-                </div>
+    {loading ? (
+      <p style={{ fontSize: "0.85rem", opacity: 0.7 }}>Scanning repositories...</p>
+    ) : (
+      <div style={{ 
+        display: "flex", 
+        flexDirection: "column", 
+        gap: "6px",
+        overflowY: "auto",      // Enables vertical scrolling
+        flex: 1,                // Forces this container to take up all remaining height
+        paddingRight: "8px"     // Adds breathing room so the scrollbar doesn't touch the buttons
+      }}>
+        {availableShards.map((shard) => {
+          const isCached = localCache.has(shard.fileName);
+          const isLoaded = activeSessionShards.has(shard.fileName);
+          
+          // Create an abbreviated name
+          const catName = shard.masterCategory.replace(/^master_category=/, "").replace(/_/g, " ");
+          const eraName = shard.era.includes("pre") ? "< 1900" : "1900+";
+
+          return (
+            <div 
+              key={shard.fileName} 
+              style={{ 
+                display: "grid", 
+                gridTemplateColumns: "1fr auto auto", 
+                gap: "12px",
+                alignItems: "center", 
+                background: "rgba(0,0,0,0.2)", 
+                padding: "6px 8px 6px 12px", 
+                borderRadius: "999px", 
+                fontSize: "0.85rem",
+                flexShrink: 0       // Ensures the pill doesn't squish when the list overflows
+              }}
+            >
+              {/* LEFT: Abbreviated Name & Badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", whiteSpace: "nowrap" }}>
+                <span style={{ 
+                  fontSize: "0.6rem", 
+                  background: shard.tier === 'pro' ? brick : green, 
+                  padding: "2px 6px", 
+                  borderRadius: "999px", 
+                  fontWeight: "bold",
+                  textTransform: "uppercase" 
+                }}>
+                  {shard.tier.charAt(0)} 
+                </span>
+                <span style={{ fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden", textTransform: "capitalize" }}>
+                  {catName} <span style={{ opacity: 0.6, fontWeight: "normal" }}>{eraName}</span>
+                </span>
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Log and Matrix UI sections here (as in IndexLoader) */}
-    </div>
-  );
+              {/* MIDDLE: Download / Delete */}
+              <div style={{ minWidth: "75px", textAlign: "center" }}>
+                {!isCached ? (
+                  <button 
+                    onClick={() => handleDownloadAndLoad(shard)}
+                    style={{ background: "transparent", color: white, border: "1px solid rgba(255,255,255,0.3)", borderRadius: "999px", padding: "4px 10px", fontSize: "0.75rem", cursor: "pointer", width: "100%" }}
+                  >
+                    Download
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleDeleteClick(shard)}
+                    style={{ background: "transparent", color: red, border: `1px solid ${red}`, borderRadius: "999px", padding: "4px 10px", fontSize: "0.75rem", cursor: "pointer", width: "100%" }}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+
+              {/* RIGHT: Load / Unload */}
+              <div style={{ minWidth: "75px", textAlign: "center" }}>
+                <button 
+                  onClick={() => isCached && handleToggleLoad(shard)}
+                  disabled={!isCached}
+                  style={{ 
+                    background: isLoaded ? white : "transparent", 
+                    color: isLoaded ? blue : white, 
+                    border: `1px solid ${isLoaded ? white : "rgba(255,255,255,0.3)"}`, 
+                    borderRadius: "999px", 
+                    padding: "4px 10px", 
+                    fontSize: "0.75rem", 
+                    cursor: isCached ? "pointer" : "not-allowed",
+                    opacity: isCached ? 1 : 0.3, 
+                    width: "100%",
+                    fontWeight: isLoaded ? "bold" : "normal"
+                  }}
+                >
+                  {isLoaded ? "Unload" : "Load"}
+                </button>
+              </div>
+
+            </div>
+          );
+        })}
+      </div>
+    )}
+
+    {/* Note: Any Log/Matrix UI sections placed here will stay fixed at the bottom of the 300px container */}
+  </div>
+);
 }

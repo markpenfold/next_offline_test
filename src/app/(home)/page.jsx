@@ -35,10 +35,15 @@ export default async function HomePage() {
       <div className={classes.central}>
        
           <div className={classes.intro}>
-            <p>If we wish to live well in the present, and ensure a better future, we must understand our past. </p>
+            <p>To live well in the present, and ensure a better future, we must understand our past. </p>
             <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos.</p>
-            <p>This is work for adventurous spirits.</p>
             
+            <div  className={classes.spacer}></div>
+            <div className={classes.filmie}>
+            <img src='./terrain.png' />
+              </div>
+              <div  className={classes.spacer}></div>
+            <p>This is work for adventurous spirits.</p>
           </div>
         <div></div>
       </div>
@@ -110,28 +115,9 @@ export default async function HomePage() {
 
 
 
+
+
 <div  className={classes.sectionDark}>
-        <div  className={classes.spacer}></div>
-
-  <div className={classes.subTitle}>The past is another country</div>
-  <div className={classes.intro}>
-    <p>History need no longer be a strange land. 
-        <span className={classes.fontRed}> Now you can go there.</span> </p>
-  </div>
-  
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-
-  <div className={classes.filmie}>
-    <img src='./terrain.png' />
-  </div>
-<div  className={classes.spacer}></div><div  className={classes.spacer}></div>
-  
-
-<div  className={classes.spacer}></div>
-</div>
-
-<div  className={classes.section}>
   <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
