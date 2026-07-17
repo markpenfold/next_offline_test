@@ -1,11 +1,12 @@
 // db/analytics.ts
 
 import { getSharedDuckDBEngine, loadShardIntoEngine } from "./duckDATA";
-import {INDEX_TABLE_NAME, TerrainTuple} from '@/components/data/dataTypes'
+import { INDEX_TABLE_NAME, TerrainTuple } from '@/components/data/dataTypes';
+import { useDATAStore } from '@/stores/useDataStore'; // Ensure path matches your project structure
 
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
 
-//Gets or creates a reusable connection for blazing-fast reads.*/
+// Gets or creates a reusable connection for blazing-fast reads.
 export async function getReadConnection() {
   if (!sharedReadConn) {
     const db = await getSharedDuckDBEngine();
@@ -14,10 +15,35 @@ export async function getReadConnection() {
   return sharedReadConn;
 }
 
+/**
+ * Non-hook utility that blocks query execution until the bootloader 
+ * toggles isTerrainReady to true inside the Zustand store.
+ */
+async function awaitEngineTableReady(): Promise<void> {
+  // 1. If the bootloader already finished compiling the layout, pass through instantly
+  if (useDATAStore.getState().isTerrainReady) {
+    return;
+  }
 
+  // 2. Otherwise, hold execution and subscribe to state modifications
+  return new Promise<void>((resolve) => {
+    const unsub = useDATAStore.subscribe((state) => {
+      if (state.isTerrainReady) {
+        unsub(); // Clean up listener memory instantly
+        resolve(); // Release the blocked query
+      }
+    });
+  });
+}
 
-export async function runQuery(sql: string) {
+// 🔥 Added bypassGate flag to resolve the initialization deadlock loop safely
+export async function runQuery(sql: string, bypassGate = false) {
   try {
+    // UI components pass through here and wait. setTerrainTable skips this check entirely.
+    if (!bypassGate) {
+      await awaitEngineTableReady();
+    }
+
     const conn = await getReadConnection();
     const result = await conn.query(sql);
     
@@ -36,7 +62,6 @@ export async function runQuery(sql: string) {
   }
 }
 
-
 export async function getIndex(limit: number = 100) {
   // 🎯 Cast BIGINT year to INTEGER in SQL so Arrow serializes standard JS numbers
   const { data, error } = await runQuery(`
@@ -48,7 +73,7 @@ export async function getIndex(limit: number = 100) {
       uuids 
     FROM ${INDEX_TABLE_NAME} 
     LIMIT ${limit};
-  `);
+  `); // Inherits bypassGate = false (Waits for boot)
 
   if (error || !data) {
     return { data: [], error };
@@ -57,28 +82,40 @@ export async function getIndex(limit: number = 100) {
   return { data, error: null };
 }
 
-
-export async function getDataView(loadedIndexes:string[]){
+export async function getDataView(loadedIndexes: string[]) {
   let rtn = '';
-  for(let i=0; i<loadedIndexes.length; i++ )
+  for (let i = 0; i < loadedIndexes.length; i++)
     rtn += ' hello';
   return rtn;
 }
 
-
 export async function setTerrainTable(loadedIndexes: string[]) {
-  console.log("SL:KJDL:KFJ:LKDJF:LKSDJF:LKJSD:FLKJSD:FLKJD:FKJL:")
+  console.log("🛠️ Aligning analytical workspace compilation matrix...");
+  
   if (!loadedIndexes || loadedIndexes.length === 0) {
-    // Clear out the table if no indexes are loaded
-    await runQuery(`DROP TABLE IF EXISTS master_terrain`);
-    return { success: true, message: "Cleared master view" };
+    console.log("🌱 No active shards selected. Seeding empty catalog schema for master_terrain.");
+    
+    // ✅ FIX: Replace raw DROP with a clean structural schema definition
+    await runQuery(`
+      CREATE OR REPLACE TABLE master_terrain (
+        year BIGINT,
+        category VARCHAR,
+        cat_count BIGINT,
+        cat_precision INTEGER,
+        precision_rank INTEGER,
+        event_cat_uuids VARCHAR[],
+        cat_uuids VARCHAR[]
+      );
+    `, true);
+    
+    return { success: true, message: "Materialized empty master view schema shell" };
   }
+
   // 🛡️ Guard: Ensure every index in state is registered in DuckDB VFS
   for (const fileName of loadedIndexes) {
     await loadShardIntoEngine('indexes', fileName);
   }
   console.log("LOADED INDEXES In syncTerrainTable:", loadedIndexes);
-
 
   const parquetFiles = loadedIndexes.map(f => `'${f}'`).join(', ');
 
@@ -97,23 +134,24 @@ export async function setTerrainTable(loadedIndexes: string[]) {
 `;
 
   try {
-    await runQuery(sql);
+    await runQuery(sql, true);
     console.log("🟢 Master Terrain Table successfully compiled in DuckDB");
+    
     // 2. 🔍 Preview top 5 rows in the console
-const preview = await runQuery(`SELECT * FROM master_terrain LIMIT 5;`);
+    const preview = await runQuery(`SELECT * FROM master_terrain LIMIT 5;`, true);
 
-if (preview.data) {
-  console.log("📊 master_terrain Preview (Top 5 Rows):");
-  console.table(
-    preview.data.map((row: any) => ({
-      year: row.year,
-      category: row.category,
-      count: row.cat_count,
-      precision_rank: row.cat_precision,
-      uuid_count: row.event_cat_uuids ? row.event_cat_uuids.length : 0
-    }))
-  );
-}
+    if (preview.data) {
+      console.log("📊 master_terrain Preview (Top 5 Rows):");
+      console.table(
+        preview.data.map((row: any) => ({
+          year: row.year,
+          category: row.category,
+          count: row.cat_count,
+          precision_rank: row.cat_precision,
+          uuid_count: row.event_cat_uuids ? row.event_cat_uuids.length : 0
+        }))
+      );
+    }
 
     return { success: true };
   } catch (error) {
@@ -122,29 +160,15 @@ if (preview.data) {
   }
 }
 
-
-
-// analytics.ts -> getTerrainShaderMatrix
-/** FOR PRECISION FIELD:
-  WHEN 'year'        THEN 0
-  WHEN 'month'       THEN 1
-  WHEN 'day'         THEN 2
-  WHEN 'hour'        THEN 3
-  WHEN 'minute'      THEN 4
-  WHEN 'second'      THEN 5
-  WHEN 'millisecond' THEN 6
- */
 export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
   // SQL ensures results are grouped/ordered by year and category
+  // Inherits bypassGate = false (Safely stalls DataView components during active booting sequences)
   const { data: results, error } = await runQuery(
     `SELECT * FROM master_terrain ORDER BY year ASC, category ASC`
   );
 
   if (error || !results) return [];
 
-  // 1. Build Legend (NO SORTING - respects the SQL order)
-  // Since SQL is ORDER BY category ASC, this will be naturally alphabetical,
-  // but if you change SQL later, this code won't force a broken sort.
   const allCategories = Array.from(
     new Set<string>(results.map((r: any) => String(r.category)))
   );
@@ -159,11 +183,10 @@ export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
     const rank = Number(row.precision_rank);
     const uuids = row.cat_uuids ? Array.from(row.cat_uuids).map(String) : [];
 
-    // 2. Initialize the YEAR TEMPLATE
     if (!matrixMap.has(year)) {
       matrixMap.set(year, [
         year,
-        allCategories, // Pointer to the ordered legend
+        allCategories, 
         new Array(numCategories).fill(0),
         rank,
         new Array(numCategories).fill(null).map(() => [])
@@ -171,38 +194,32 @@ export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
     }
 
     const tuple = matrixMap.get(year)!;
-    
-    // Find index based on the legend (guaranteed stable now)
     const catIndex = allCategories.indexOf(category);
 
-    // 3. Slot data
     if (catIndex !== -1) {
       tuple[2][catIndex] = count;
       tuple[4][catIndex] = uuids;
     }
     
-    // 4. Update precision
     tuple[3] = Math.max(tuple[3], rank);
   }
 
   return Array.from(matrixMap.values()).sort((a, b) => a[0] - b[0]);
 }
 
-// 1. Each category in category_breakdown holds its own count AND uuids
+// Interface structures remain unchanged below...
 export interface CategoryEntry {
   category: string;
   count: number | bigint;
-  uuids: string[]; // 👈 Category-specific UUIDs
+  uuids: string[];
 }
 
-// 2. Updated Master Terrain Row
 export interface TerrainRow {
   year: number | bigint;
   total_event_count: number | bigint;
   category_breakdown: CategoryEntry[];
-  year_uuids: string[]; // 👈 All UUIDs for the entire year across categories
+  year_uuids: string[];
 }
-
 
 export interface TerrainFilterOptions {
   minYear?: number;
@@ -212,16 +229,12 @@ export interface TerrainFilterOptions {
 export interface FormattedTerrainStep {
   year: number;
   totalEventCount: number;
-  /** Fixed-length height/banding vector strictly aligned with `categoryLegend` indices */
   vector: number[];
-  /** Full category details including category-specific UUIDs */
   categoryBreakdown: CategoryEntry[];
-  /** Combined list of all event UUIDs for this year across all categories */
   yearUuids: string[];
 }
 
 export interface TerrainShaderMatrixResult {
   shaderMatrix: FormattedTerrainStep[];
-  /** Alphabetical list establishing index order for the shader vectors */
   categoryLegend: string[];
 }

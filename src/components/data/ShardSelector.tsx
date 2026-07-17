@@ -2,18 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { 
-  ,
   getLocalCacheManifest, 
   getShard, 
-  , 
   syncSessionAggregations, 
-  type  
 } from "./storage"; 
 
 import {deleteOPFSFile} from '@/components/data/diskOPFS'
 import {unloadShardFromEngine, loadShardIntoEngine} from '@/components/data/duckDATA'
 import {AvailableDataShard}  from '@/components/data/dataTypes'
-import {fetchAvailableDataShards} from '@/components/data/cloud'
+import {fetchAvailableDataShards} from '@/components/data/cloudR2'
 
 import { useAppStore } from '@/providers/AppStoreProvider';
 
