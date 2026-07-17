@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { 
-  fetchAvailableDataShards,
+  ,
   getLocalCacheManifest, 
   getShard, 
-  loadShardIntoEngine, 
+  , 
   syncSessionAggregations, 
-  unloadShardFromEngine,
-  deleteShardFromCache,
-  type AvailableDataShard 
+  type  
 } from "./storage"; 
+
+import {deleteOPFSFile} from '@/components/data/diskOPFS'
+import {unloadShardFromEngine, loadShardIntoEngine} from '@/components/data/duckDATA'
+import {AvailableDataShard}  from '@/components/data/dataTypes'
+import {fetchAvailableDataShards} from '@/components/data/cloud'
+
 import { useAppStore } from '@/providers/AppStoreProvider';
 
 const white = 'rgb(245,245,245)';
@@ -124,7 +128,7 @@ export function ShardSelector() {
       await refreshTimeline(updated);
     }
     
-    await deleteShardFromCache(shard.fileName, addLog);
+    await deleteOPFSFile('data', shard.fileName);
     await syncWorkspaceState();
   };
 

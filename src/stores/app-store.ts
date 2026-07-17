@@ -132,7 +132,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
             tier: parsed.tier || finalTier, // Trust updated modifications to lease object data
             profile: parsed.profile,
             accounts: parsed.accounts || [],
-            activeAccount: parsed.activeAccountId || parsed.accounts[0]?.id || null,
+            activeAccount: parsed.activeAccount || parsed.accounts?.[0] || null,
             authStatus: 'authenticated'
           });
           console.log("✅ Memory successfully loaded from valid local cache.");
@@ -185,7 +185,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           profile: formattedProfile,
           authStatus: 'authenticated',
           tier: finalTier,
-          activeAccountId: targetActiveAccount,
+          activeAccount: targetActiveAccount,
           accounts: fetchedAccounts
         };
 
@@ -318,7 +318,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
               ...parsed, 
               tier: freshTier,
               accounts: updatedAccounts,
-              activeAccountId: currentActiveAccount.id
+              activeAccount: currentActiveAccount
               // WAS: activeAccount: { ...currentActiveAccount, plan_name: freshTier } // Keep cache sync'd
             }));
           }

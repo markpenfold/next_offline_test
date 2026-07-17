@@ -1,6 +1,7 @@
 // db/analytics.ts
-import { getSharedDuckDBEngine, loadShardIntoEngine } from "./storage";
-import {INDEX_TABLE_NAME} from './storage'
+
+import { getSharedDuckDBEngine, loadShardIntoEngine } from "./duckDATA";
+import {INDEX_TABLE_NAME, TerrainTuple} from '@/components/data/dataTypes'
 
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
 
@@ -65,7 +66,8 @@ export async function getDataView(loadedIndexes:string[]){
 }
 
 
-export async function syncTerrainTable(loadedIndexes: string[]) {
+export async function setTerrainTable(loadedIndexes: string[]) {
+  console.log("SL:KJDL:KFJ:LKDJF:LKSDJF:LKJSD:FLKJSD:FLKJD:FKJL:")
   if (!loadedIndexes || loadedIndexes.length === 0) {
     // Clear out the table if no indexes are loaded
     await runQuery(`DROP TABLE IF EXISTS master_terrain`);
@@ -88,7 +90,7 @@ export async function syncTerrainTable(loadedIndexes: string[]) {
       category, 
       SUM(event_count) AS cat_count,
       MAX(highest_precision) AS cat_precision,
-      flatten(list(uuids)) AS cat_uuids
+      flatten(list(uuids)) AS event_cat_uuids
   FROM read_parquet([${parquetFiles}])
   GROUP BY year, category
   ORDER BY year ASC, category ASC;
@@ -105,9 +107,10 @@ if (preview.data) {
   console.table(
     preview.data.map((row: any) => ({
       year: row.year,
-      total_event_count: row.total_event_count,
-      // Truncate breakdown preview so console table stays readable
-      breakdown: row.breakdown_json ? JSON.parse(row.breakdown_json) : row.category_breakdown,
+      category: row.category,
+      count: row.cat_count,
+      precision_rank: row.cat_precision,
+      uuid_count: row.event_cat_uuids ? row.event_cat_uuids.length : 0
     }))
   );
 }
@@ -119,30 +122,32 @@ if (preview.data) {
   }
 }
 
-// Define the exact tuple shape you requested
-export type TerrainTuple = [
-  number,      // [0] year
-  string[],    // [1] [category, category, ...]
-  number[],    // [2] [event_count, event_count, ...]
-  number,      // [3] highest_precision
-  string[][]   // [4] [[uuids], [uuids], ...]
-];
+
 
 // analytics.ts -> getTerrainShaderMatrix
-
+/** FOR PRECISION FIELD:
+  WHEN 'year'        THEN 0
+  WHEN 'month'       THEN 1
+  WHEN 'day'         THEN 2
+  WHEN 'hour'        THEN 3
+  WHEN 'minute'      THEN 4
+  WHEN 'second'      THEN 5
+  WHEN 'millisecond' THEN 6
+ */
 export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
+  // SQL ensures results are grouped/ordered by year and category
   const { data: results, error } = await runQuery(
     `SELECT * FROM master_terrain ORDER BY year ASC, category ASC`
   );
 
   if (error || !results) return [];
 
-  // 1. 🌍 Build a Global Category Legend
-  // Collect all unique categories across the entire dataset and sort them.
-  // Example: ["accidents", "aircraft", "natural_disasters"]
+  // 1. Build Legend (NO SORTING - respects the SQL order)
+  // Since SQL is ORDER BY category ASC, this will be naturally alphabetical,
+  // but if you change SQL later, this code won't force a broken sort.
   const allCategories = Array.from(
-    new Set(results.map((r: any) => String(r.category)))
-  ).sort();
+    new Set<string>(results.map((r: any) => String(r.category)))
+  );
 
   const numCategories = allCategories.length;
   const matrixMap = new Map<number, TerrainTuple>();
@@ -151,36 +156,35 @@ export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
     const year = Number(row.year);
     const category = String(row.category);
     const count = Number(row.cat_count);
-    const precision = Number(row.cat_precision);
+    const rank = Number(row.precision_rank);
     const uuids = row.cat_uuids ? Array.from(row.cat_uuids).map(String) : [];
 
-    // 2. 🏗️ Initialize the year with Zero-Padded Arrays
+    // 2. Initialize the YEAR TEMPLATE
     if (!matrixMap.has(year)) {
       matrixMap.set(year, [
         year,
-        [...allCategories],                               // [1] Always the full category list
-        new Array(numCategories).fill(0),                 // [2] Pre-fill counts with 0s
-        0,                                                // [3] Precision
-        new Array(numCategories).fill(null).map(() => []) // [4] Pre-fill empty arrays for UUIDs
+        allCategories, // Pointer to the ordered legend
+        new Array(numCategories).fill(0),
+        rank,
+        new Array(numCategories).fill(null).map(() => [])
       ]);
     }
 
     const tuple = matrixMap.get(year)!;
     
-    // Find where this category belongs in the global vector
+    // Find index based on the legend (guaranteed stable now)
     const catIndex = allCategories.indexOf(category);
 
-    // 3. 🎯 Slot the data into the exact correct position
-    tuple[2][catIndex] = count;
-    tuple[4][catIndex] = uuids;
-    
-    // Track highest precision for the year
-    if (precision > tuple[3]) {
-      tuple[3] = precision;
+    // 3. Slot data
+    if (catIndex !== -1) {
+      tuple[2][catIndex] = count;
+      tuple[4][catIndex] = uuids;
     }
+    
+    // 4. Update precision
+    tuple[3] = Math.max(tuple[3], rank);
   }
 
-  // Return flat array of tuples sorted by year
   return Array.from(matrixMap.values()).sort((a, b) => a[0] - b[0]);
 }
 

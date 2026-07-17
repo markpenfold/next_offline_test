@@ -1,72 +1,68 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLocalCacheManifest, AvailableIndex } from "./storage"; 
 import { useAppStore } from '@/providers/AppStoreProvider';
 import { useDATAStore } from '@/stores/useDataStore';
-import { getTerrainShaderMatrix, syncTerrainTable, TerrainTuple } from '@/components/data/analytics';
+import { getTerrainShaderMatrix, setTerrainTable} from '@/components/data/analytics';
+import { TerrainTuple } from "./dataTypes";
 
 export function DataView() {
   const [loading, setLoading] = useState<boolean>(true);
-  const [dataView, setDataView] = useState<TerrainTuple[] | null>(null);  
+  const [terrainData, setTerrainData] = useState<TerrainTuple[] | null>(null);
+
   // FROM THE STORES 
-  const loadedIndexes = useDATAStore((s) => s.loadedIndexes);
+  const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
   const activeAccount = useAppStore((s) => s.activeAccount);
+  const isTerrainReady = useDATAStore((s) => s.isTerrainReady); //  Listen to the gate
 
   // Live Scan & Initialize on Mount
   useEffect(() => {
-    let isMounted = true;
-
-    async function updateView() {
-      if (!activeAccount?.id || loadedIndexes.length === 0) {
-        if (isMounted) {
-          setDataView(null);
-          setLoading(false);
-        }
-        return;
-      }
-
+    if (!isTerrainReady || !activeAccount?.id) {
+      setLoading(true);
+      return;
+    }
+    // 1. Guard clause: Don't fetch if no account
+    if (!activeAccount?.id) {
+      setLoading(false);
+      return;
+    }
+    async function fetchTerrain() {
+      setLoading(true);
       try {
-        if (isMounted) setLoading(true);
-
-        // 1. Sync DuckDB table
-        await syncTerrainTable(loadedIndexes);
+        // 2. Fetch the matrix
+        const matrix = await getTerrainShaderMatrix();
         
-        // 2. Query shader matrix
-        const result = await getTerrainShaderMatrix();
-
-        if (isMounted) {
-          setDataView(result);
-        }
+        // 3. Update React State (this triggers the UI re-render)
+        setTerrainData(matrix);
       } catch (err) {
-        console.error("❌ Failed to generate DataView:", err);
+        console.error("Failed to fetch terrain matrix:", err);
+        setTerrainData(null);
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     }
+  
+    fetchTerrain();
 
-    updateView();
+  }, [isTerrainReady, activeAccount?.id, activeDataViewIndexes]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [activeAccount?.id, loadedIndexes]);
-
-  if (loading) {
+  if (loading|| !isTerrainReady) {
     return <div>Loading terrain matrix...</div>;
   }
 
-  if (!dataView) {
+  if (!activeDataViewIndexes) {
     return <div>No index or active account selected.</div>;
   }
 
-  // Option A: If you want to inspect/debug the raw output
+  if(!terrainData) {
+    return <div>No Terrain data loaded.</div>;
+  }
 return (
     <div>
       <h3>Terrain Data Loaded</h3>
       <pre className="p-4 bg-gray-900 text-green-400 rounded overflow-auto text-xs">
         {JSON.stringify(
-          dataView.slice(0, 5).map((row) => [
+          terrainData.slice(0, 5).map((row) => [
             row[0], // Year
             row[1], // Categories
             row[2], // Counts
@@ -83,12 +79,5 @@ return (
       </pre>
     </div>
   );
-  /* Option B: If you are passing shaderMatrix & categoryLegend to Canvas/UI components:
-  return (
-    <div>
-      <TerrainCanvas matrix={dataView.shaderMatrix} />
-      <CategoryLegend legend={dataView.categoryLegend} />
-    </div>
-  );
-  */
+
 }
