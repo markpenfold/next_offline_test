@@ -84,3 +84,11 @@ export interface ProjectConfig {
  // day:number;
   updatedAt: string;
 }
+
+
+export type TerrainShaderTuple = [
+  string[],       // 0: indexNames (Columns layout)
+  number[][],     // 1: heights (Matrix: [years][categories])
+  number[],       // 2: summedHeights (Vector: [years])
+  string[][][]    // 3: uuids (Matrix: [years][categories][strings])
+];

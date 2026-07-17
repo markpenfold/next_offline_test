@@ -1,7 +1,7 @@
 // db/analytics.ts
 
 import { getSharedDuckDBEngine, loadShardIntoEngine } from "./duckDATA";
-import { INDEX_TABLE_NAME, TerrainTuple } from '@/components/data/dataTypes';
+import { INDEX_TABLE_NAME, TerrainTuple, TerrainShaderTuple } from '@/components/data/dataTypes';
 import { useDATAStore } from '@/stores/useDataStore'; // Ensure path matches your project structure
 
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
@@ -237,4 +237,84 @@ export interface FormattedTerrainStep {
 export interface TerrainShaderMatrixResult {
   shaderMatrix: FormattedTerrainStep[];
   categoryLegend: string[];
+}
+
+
+
+/**
+ * Structural helper to assemble index strings using your rules.
+ * Adjust this logic depending on where tier and era are computed.
+ */
+function buildIndexIdentifier(category: string, sampleRow: any): string {
+  // If tier/era live in your database columns, pull them here:
+  const tier = sampleRow?.tier ?? "t1"; 
+  const era = sampleRow?.era ?? "e1";
+  
+  // Returns your requested "tier_era_name" shape
+  return `${tier}_${era}_${category}`;
+}
+
+
+export async function getTSM(): Promise<TerrainShaderTuple> {
+  const { data: results, error } = await runQuery(
+    `SELECT * FROM master_terrain ORDER BY year ASC, category ASC`
+  );
+
+  if (error || !results || results.length === 0) {
+    return [[], [], [], []];
+  }
+
+  // Extract static unique sorted categories
+  const rawCategories = Array.from(new Set<string>(results.map((r: any) => String(r.category)))).sort();
+  
+  // Array 0: indexNames
+  const indexNames = rawCategories.map(category => {
+    const sample = results.find((r: any) => r.category === category);
+    const tier = sample?.tier ?? "t1"; 
+    const era = sample?.era ?? "e1";
+    return `${tier}_${era}_${category}`;
+  });
+
+  const numCategories = rawCategories.length;
+
+  // Group rows chronologically
+  const yearMap = new Map<number, any[]>();
+  for (const row of results) {
+    const year = Number(row.year);
+    if (!yearMap.has(year)) yearMap.set(year, []);
+    yearMap.get(year)!.push(row);
+  }
+  const sortedYears = Array.from(yearMap.keys()).sort((a, b) => a - b);
+
+  // Initialize remaining parallel containers
+  const heights: number[][] = [];
+  const summedHeights: number[] = [];
+  const uuids: string[][][] = [];
+
+  // Populate data maintaining identical, synchronized index keys across dimensions
+  for (const year of sortedYears) {
+    const rowsForYear = yearMap.get(year)!;
+    const yearHeights = new Array(numCategories).fill(0);
+    const yearUuids = Array.from({ length: numCategories }, () => [] as string[]);
+    let yearSum = 0;
+
+    for (const row of rowsForYear) {
+      const catIndex = rawCategories.indexOf(String(row.category));
+      if (catIndex !== -1) {
+        const count = Number(row.cat_count || 0);
+        const rowUuids = row.event_cat_uuids ? Array.from(row.event_cat_uuids).map(String) : [];
+
+        yearHeights[catIndex] = count;
+        yearUuids[catIndex] = rowUuids;
+        yearSum += count;
+      }
+    }
+
+    heights.push(yearHeights);
+    summedHeights.push(yearSum);
+    uuids.push(yearUuids);
+  }
+
+  // Target Return Format
+  return [indexNames, heights, summedHeights, uuids];
 }
