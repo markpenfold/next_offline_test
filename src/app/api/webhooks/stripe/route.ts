@@ -4,7 +4,7 @@ import Stripe from 'stripe'
 import { getAccountByStripeId } from '@/lib/supabase/queries'
 import {createAdminClient} from '@/lib/supabase/admin'
 import { SupabaseClient } from '@supabase/supabase-js'
-import { Database, Tables } from '@/lib/database_types'
+import { Database, Tables } from '@/lib/tl_utils/database_types'
 import { sendEmergencyAdminAlert } from '@/lib/utils/sendEmergencyLog'
 import { PRICE_IDS } from '@/lib/utils/constants'
 

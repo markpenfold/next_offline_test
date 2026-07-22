@@ -174,7 +174,6 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
         
         const tier = (parts[1] as "free" | "pro") || 'free';
         const cube = parts[2] || 'unknown';
-        const era = parts[3] || 'unknown';
         const version = parts[4] || 'v1';
         
         const file = await handle.getFile();
@@ -184,7 +183,7 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
           fileName: name,
           tier,
           cube,
-          era,
+          category: cube, // 👈 Added: Ensures 'category' exists on AvailableIndex
           version,
           sizeBytes: file.size,
           handle,
@@ -200,7 +199,6 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
     return [];
   }
 }
-
 // Safely removes an entry target from an explicit storage path
 export async function deleteOPFSFile(dirName: string, fileName: string): Promise<boolean> {
   try {

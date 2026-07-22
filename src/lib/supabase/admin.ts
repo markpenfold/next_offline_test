@@ -1,7 +1,7 @@
 // utils/supabase/admin.ts
 /// USED TO HANDLE STRIPE WEBHOOK STUFF. 
 import { createClient } from '@supabase/supabase-js'
-import { Database } from '@/lib/database_types'
+import { Database } from '@/lib/tl_utils/database_types'
 
 
 export async function createAdminClient<Database>(){

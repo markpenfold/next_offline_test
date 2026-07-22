@@ -2,20 +2,32 @@
 
 import { useState } from "react";
 import { getMasterIndex } from "./cloudR2";
-import { loadShardIntoEngine } from "./duckDATA";
 import { AvailableIndex } from "./dataTypes";
-import { useAppStore } from '@/providers/AppStoreProvider';
-import { deleteOPFSFile } from './diskOPFS';
-import { useDATAStore } from '@/stores/useDataStore';
+import { useAppStore } from "@/providers/AppStoreProvider";
+import { useDATAStore } from "@/stores/useDataStore";
 import { setTerrainTable } from "./analytics";
 
-const white = 'rgb(245,245,245)';
-const red = 'rgb(162, 5, 5)';
-const blue = 'rgb(65,105,225)';
-const green ='rgb(27, 99, 116)';
+const white = "rgb(245,245,245)";
+const red = "rgb(162, 5, 5)";
+const blue = "rgb(65,105,225)";
+const green = "rgb(27, 99, 116)";
+
+// Helper: Formats category and version into clean title (e.g., "Music Albums V1")
+function formatIndexDisplayName(category = "", version = "v1"): string {
+  const formattedCategory = category
+    .replace(/^category=/i, "")
+    .replace(/^history_/i, "")
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
+  const formattedVersion = version.replace(/^version=/i, "").trim().toUpperCase();
+
+  return `${formattedCategory} ${formattedVersion}`.trim();
+}
 
 export function IndexLoader() {
-  // Local UI State (Just for the debug log window)
+  // Local UI State (Debug Log Window)
   const [logs, setLogs] = useState<string[]>([]);
   const addLog = (message: string) => {
     setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
@@ -27,15 +39,12 @@ export function IndexLoader() {
   // Zustand State (Single Source of Truth)
   const availableIndexes = useDATAStore((s) => s.availableIndexes);
   const downloadedIndexes = useDATAStore((s) => s.downloadedIndexes);
-  const loadedIndexes = useDATAStore((s) => s.loadedIndexes);
   const loadingKeys = useDATAStore((s) => s.loadingKeys);
   const isInitializing = useDATAStore((s) => s.isInitializing);
   const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
 
   // Zustand Actions
   const addDownloadedIndex = useDATAStore((s) => s.addDownloadedIndex);
-  const setDownloadedIndexes = useDATAStore((s) => s.setDownloadedIndexes);
-  const addLoadedIndex = useDATAStore((s) => s.addLoadedIndex);
   const addToDataView = useDATAStore((s) => s.addToDataView);
   const removeFromDataView = useDATAStore((s) => s.removeFromDataView);
   const setKeyLoading = useDATAStore((s) => s.setKeyLoading);
@@ -43,74 +52,71 @@ export function IndexLoader() {
 
   const handleToggleDataView = async (item: AvailableIndex) => {
     if (!activeAccount?.id) return;
-    
-    const fileName = item.fileName;
-    const isActive = activeDataViewIndexes.includes(fileName);
-    
-    setKeyLoading(item.key, true);
+
+    const { fileName } = item;
+    const isActive = activeDataViewIndexes.some((active) => active.fileName === fileName);
+
+    setKeyLoading(fileName, true);
 
     try {
-      setTerrainReady(false); // 🔒 Lock the gate: Views shouldn't query yet
+      setTerrainReady(false); // 🔒 Lock the gate while updating terrain
 
       if (!isActive) {
         // --- ADD FLOW ---
-        
-        // 1. Download if missing from local OPFS disk
         if (!downloadedIndexes.includes(fileName)) {
           addLog(`☁️ Downloading ${fileName}...`);
           const { success } = await getMasterIndex({
             item,
             accountId: activeAccount.id,
-            onLog: addLog,
           });
           if (!success) throw new Error("Cloud download failed.");
-          addDownloadedIndex(fileName); // Sync disk state
+          addDownloadedIndex(fileName); // Sync local disk state
         }
-        // 2. Prepare the new active list
-        const nextActiveList = [...activeDataViewIndexes, fileName];
-        addToDataView(fileName, activeAccount.id); // Optimistic UI update
 
-        // 3. Let analytics.ts handle the VFS mounting and table compilation
-        console.log(`🦆 Recompiling master_terrain...`);
-        const { success, error } = await setTerrainTable(nextActiveList);
-        
-        if (success) {
-          setTerrainReady(true)
-          addLog(`✅ Successfully integrated ${fileName}.`);
-        } else {
-          setTerrainReady(false);
-          throw new Error("Failed to compile terrain.");
-        }
+        await addToDataView(item, activeAccount.id);
       } else {
         // --- REMOVE FLOW ---
-        
-        // 1. Prepare remaining active list
-        const nextActiveList = activeDataViewIndexes.filter(f => f !== fileName);
-        removeFromDataView(fileName, activeAccount.id); // Optimistic UI update
-
-        // 2. Recompile master table without this file
         addLog(`🦆 Removing ${fileName} from terrain...`);
-        await setTerrainTable(nextActiveList);
-        setTerrainReady(true)
-        addLog(`🟢 Cleared ${fileName} from active view.`);
-        
-        // Note: We deliberately do NOT delete the file from OPFS here.
-        // It stays on disk so re-adding it later is instant.
+        await removeFromDataView(fileName, activeAccount.id);
+      }
+
+      // --- RECOMPILE DUCKDB TABLE ---
+      const activeFileNames = useDATAStore
+        .getState()
+        .activeDataViewIndexes.map((i) => i.fileName);
+
+      console.log(`🦆 Recompiling master_terrain...`);
+      const { success } = await setTerrainTable(activeFileNames);
+
+      if (success) {
+        setTerrainReady(true);
+        addLog(
+          isActive
+            ? `🟢 Cleared ${fileName} from active view.`
+            : `✅ Successfully integrated ${fileName}.`
+        );
+      } else {
+        setTerrainReady(false);
+        throw new Error("Failed to compile terrain.");
       }
     } catch (err: any) {
       addLog(`❌ Action failed: ${err.message}`);
+
       // Revert Zustand state on failure
-      if (!isActive) removeFromDataView(fileName, activeAccount.id);
-      else addToDataView(fileName, activeAccount.id);
+      if (!isActive) {
+        await removeFromDataView(fileName, activeAccount.id);
+      } else {
+        await addToDataView(item, activeAccount.id);
+      }
       setTerrainReady(false);
     } finally {
-      setKeyLoading(item.key, false);
+      setKeyLoading(fileName, false);
     }
   };
 
-return (
+  return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "600px", margin: "0 auto", fontFamily: "sans-serif" }}>
-      
+
       {/* WINDOW 1: INDEX SHARD SELECTION PILLS */}
       <div style={{ backgroundColor: blue, padding: "1.25rem", color: white, borderRadius: "12px", height: "300px", display: "flex", flexDirection: "column" }}>
         <div style={{ flexShrink: 0, marginBottom: "0.85rem" }}>
@@ -126,49 +132,55 @@ return (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto", flex: 1, paddingRight: "6px" }}>
             {availableIndexes.map((item) => {
               const isDownloaded = downloadedIndexes.includes(item.fileName);
-              const isActive = activeDataViewIndexes.includes(item.fileName);
-              const isLoading = loadingKeys.includes(item.key);
-
-              const readableEra = `${item.era.replace("_", " ")} ${item.cube ? item.cube.replace("history_", "").split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : ""}`.trim();
+              const isActive = activeDataViewIndexes.some((active) => active.fileName === item.fileName);
+              const isLoading = loadingKeys.includes(item.fileName);
+              const displayName = formatIndexDisplayName(item.category, item.version);
 
               return (
-                <div key={item.key} style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "1fr auto auto", 
-                  gap: "12px", 
-                  alignItems: "center", 
-                  background: isActive ? "rgba(21, 128, 61, 0.3)" : "rgba(0,0,0,0.2)", 
-                  padding: "6px 8px 6px 12px", 
-                  borderRadius: "999px", 
+                <div key={item.fileName} style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto auto",
+                  gap: "12px",
+                  alignItems: "center",
+                  background: isActive ? "rgba(21, 128, 61, 0.3)" : "rgba(0,0,0,0.2)",
+                  padding: "6px 8px 6px 12px",
+                  borderRadius: "999px",
                   fontSize: "0.85rem",
                   border: isActive ? `1px solid ${green}` : "1px solid transparent"
                 }}>
-                  
-                  {/* LEFT: Name */}
+
+                  {/* LEFT: Tier Badge & Name */}
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", whiteSpace: "nowrap" }}>
-                    <span style={{ fontSize: "0.6rem", background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)", padding: "2px 6px", borderRadius: "999px", fontWeight: "bold", textTransform: "uppercase" }}>
-                      {item.tier.charAt(0)}
+                    <span style={{
+                      fontSize: "0.6rem",
+                      background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)",
+                      padding: "2px 6px",
+                      borderRadius: "999px",
+                      fontWeight: "bold",
+                      textTransform: "uppercase"
+                    }}>
+                      {item.tier ? item.tier.charAt(0) : "F"}
                     </span>
-                    <span style={{ fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden", textTransform: "capitalize" }}>
-                      {readableEra} 
+                    <span style={{ fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden" }}>
+                      {displayName}
                     </span>
                   </div>
 
-                  {/* MIDDLE: Button */}
+                  {/* MIDDLE: Action Button */}
                   <div style={{ minWidth: "90px", textAlign: "center" }}>
                     <button
                       disabled={isLoading}
                       onClick={() => handleToggleDataView(item)}
-                      style={{ 
-                        background: isActive ? "transparent" : "rgba(255,255,255,0.1)", 
-                        color: isActive ? red : white, 
-                        border: `1px solid ${isActive ? red : "rgba(255,255,255,0.4)"}`, 
-                        borderRadius: "999px", 
-                        padding: "4px 10px", 
-                        fontSize: "0.75rem", 
-                        cursor: isLoading ? "not-allowed" : "pointer", 
-                        opacity: isLoading ? 0.5 : 1, 
-                        width: "100%", 
+                      style={{
+                        background: isActive ? "transparent" : "rgba(255,255,255,0.1)",
+                        color: isActive ? red : white,
+                        border: `1px solid ${isActive ? red : "rgba(255,255,255,0.4)"}`,
+                        borderRadius: "999px",
+                        padding: "4px 10px",
+                        fontSize: "0.75rem",
+                        cursor: isLoading ? "not-allowed" : "pointer",
+                        opacity: isLoading ? 0.5 : 1,
+                        width: "100%",
                         fontWeight: "500",
                         transition: "all 0.2s"
                       }}
@@ -179,11 +191,11 @@ return (
 
                   {/* RIGHT: Engine Status */}
                   <div style={{ minWidth: "90px", textAlign: "center" }}>
-                    <span style={{ 
-                      display: "block", 
-                      color: isActive ? green : (isDownloaded ? "#a3e635" : "rgba(255,255,255,0.4)"), 
-                      fontSize: "0.7rem", 
-                      fontWeight: isActive ? "bold" : "normal" 
+                    <span style={{
+                      display: "block",
+                      color: isActive ? green : (isDownloaded ? "#a3e635" : "rgba(255,255,255,0.4)"),
+                      fontSize: "0.7rem",
+                      fontWeight: isActive ? "bold" : "normal"
                     }}>
                       {isActive ? "● Active View" : (isDownloaded ? "○ Cached" : "○ Remote")}
                     </span>
@@ -195,7 +207,7 @@ return (
           </div>
         )}
       </div>
-      
+
       {/* WINDOW 2: LOGS */}
       <div style={{ background: "#111", color: "#0f0", padding: "12px", borderRadius: "8px", height: "150px", overflowY: "auto", fontSize: "0.75rem", fontFamily: "monospace" }}>
         {logs.map((log, i) => <div key={i}>{log}</div>)}

@@ -1,6 +1,6 @@
 import { checkFileExists, saveToOPFSFolder } from "./diskOPFS";
 
-import {AvailableIndex} from "@/components/data/dataTypes"
+import {AvailableIndex, AvailableDataShard, DownloadIndexOptions} from "@/components/data/dataTypes"
 
 export interface GetShardParams {
   item: AvailableDataShard;
@@ -66,17 +66,6 @@ export async function getShard({
   }
 }
 
-export interface AvailableDataShard {
-  fileName: string;        // Local standardized OPFS filename (e.g., "pro_african_post_1900_v1.parquet")
-  s3Key: string;           // Remote R2 Key (e.g., "data/african/era=post_1900/v1/data.parquet")
-  masterCategory: string; // e.g., "african"
-  era: string;            // e.g., "post_1900"
-  tier: string;           // "free" | "pro"
-  version: string;        // "v1"
-  sizeBytes: number;
-  downloadUrl?: string;   // Pre-signed URL returned from API
-}
-
 // Standalone fetch function for remote data shards 
 export async function fetchAvailableDataShards(accountId: string): Promise<AvailableDataShard[]> {
   try {
@@ -98,7 +87,6 @@ export async function fetchAvailableDataShards(accountId: string): Promise<Avail
       const localFileName = buildLocalDataShardFileName(
         item.tier,
         item.masterCategory,
-        item.era,
         item.version || "v1"
       );
 
@@ -130,15 +118,9 @@ export function buildLocalDataShardFileName(
   return `${tier.toLowerCase()}_${masterCategory.toLowerCase()}_${cleanEra.toLowerCase()}_${version.toLowerCase()}.parquet`;
 }
 
-//INDEXES //////////////////////////////////////////////////////////
-//using POST request with accountId and s3Key support
-export interface DownloadIndexOptions {
-  item: AvailableIndex;
-  accountId: string;
-  onLog?: (msg: string) => void;
-}
-
-// list indexes using the API
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+///// list indexes using the API ///////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////
 export async function fetchAvailableIndexes(accountId: string): Promise<AvailableIndex[]> {
   try {
     const response = await fetch("/api/aggregates/list", {
@@ -156,18 +138,16 @@ export async function fetchAvailableIndexes(accountId: string): Promise<Availabl
       // Compute the standardized local OPFS name upfront
       const localFileName = buildLocalIndexFileName(
         item.tier,
-        item.cube,
-        item.era,
+        item.category,
         item.version || "v1"
       );
 
       return {
-        key: item.key || item.fileName, // R2 storage path key
+        key: item.S3key || item.fileName, // R2 storage path key
         fileName: localFileName,        // Local OPFS file name
         version: item.version || "v1",
         tier: item.tier,
-        era: item.era,
-        cube: item.cube,
+        category: item.category,
         sizeBytes: item.size,
       };
     });
@@ -180,25 +160,21 @@ export async function fetchAvailableIndexes(accountId: string): Promise<Availabl
 export async function getMasterIndex({
   item,
   accountId,
-  onLog,
 }: DownloadIndexOptions): Promise<{ success: boolean; targetFileName: string }> {
-  const log = (msg: string) => onLog?.(msg);
 
-  log(`📡 Fetching master index layer from remote storage: "${item.fileName}"...`);
+  console.log(`📡 Fetching master index layer from remote storage: "${item.fileName}"...`);
 
   try {
-    const response = await fetch("/api/aggregates/download/", {
+    const response = await fetch("/api/aggregates/download", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         accountId,
-        key: item.key, // Exact object path in R2 bucket
-        cube: item.cube,
-        version: item.version || "v1",
-        era: item.era,
+        category: item.category,
         tier: item.tier,
+        version: item.version || "v1",
       }),
     });
 
@@ -207,30 +183,26 @@ export async function getMasterIndex({
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    log("Streaming index dataset content across proxy...");
+    console.log("Streaming index dataset content across proxy...");
     const arrayBuffer = await response.arrayBuffer();
 
-    // 💾 Save directly to the /indexes/ OPFS folder using fName
+    // 💾Save directly to the /indexes/ OPFS folder using fileName
     await saveToOPFSFolder("indexes", item.fileName, arrayBuffer);
 
-    log(`🟢 Successfully downloaded and saved index layer: /indexes/${item.fileName}`);
-
-    return { success: true, targetFileName: item.fileName, };
+    return { success: true, targetFileName: item.fileName };
   } catch (err: any) {
     console.error("Master index download failed:", err);
-    log(`❌ Master Index Process Error: ${err.message}`);
-    return { success: false, targetFileName: item.fileName, };
+    console.log(`❌ Master Index Process Error: ${err.message}`);
+    return { success: false, targetFileName: item.fileName };
   }
 }
 
-//Standard Order: index__<tier>__<cube>__<era>__<version>.parquet
+// Standard Order: index__<tier>__<category>__<version>.parquet
 export function buildLocalIndexFileName(
   tier: string,
-  cube: string,
-  era: string,
+  category: string,
   version: string = "v1"
 ): string {
-  const cleanEra = era.replace(/^era=/, "");
   const cleanVersion = version || "v1";
-  return `index__${tier}__${cube}__${cleanEra}__${cleanVersion}.parquet`;
+  return `index__${tier}__${category}__${cleanVersion}.parquet`;
 }

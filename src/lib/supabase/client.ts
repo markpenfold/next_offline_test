@@ -1,5 +1,5 @@
 import {createBrowserClient} from '@supabase/ssr'
-import { Database } from '@/lib/database_types'
+import { Database } from '@/lib/tl_utils/database_types'
 
 // the ssr version of these clients are created
 // so you can work between the server and the client

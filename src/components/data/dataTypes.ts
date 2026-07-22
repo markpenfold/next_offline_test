@@ -2,8 +2,8 @@
 export interface AvailableIndex {
   key:string;
   fileName: string;
+  category:string;
   tier: "free" | "pro"; 
-  era: string;
   cube: string;         
   s3Key?: string;        
   sizeBytes?: number;   
@@ -11,17 +11,21 @@ export interface AvailableIndex {
   version:string;
 }
 
+export interface DownloadIndexOptions {
+  item: AvailableIndex;
+  accountId: string;
+  onLog?: (msg: string) => void;
+}
 
-export interface AvailableIndex {
-  key:string;
-  fileName: string;
-  tier: "free" | "pro"; 
-  era: string;
-  cube: string;         
-  s3Key?: string;        
-  sizeBytes?: number;   
-  handle?: FileSystemFileHandle; 
-  version:string;
+export interface AvailableDataShard {
+  fileName: string;        // Local standardized OPFS filename (e.g., "pro_african_post_1900_v1.parquet")
+  s3Key: string;           // Remote R2 Key (e.g., "data/african/era=post_1900/v1/data.parquet")
+  masterCategory: string; // e.g., "african"
+  era: string;            // e.g., "post_1900"
+  tier: string;           // "free" | "pro"
+  version: string;        // "v1"
+  sizeBytes: number;
+  downloadUrl?: string;   // Pre-signed URL returned from API
 }
 
 export interface IndexRow {
@@ -30,7 +34,6 @@ export interface IndexRow {
   eventCount: string;
   eventUuids: string[];
 }
-
 
 export interface GetShardParams {
   item: AvailableDataShard;
@@ -48,8 +51,6 @@ export interface AvailableDataShard {
   sizeBytes: number;
   downloadUrl?: string;   // Pre-signed URL returned from API
 }
-
-export const INDEX_TABLE_NAME = 'main.test_index';
 
 export type OPFSDirectory = "indexes" | "data" | "projects";
 
@@ -76,19 +77,22 @@ export interface OPFSFile {
   handle: FileSystemFileHandle
 }
 
-
 export interface ProjectConfig {
-  activeDataViewIndexes: string[];
+  activeDataViewIndexes:ActiveDataViewIndex[] | string[];
  // year: number;
   //month:number;
  // day:number;
   updatedAt: string;
 }
 
-
-export type TerrainShaderTuple = [
-  string[],       // 0: indexNames (Columns layout)
-  number[][],     // 1: heights (Matrix: [years][categories])
-  number[],       // 2: summedHeights (Vector: [years])
-  string[][][]    // 3: uuids (Matrix: [years][categories][strings])
+export type TerrainYearStep = [
+  number,     // 0: Year
+  string[],   // 1: Categories
+  number[],   // 2: Counts
+  string[][]  // 3: UUIDs grouped by category
 ];
+
+export interface ActiveDataViewIndex {
+  fileName: string;
+  category: string;
+}

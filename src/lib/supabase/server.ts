@@ -7,7 +7,7 @@ It "pre-fills" the URL, the Key, and the cookie logic.
 */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { Database } from '@/lib/database_types'
+import { Database } from '@/lib/tl_utils/database_types'
 
 export async function createClient() {
 

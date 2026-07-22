@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { createClient } from "@/lib/supabase/server";
 import { checkMembershipAndAccess } from "@/lib/supabase/queries";
+import { normalizeTier } from "@/lib/utils/general";
 
 // 1. Initialize R2 Client
 const r2 = new S3Client({
@@ -33,21 +34,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required accountId" }, { status: 400 });
     }
 
-    // 4. Verify membership & retrieve user's account tier (free / pro / founder)
-    const accessAllowed = await checkMembershipAndAccess(user.id, accountId);
+    // 4. Verify membership & retrieve raw tier
+    const rawAccessTier = await checkMembershipAndAccess(user.id, accountId);
 
-    if (!accessAllowed) {
+    if (!rawAccessTier || typeof rawAccessTier !== "string") {
       return NextResponse.json(
         { error: "Forbidden: You are not a member of this account" },
         { status: 403 }
       );
     }
-    const normalizedTier = accessAllowed.toLowerCase();
 
-    // 5. Determine prefixes based on entitlement tier
-    // Pro and Founder users see both 'free/' and 'pro/' prefixes; Free users only see 'free/'
-    const isElevatedTier = normalizedTier === "pro" || normalizedTier === "founder";
-    const prefixesToScan = isElevatedTier ? ["free/", "pro/"] : ["free/"];
+    // Lock down user tier to strictly "free" or "pro"
+    const normalizedTier = normalizeTier(rawAccessTier);
+
+    // 5. Determine R2 prefixes to scan
+    const prefixesToScan = ["free/"];
+    if (normalizedTier === "pro") {
+      prefixesToScan.push("pro/");
+    }
 
     // 6. Scan R2 prefixes concurrently
     const listResponses = await Promise.all(
@@ -67,29 +71,32 @@ export async function POST(req: NextRequest) {
     // Filter out directory markers or empty keys
     const validObjects = allObjects.filter((obj) => obj.Key && !obj.Key.endsWith("/"));
 
-    // 7. Parse metadata synchronously (Fast: No async signing loops needed!)
+    // 7. Parse metadata synchronously into AvailableIndex schema
     const availableIndexes = validObjects.map((object) => {
-      const key = object.Key!;
-      const parts = key.split("/");
-      //console.log("FILE NAME: ", parts[parts.length - 1]);
+      const rawKey = object.Key!;
+      const parts = rawKey.split("/");
 
-      // Structure: ['free' | 'pro', 'category=african', 'era=post_1900', 'version=v1', 'index.parquet']
-      const tier = parts[0] || normalizedTier;
-      const rawCategory = parts[1] || "category=history_cube";
-      const cube = rawCategory.replace(/^category=/, "");
-      const rawEra = parts[2] || "era=post_1900";
-      const era = rawEra.replace("era=", "");
-      const version = parts[parts.length - 2] || "v1";
-      const fileName = parts[parts.length - 1];
+      // Structure: ['free' | 'pro', 'category=<cat>', 'version=<v>', 'index.parquet']
+      const tierStr = parts[0];
+      const tier = normalizeTier(tierStr);
+
+      // Extract category (e.g. "category=music_albums" -> "music_albums")
+      const categoryPart = parts.find((p) => p.startsWith("category=")) || parts[1] || "";
+      const category = categoryPart.replace(/^category=/, "");
+
+      // Extract version (e.g. "version=v1" -> "v1")
+      const versionPart = parts.find((p) => p.startsWith("version=")) || parts[parts.length - 2] || "v1";
+      const version = versionPart.replace(/^version=/, "");
+
+      // Unique OPFS-friendly identifier
+      const fileName = `index__${tier}__${category}__version__${version}.parquet`;
 
       return {
-        key, // Crucial: The download proxy expects this string as `key` or `s3Key`
         fileName,
-        cube,
-        era,
-        tier,
-        version,
-        size: object.Size,
+        category,             // Clean category string (e.g. "music_albums")
+        tier,                 // Guaranteed "free" | "pro"
+        version,              // Clean version string (e.g. "v1")
+        sizeBytes: object.Size,
         lastModified: object.LastModified,
       };
     });

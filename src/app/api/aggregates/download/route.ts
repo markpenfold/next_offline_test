@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { createClient } from "@/lib/supabase/server";
 import { checkMembershipAndAccess } from "@/lib/supabase/queries";
+import { normalizeTier } from "@/lib/utils/general";
 
 const r2 = new S3Client({
   region: "auto",
@@ -24,55 +25,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Extract request parameters
+    // 2. Extract structured request parameters
     const body = await req.json().catch(() => ({}));
-    const { accountId, s3Key, key, tier, era, version, cube } = body;
+    const { accountId, category, tier = "free", version = "v1" } = body;
 
-    if (!accountId) {
-      return NextResponse.json({ error: "Missing required accountId" }, { status: 400 });
+    if (!accountId || !category) {
+      return NextResponse.json(
+        { error: "Missing required parameters: accountId and category are required" }, 
+        { status: 400 }
+      );
     }
 
-    // 3. Verify account membership & retrieve account's tier
-    const accessAllowed = await checkMembershipAndAccess(user.id, accountId);
-    if (!accessAllowed) {
+    // 3. Verify user's account membership & normalized entitlement
+    const rawAccessTier = await checkMembershipAndAccess(user.id, accountId);
+    if (!rawAccessTier || typeof rawAccessTier !== "string") {
       return NextResponse.json(
         { error: "Forbidden: You are not a member of this account" },
         { status: 403 }
       );
     }
 
-    const normalizedTier = accessAllowed.toLowerCase();
+    const userTier = normalizeTier(rawAccessTier); // Guaranteed "free" | "pro"
+    const requestedTier = normalizeTier(tier);     // Guaranteed "free" | "pro"
 
-    // 4. Determine exact R2 object key FIRST
-    let targetKey = s3Key || key;
-
-    if (!targetKey) {
-      const targetCube = cube || "history_cube";
-      const targetEra = era?.startsWith("era=") ? era : `era=${era || "post_1900"}`;
-      const targetVersion = version || "v1";
-      const targetTier = (tier || "free").toLowerCase();
-      targetKey = `${targetTier}/${targetCube}/${targetEra}/${targetVersion}/data.parquet`;
-    }
-
-    // 5. 🔒 GUARD: Extract the REAL target tier from the targetKey prefix
-    const actualKeyTier = targetKey.split("/")[0]?.toLowerCase();
-    
-    if (actualKeyTier === "pro" && normalizedTier !== "pro" && normalizedTier !== "founder") {
+    // 4. 🔒 GUARD: Prevent free users from requesting pro files
+    if (requestedTier === "pro" && userTier !== "pro") {
       return NextResponse.json(
-        { error: "Forbidden: Pro tier account required to download this shard" },
+        { error: "Forbidden: Pro tier account required to download this index" },
         { status: 403 }
       );
     }
 
-    console.log(`📡 Streaming R2 Object Key: "${targetKey}" from bucket "${BUCKET_NAME}"`);
+    // 5. Construct the ONE and ONLY true R2 key
+    const targetKey = `${requestedTier}/category=${category}/version=${version}/index.parquet`;
 
-    // 6. Request binary stream from R2
-    const getObjectCmd = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: targetKey,
-    });
+    console.log(`📡 Fetching R2 Object: "${targetKey}" from bucket "${BUCKET_NAME}"`);
 
-    const s3Response = await r2.send(getObjectCmd);
+    // 6. Stream binary response from R2
+    const s3Response = await r2.send(
+      new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: targetKey,
+      })
+    );
 
     if (!s3Response.Body) {
       return NextResponse.json(
@@ -81,17 +76,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Transform S3 stream to standard Web ReadableStream
     const stream = s3Response.Body.transformToWebStream();
 
-    // Prepare response headers
     const headers = new Headers({
       "Content-Type": "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${targetKey.split("/").pop()}"`,
+      "Content-Disposition": `attachment; filename="${category}_${version}.parquet"`,
       "Cache-Control": "private, no-transform",
     });
 
-    // Send Content-Length so the frontend fetch() can show download progress %
     if (s3Response.ContentLength) {
       headers.set("Content-Length", s3Response.ContentLength.toString());
     }
@@ -100,7 +92,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
-      console.error(`❌ NoSuchKey: "${error.message}"`);
       return NextResponse.json(
         { error: "Index file not found in R2 storage" },
         { status: 404 }

@@ -1,6 +1,6 @@
 // src/lib/auth/crypto.ts
 import * as jose from 'jose';
-import { type UserTier } from '@/lib/types';
+import { type UserTier } from '@/lib/tl_utils/types';
 
 export interface LeasePayload {
   userId: string;

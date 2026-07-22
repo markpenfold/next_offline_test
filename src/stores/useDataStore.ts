@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { runOmenlandInit } from "@/components/data/omenlandInit";
 import { OmenlandInitPayload, OPFSFile, AvailableIndex } from '@/components/data/dataTypes';
+import { TerrainYearStep } from "@/components/data/dataTypes";
 import { saveProject, loadProject, getSavedProjects, saveSession } from '@/components/data/diskOPFS';
+
+// 1. Defined structure for Active View Items
+export interface ActiveDataViewIndex {
+  fileName: string;
+  category: string;
+}
 
 export interface DATAStore {
   // 1. Infrastructure States (Disk/Memory Cache)
@@ -11,9 +18,13 @@ export interface DATAStore {
   loadingKeys: string[];           // Keys actively downloading/mounting right now
 
   // 2. Application Workspace State (The Current Chart)
-  activeDataViewIndexes: string[]; // Files active in the user's current visualization
-  activeProjectName: string | null; // null represents the Unsaved Scratchpad ('autosave')
-  localProjects: OPFSFile[];       // User's saved workspace JSON metadata files
+  activeDataViewIndexes: ActiveDataViewIndex[]; // Array of { fileName, category }
+  activeProjectName: string | null;            // null represents the Unsaved Scratchpad ('autosave')
+  localProjects: OPFSFile[];                  // User's saved workspace JSON metadata files
+
+  // 3. Terrain Matrix Data State
+  terrainData: TerrainYearStep[] | null;
+  terrainDataViewWindow: TerrainYearStep[] | null;
 
   // Core Engine Initialization Locks
   isInitialized: boolean;
@@ -32,11 +43,15 @@ export interface DATAStore {
   // Loading / Lock Controller Actions
   setKeyLoading: (key: string, isLoading: boolean) => void;
 
-  // Workspace Selection Actions (Persisted dynamically to the active target)
-  addToDataView: (fileName: string, accountId: string) => Promise<void>;
+  // Workspace Selection Actions
+  addToDataView: (item: ActiveDataViewIndex | AvailableIndex | string, accountId: string) => Promise<void>;
   removeFromDataView: (fileName: string, accountId: string) => Promise<void>;
   clearDataView: (accountId: string) => Promise<void>;
-  setDataView: (keys: string[], accountId: string) => Promise<void>;
+  setDataView: (items: (ActiveDataViewIndex | string)[], accountId: string) => Promise<void>;
+
+  // Terrain Matrix Actions
+  setTerrainData: (data: TerrainYearStep[] | null) => void;
+  setTerrainDataViewWindow: (data: TerrainYearStep[] | null) => void;
 
   // Project Document Lifecycle Management Actions
   createNewProject: (accountId: string) => Promise<void>;
@@ -49,8 +64,30 @@ export interface DATAStore {
   setTerrainReady: (val: boolean) => void;
 }
 
+/**
+ * Helper to ensure items are consistently formatted as { fileName, category },
+ * even when receiving raw string fileNames or legacy OPFS loads.
+ */
+const normalizeActiveIndex = (
+  input: ActiveDataViewIndex | AvailableIndex | string,
+  availableIndexes: AvailableIndex[]
+): ActiveDataViewIndex => {
+  if (typeof input === 'string') {
+    const found = availableIndexes.find((a) => a.fileName === input || a.key === input);
+    return {
+      fileName: input,
+      category: found ? found.category : input,
+    };
+  }
+
+  return {
+    fileName: input.fileName,
+    category: input.category || availableIndexes.find((a) => a.fileName === input.fileName)?.category || input.fileName,
+  };
+};
+
 export const useDATAStore = create<DATAStore>((set, get) => ({
-  // --- INITIAL STATES ---
+  // --- INITIAL STATES --- //
   availableIndexes: [], 
   downloadedIndexes: [],
   loadedIndexes: [],
@@ -58,6 +95,10 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   activeDataViewIndexes: [], 
   activeProjectName: null, 
   localProjects: [],
+
+  // Terrain Data State
+  terrainData: null,
+  terrainDataViewWindow: null,
 
   isInitialized: false,
   isInitializing: false,
@@ -94,20 +135,28 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     })),
 
   // --- WORKSPACE SELECTION ACTIONS ---
-  setDataView: async (indexes, accountId) => {
-    set({ activeDataViewIndexes: indexes });
+  setDataView: async (items, accountId) => {
+    const available = get().availableIndexes;
+    const normalized = items.map((item) => normalizeActiveIndex(item, available));
+    
+    set({ activeDataViewIndexes: normalized });
     
     if (accountId) {
       const target = get().activeProjectName || 'autosave';
-      await saveProject(accountId, target, { activeDataViewIndexes: indexes });
+      await saveProject(accountId, target, { activeDataViewIndexes: normalized });
     }
   },
 
-  addToDataView: async (fileName, accountId) => {
+  addToDataView: async (targetItem, accountId) => {
     const currentActive = get().activeDataViewIndexes;
-    if (currentActive.includes(fileName)) return;
+    const available = get().availableIndexes;
 
-    const nextActive = [...currentActive, fileName];
+    const normalizedItem = normalizeActiveIndex(targetItem, available);
+
+    // Prevent duplicates by checking fileName
+    if (currentActive.some((item) => item.fileName === normalizedItem.fileName)) return;
+
+    const nextActive = [...currentActive, normalizedItem];
     set({ activeDataViewIndexes: nextActive });
 
     if (accountId) {
@@ -117,7 +166,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   },
 
   removeFromDataView: async (fileName, accountId) => {
-    const nextActive = get().activeDataViewIndexes.filter((f) => f !== fileName);
+    const nextActive = get().activeDataViewIndexes.filter((item) => item.fileName !== fileName);
     set({ activeDataViewIndexes: nextActive });
 
     if (accountId) {
@@ -135,13 +184,18 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-  // --- PROJECT DOCUMENT LIFECYCLE MANAGEMENT ACTIONS ---
+  // --- TERRAIN MATRIX ACTIONS ---
+  setTerrainData: (data) => set({ terrainData: data }),
+  setTerrainDataViewWindow: (data) => set({ terrainDataViewWindow: data }),
+
+  // --- PROJECT DOCUMENT LIFECYCLE MANAGEMENT ACTIONS ---  //
   
-  /** Wipes current canvas context and defaults back to fresh autosave track */
+  /** Wipes current canvas context and defaults back to fresh autosave track **/
   createNewProject: async (accountId) => {
     set({ 
       activeDataViewIndexes: [],
-      activeProjectName: null 
+      activeProjectName: null,
+      terrainData: null,
     });
 
     if (accountId) {
@@ -156,12 +210,10 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
     const currentLayout = get().activeDataViewIndexes;
     
-    // Write data and bind session context markers to the system disk
     await saveProject(accountId, projectName, { activeDataViewIndexes: currentLayout });
     set({ activeProjectName: projectName });
     await saveSession(accountId, projectName);
     
-    // Refresh the browsable sidebar list array
     await get().refreshLocalProjects(accountId);
   },
 
@@ -172,8 +224,12 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     const targetConfig = await loadProject(accountId, projectName);
     
     if (targetConfig) {
+      const available = get().availableIndexes;
+      const rawActive = targetConfig.activeDataViewIndexes || [];
+      const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
+
       set({ 
-        activeDataViewIndexes: targetConfig.activeDataViewIndexes,
+        activeDataViewIndexes: normalizedActive,
         activeProjectName: projectName
       });
       
@@ -206,15 +262,17 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
     try {
       const setUpData: OmenlandInitPayload = await runOmenlandInit(accountId);
+      const available = setUpData.availableIndexes || [];
+      const rawActive = setUpData.activeDataViewIndexes || [];
+      const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
 
-      // Inside useDATAStore.ts -> initializeOmenland action:
       set({ 
-        availableIndexes: setUpData.availableIndexes,
+        availableIndexes: available,
         downloadedIndexes: setUpData.downloadedIndexes,
         loadedIndexes: setUpData.loadedIndexes,
         localProjects: setUpData.localProjects,
-        activeDataViewIndexes: setUpData.activeDataViewIndexes, // Mapping added here
-        activeProjectName: setUpData.activeProjectName,         // Mapping added here
+        activeDataViewIndexes: normalizedActive,
+        activeProjectName: setUpData.activeProjectName,
         isInitialized: true,
         isInitializing: false
       });

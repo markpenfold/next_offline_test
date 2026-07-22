@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AccountContext } from "@/lib/types"
+import { AccountContext } from "@/lib/tl_utils/types"
 
 interface CheckoutButtonProps {
   plan: string

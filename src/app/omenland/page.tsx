@@ -5,6 +5,8 @@ import OmenWrap from '@/components/data/omenWrap';
 import {ShardSelector} from '@/components/data/ShardSelector';
 import {IndexLoader} from '@/components/data/IndexLoader';
 import { DataView } from '@/components/data/DataView';
+import { TerrainShaderTest } from '@/components/terrain/TerrainShaderTest';
+import MyCanvas from '@/components/terrain/MyCanvas'
 
 
 export default async function OmenPage() {
@@ -19,6 +21,7 @@ const supabase = await createClient();
 
   return (
     <OmenWrap >
+      <MyCanvas/>
   <DataView />
       <IndexLoader/>
     </OmenWrap>

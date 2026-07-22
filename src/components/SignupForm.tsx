@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react'
 import { signup} from '@/actions/auth'
 import { signUpSchema } from '@/lib/validations/primitives'
 import styles from "@/app/styles/styles.module.css" // Assuming your style path
-import { type ActionState  } from '@/lib/types'
+import { type ActionState  } from '@/lib/tl_utils/types'
 import { Eye, EyeOff } from 'lucide-react';
 
 interface SignupFormProps {

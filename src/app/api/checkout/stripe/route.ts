@@ -2,7 +2,7 @@ import { NextResponse, NextRequest, } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin' // 🛡️ Import your admin utility
-import { UserTier } from '@/lib/types'
+import { UserTier } from '@/lib/tl_utils/types'
 import { getAccountContext } from '@/lib/supabase/queries'
 
 

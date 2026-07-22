@@ -2,7 +2,7 @@
 import { createStore } from 'zustand/vanilla';
 import { isReallyOnline } from '@/lib/utils/checkOnline';
 import { decodeLeaseJwt } from '@/lib/auth/crypto';
-import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/types';
+import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/tl_utils/types';
 import { createClient } from '@/lib/supabase/client';
 import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_queries';
 

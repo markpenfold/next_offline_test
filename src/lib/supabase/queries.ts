@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { cache } from 'react'
 import {createAdminClient} from '@/lib/supabase/admin'
-import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/types'
+import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/tl_utils/types'
 import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
-import { Database, Tables } from '@/lib/database_types'
+import { Database, Tables } from '@/lib/tl_utils/database_types'
 import { SupabaseClient, QueryData } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 

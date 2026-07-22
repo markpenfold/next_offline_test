@@ -1,7 +1,7 @@
 // db/analytics.ts
 
 import { getSharedDuckDBEngine, loadShardIntoEngine } from "./duckDATA";
-import { INDEX_TABLE_NAME, TerrainTuple, TerrainShaderTuple } from '@/components/data/dataTypes';
+import { TerrainYearStep } from '@/components/data/dataTypes';
 import { useDATAStore } from '@/stores/useDataStore'; // Ensure path matches your project structure
 
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
@@ -15,10 +15,8 @@ export async function getReadConnection() {
   return sharedReadConn;
 }
 
-/**
- * Non-hook utility that blocks query execution until the bootloader 
- * toggles isTerrainReady to true inside the Zustand store.
- */
+ /** Non-hook utility that blocks query execution until the bootloader 
+ * toggles isTerrainReady to true inside the Zustand store.*/
 async function awaitEngineTableReady(): Promise<void> {
   // 1. If the bootloader already finished compiling the layout, pass through instantly
   if (useDATAStore.getState().isTerrainReady) {
@@ -36,7 +34,7 @@ async function awaitEngineTableReady(): Promise<void> {
   });
 }
 
-// 🔥 Added bypassGate flag to resolve the initialization deadlock loop safely
+// Added bypassGate flag to resolve the initialization deadlock loop safely
 export async function runQuery(sql: string, bypassGate = false) {
   try {
     // UI components pass through here and wait. setTerrainTable skips this check entirely.
@@ -62,32 +60,6 @@ export async function runQuery(sql: string, bypassGate = false) {
   }
 }
 
-export async function getIndex(limit: number = 100) {
-  // 🎯 Cast BIGINT year to INTEGER in SQL so Arrow serializes standard JS numbers
-  const { data, error } = await runQuery(`
-    SELECT 
-      CAST(year AS BIGINT) AS year, 
-      category, 
-      CAST(event_count AS INTEGER) AS event_count, 
-      highest_precision,
-      uuids 
-    FROM ${INDEX_TABLE_NAME} 
-    LIMIT ${limit};
-  `); // Inherits bypassGate = false (Waits for boot)
-
-  if (error || !data) {
-    return { data: [], error };
-  }
-
-  return { data, error: null };
-}
-
-export async function getDataView(loadedIndexes: string[]) {
-  let rtn = '';
-  for (let i = 0; i < loadedIndexes.length; i++)
-    rtn += ' hello';
-  return rtn;
-}
 
 export async function setTerrainTable(loadedIndexes: string[]) {
   console.log("🛠️ Aligning analytical workspace compilation matrix...");
@@ -95,7 +67,7 @@ export async function setTerrainTable(loadedIndexes: string[]) {
   if (!loadedIndexes || loadedIndexes.length === 0) {
     console.log("🌱 No active shards selected. Seeding empty catalog schema for master_terrain.");
     
-    // ✅ FIX: Replace raw DROP with a clean structural schema definition
+    // Replace raw DROP with a clean structural schema definition
     await runQuery(`
       CREATE OR REPLACE TABLE master_terrain (
         year BIGINT,
@@ -121,17 +93,18 @@ export async function setTerrainTable(loadedIndexes: string[]) {
 
   // Creates a highly optimized, pre-aggregated table in DuckDB memory
   const sql = `
-  CREATE OR REPLACE TABLE master_terrain AS 
-  SELECT 
-      year, 
-      category, 
-      SUM(event_count) AS cat_count,
-      MAX(highest_precision) AS cat_precision,
-      flatten(list(uuids)) AS event_cat_uuids
-  FROM read_parquet([${parquetFiles}])
-  GROUP BY year, category
-  ORDER BY year ASC, category ASC;
-`;
+      CREATE OR REPLACE TABLE master_terrain AS 
+      SELECT 
+          year, 
+          split_part(filename, '__', 2) AS tier,
+          left(split_part(filename, '__', 2), 1) || '_' || category AS category,
+          SUM(event_count) AS cat_count,
+          MAX(highest_precision) AS cat_precision,
+          flatten(list(uuids)) AS event_cat_uuids
+      FROM read_parquet([${parquetFiles}], filename=true)
+      GROUP BY year, category, tier
+      ORDER BY year ASC, category ASC;
+      `;
 
   try {
     await runQuery(sql, true);
@@ -160,161 +133,94 @@ export async function setTerrainTable(loadedIndexes: string[]) {
   }
 }
 
-export async function getTerrainShaderMatrix(): Promise<TerrainTuple[]> {
-  // SQL ensures results are grouped/ordered by year and category
-  // Inherits bypassGate = false (Safely stalls DataView components during active booting sequences)
+// SHOULD RETURN THE TERRAIN MATRIX
+export async function getTSM(): Promise<TerrainYearStep[]> {
   const { data: results, error } = await runQuery(
-    `SELECT * FROM master_terrain ORDER BY year ASC, category ASC`
+    `SELECT year, category, cat_count, event_cat_uuids 
+     FROM master_terrain 
+     ORDER BY year ASC, category ASC`
   );
 
-  if (error || !results) return [];
+  if (error || !results || results.length === 0) {
+    return [];
+  }
 
-  const allCategories = Array.from(
+  // 1. Extract a master list of all unique categories, sorted deterministically
+  const masterCategories = Array.from(
     new Set<string>(results.map((r: any) => String(r.category)))
-  );
+  ).sort();
 
-  const numCategories = allCategories.length;
-  const matrixMap = new Map<number, TerrainTuple>();
+  const numCategories = masterCategories.length;
+
+  // 2. Group DuckDB rows by year
+  const yearDataMap = new Map<number, Map<string, { count: number; uuids: string[] }>>();
 
   for (const row of results) {
     const year = Number(row.year);
     const category = String(row.category);
-    const count = Number(row.cat_count);
-    const rank = Number(row.precision_rank);
-    const uuids = row.cat_uuids ? Array.from(row.cat_uuids).map(String) : [];
+    const count = Number(row.cat_count || 0);
+    const rowUuids = row.event_cat_uuids ? Array.from(row.event_cat_uuids).map(String) : [];
 
-    if (!matrixMap.has(year)) {
-      matrixMap.set(year, [
-        year,
-        allCategories, 
-        new Array(numCategories).fill(0),
-        rank,
-        new Array(numCategories).fill(null).map(() => [])
-      ]);
+    if (!yearDataMap.has(year)) {
+      yearDataMap.set(year, new Map());
     }
 
-    const tuple = matrixMap.get(year)!;
-    const catIndex = allCategories.indexOf(category);
-
-    if (catIndex !== -1) {
-      tuple[2][catIndex] = count;
-      tuple[4][catIndex] = uuids;
-    }
-    
-    tuple[3] = Math.max(tuple[3], rank);
+    yearDataMap.get(year)!.set(category, { count, uuids: rowUuids });
   }
 
-  return Array.from(matrixMap.values()).sort((a, b) => a[0] - b[0]);
-}
+  const sortedYears = Array.from(yearDataMap.keys()).sort((a, b) => a - b);
 
-// Interface structures remain unchanged below...
-export interface CategoryEntry {
-  category: string;
-  count: number | bigint;
-  uuids: string[];
-}
+  // 3. Build uniform year tuples with exact zero / empty array padding
+  return sortedYears.map((year) => {
+    const categoryMapForYear = yearDataMap.get(year)!;
 
-export interface TerrainRow {
-  year: number | bigint;
-  total_event_count: number | bigint;
-  category_breakdown: CategoryEntry[];
-  year_uuids: string[];
-}
+    // Pre-allocate padded arrays matching the master category length
+    const counts: number[] = new Array(numCategories).fill(0);
+    const uuids: string[][] = Array.from({ length: numCategories }, () => []);
 
-export interface TerrainFilterOptions {
-  minYear?: number;
-  maxYear?: number;
-}
+    masterCategories.forEach((catName, idx) => {
+      if (categoryMapForYear.has(catName)) {
+        const record = categoryMapForYear.get(catName)!;
+        counts[idx] = record.count;
+        uuids[idx] = record.uuids;
+      }
+    });
 
-export interface FormattedTerrainStep {
-  year: number;
-  totalEventCount: number;
-  vector: number[];
-  categoryBreakdown: CategoryEntry[];
-  yearUuids: string[];
+    return [year, masterCategories, counts, uuids];
+  });
 }
-
-export interface TerrainShaderMatrixResult {
-  shaderMatrix: FormattedTerrainStep[];
-  categoryLegend: string[];
-}
-
 
 
 /**
- * Structural helper to assemble index strings using your rules.
- * Adjust this logic depending on where tier and era are computed.
+ * Fast client-side 1024-year slice generator (runs in < 0.5ms)
  */
-function buildIndexIdentifier(category: string, sampleRow: any): string {
-  // If tier/era live in your database columns, pull them here:
-  const tier = sampleRow?.tier ?? "t1"; 
-  const era = sampleRow?.era ?? "e1";
-  
-  // Returns your requested "tier_era_name" shape
-  return `${tier}_${era}_${category}`;
-}
-
-
-export async function getTSM(): Promise<TerrainShaderTuple> {
-  const { data: results, error } = await runQuery(
-    `SELECT * FROM master_terrain ORDER BY year ASC, category ASC`
-  );
-
-  if (error || !results || results.length === 0) {
-    return [[], [], [], []];
+export function get1024WindowSlice(
+  fullTerrainData: TerrainYearStep[],
+  startYear: number,
+  categories: string[]
+): TerrainYearStep[] {
+  // Build lookup cache once or re-use
+  const yearMap = new Map<number, TerrainYearStep>();
+  for (let i = 0; i < fullTerrainData.length; i++) {
+    yearMap.set(Number(fullTerrainData[i][0]), fullTerrainData[i]);
   }
 
-  // Extract static unique sorted categories
-  const rawCategories = Array.from(new Set<string>(results.map((r: any) => String(r.category)))).sort();
-  
-  // Array 0: indexNames
-  const indexNames = rawCategories.map(category => {
-    const sample = results.find((r: any) => r.category === category);
-    const tier = sample?.tier ?? "t1"; 
-    const era = sample?.era ?? "e1";
-    return `${tier}_${era}_${category}`;
-  });
+  // Pre-allocate empty padding template
+  const zeroCounts: number[] = new Array(categories.length).fill(0);
+  const emptyUuids = categories.map(() => []);
 
-  const numCategories = rawCategories.length;
+  const windowSlice: TerrainYearStep[] = new Array(1024);
 
-  // Group rows chronologically
-  const yearMap = new Map<number, any[]>();
-  for (const row of results) {
-    const year = Number(row.year);
-    if (!yearMap.has(year)) yearMap.set(year, []);
-    yearMap.get(year)!.push(row);
-  }
-  const sortedYears = Array.from(yearMap.keys()).sort((a, b) => a - b);
-
-  // Initialize remaining parallel containers
-  const heights: number[][] = [];
-  const summedHeights: number[] = [];
-  const uuids: string[][][] = [];
-
-  // Populate data maintaining identical, synchronized index keys across dimensions
-  for (const year of sortedYears) {
-    const rowsForYear = yearMap.get(year)!;
-    const yearHeights = new Array(numCategories).fill(0);
-    const yearUuids = Array.from({ length: numCategories }, () => [] as string[]);
-    let yearSum = 0;
-
-    for (const row of rowsForYear) {
-      const catIndex = rawCategories.indexOf(String(row.category));
-      if (catIndex !== -1) {
-        const count = Number(row.cat_count || 0);
-        const rowUuids = row.event_cat_uuids ? Array.from(row.event_cat_uuids).map(String) : [];
-
-        yearHeights[catIndex] = count;
-        yearUuids[catIndex] = rowUuids;
-        yearSum += count;
-      }
+  for (let i = 0; i < 1024; i++) {
+    const year = startYear + i;
+    const match = yearMap.get(year);
+    if (match) {
+      windowSlice[i] = match;
+    } else {
+      // Return zeroed structure for missing year
+      windowSlice[i] = [year, categories, zeroCounts, emptyUuids];
     }
-
-    heights.push(yearHeights);
-    summedHeights.push(yearSum);
-    uuids.push(yearUuids);
   }
 
-  // Target Return Format
-  return [indexNames, heights, summedHeights, uuids];
+  return windowSlice;
 }

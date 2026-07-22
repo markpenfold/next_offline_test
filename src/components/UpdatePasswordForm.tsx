@@ -3,7 +3,7 @@
 import { useActionState, useState, useEffect } from 'react' // 🟢 Added useEffect
 import { resetPassword } from '@/actions/auth'
 import { updatePasswordSchema } from '@/lib/validations/primitives'
-import { type ActionState } from '@/lib/types'
+import { type ActionState } from '@/lib/tl_utils/types'
 import { Eye, EyeOff } from 'lucide-react'
 
 export function UpdatePasswordForm() {

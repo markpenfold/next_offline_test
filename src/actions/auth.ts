@@ -5,13 +5,13 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { type PostgrestSingleResponse, type PostgrestResponse } from '@supabase/supabase-js';
 import { type SupabaseClient, type User } from '@supabase/supabase-js';
-import { type LoginResult,  ProfileRecord, MembershipRecord, ActionState  } from '@/lib/types'
+import { type LoginResult,  ProfileRecord, MembershipRecord, ActionState  } from '@/lib/tl_utils/types'
 import { redirect } from 'next/navigation'
 import { updatePasswordSchema, forgotPasswordSchema } from "@/lib/validations/primitives";
 import { headers } from 'next/headers'
 import { signUpSchema } from '@/lib/validations/primitives'
 import { generateUserSessionPayload } from '@/lib/supabase/queries'
-import { Database } from '@/lib/database_types'
+import { Database } from '@/lib/tl_utils/database_types'
 import { setUpStripeCustomer, getActiveUserAccount } from '@/lib/supabase/queries';
 
 export async function login(formData: FormData): Promise<LoginResult> {

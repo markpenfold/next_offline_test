@@ -1,5 +1,5 @@
-import { Database } from '@/lib/database_types'
-import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/types'
+import { Database } from '@/lib/tl_utils/database_types'
+import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/tl_utils/types'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 

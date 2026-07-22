@@ -1,6 +1,6 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import {getSubdirectoryHandle, getLocalOPFSIndexes} from '@/components/data/diskOPFS'
-import {INDEX_TABLE_NAME} from "@/components/data/dataTypes"
+
 
 
 // 🔒 THE CONCURRENCY LOCKS
@@ -122,124 +122,13 @@ export async function unloadShardFromEngine(
 
 export function buildLocalIndexFileName(
   tier: string,
-  cube: string,
-  era: string,
+  category: string,
   version: string = "v1"
 ): string {
-  const cleanEra = era.replace(/^era=/, "");
   const cleanVersion = version || "v1";
-  return `index__${tier}__${cube}__${cleanEra}__${cleanVersion}.parquet`;
+  return `index__${tier}__${category}__${cleanVersion}.parquet`;
 }
 
-// Modify insertIndex to THROW its errors instead of eating them
-export async function insertIndex(
-  fileName: string, 
-  fileHandle: FileSystemFileHandle, 
-  onLog?: (msg: string) => void
-): Promise<void> {
-  const log = (msg: string) => onLog?.(msg);
-  const db = await getSharedDuckDBEngine();
-  const conn = await db.connect();
-
-  try {
-    const file = await fileHandle.getFile();
-    const arrayBuffer = await file.arrayBuffer();
-    await db.registerFileBuffer(fileName, new Uint8Array(arrayBuffer));
-
-    const inspection = await conn.query(`
-      SELECT year, typeof(year) as yr_type, category,  highest_precision
-      FROM read_parquet('${fileName}') 
-      LIMIT 5;
-    `);
-    console.log("RAW PARQUET VALUES:", inspection.toArray().map(r => r.toJSON()));
-
-    // 🔍 1. Log incoming Parquet schema to inspect actual column names & ordering
-    const schemaCheck = await conn.query(`DESCRIBE SELECT * FROM read_parquet('${fileName}');`);
-    log(`📊 [${fileName}] Parquet Columns: ${schemaCheck.toArray().map((r: any) => `${r.column_name} (${r.column_type})`).join(', ')}`);
-
-    log(`📥 Merging blocks from ${fileName}...`);
-
-    // 🎯 2. Explicitly specify target columns on INSERT so position doesn't corrupt data
-    await conn.query(`
-      INSERT INTO ${INDEX_TABLE_NAME} BY NAME
-      SELECT year,highest_precision,  category, event_count, uuids 
-      FROM read_parquet('${fileName}', hive_partitioning = true);
-    `);
-  } catch (err) {
-    throw err; 
-  } finally {
-    try { await db.dropFile(fileName); } catch(e){}
-    await conn.close();
-  }
-}
-
-// Returns an audit report
-export async function buildLocalIndex(onLog?: (msg: string) => void) {
-  const log = (msg: string) => onLog?.(msg);
-  
-  const report = {
-    success: true,
-    totalFilesProcessed: 0,
-    failedFiles: [] as string[],
-    errorMessage: ""
-  };
-
-  log("🏗️ Initializing DuckDB table structures...");
-  const db = await getSharedDuckDBEngine();
-  const conn = await db.connect();
-
-  try {
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS ${INDEX_TABLE_NAME} (
-        year BIGINT,
-        category VARCHAR,
-        event_count BIGINT,
-        highest_precision VARCHAR,
-        uuids VARCHAR[]
-      );
-    `);
-
-    // TRUNCATE table to wipe existing memory rows before rebuilding
-    await conn.query(`TRUNCATE ${INDEX_TABLE_NAME};`);
-
-
-  } catch (err: any) {
-    log(`Failed to initialize table schema: ${err.message}`);
-    report.success = false;
-    report.errorMessage = err.message;
-    
-    await conn.close();
-    return report; 
-  } finally {
-    await conn.close(); 
-  }
-
-  const localIndexFiles = await getLocalOPFSIndexes(onLog);
-  report.totalFilesProcessed = localIndexFiles.length;
-
-  if (localIndexFiles.length === 0) {
-    log(" No local index shards found in OPFS to merge.");
-    return report;
-  }
-
-  for (const index of localIndexFiles) {
-    try {
-      if (!index.handle) {
-        log(`Skipping ${index.fileName}: Found in cache list but missing a local disk handle.`);
-        report.failedFiles.push(index.fileName);
-        continue;
-      }
-      await insertIndex(index.fileName, index.handle, onLog);
-    } catch (err: any) {
-      log(`Failed compiling shard: ${index.fileName}`);
-      report.success = false;
-      report.failedFiles.push(index.fileName);
-      report.errorMessage = err.message; 
-    }
-  }
-
-  return report;
-}
 
 export async function rebuildDataView(activeFiles: string[]): Promise<boolean> {
   try {

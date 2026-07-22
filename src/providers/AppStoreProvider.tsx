@@ -4,7 +4,7 @@
 import { createContext, useContext, useRef, useEffect } from 'react';
 import { useStore } from 'zustand';
 import { createAppStore, type AppStoreInstance, } from '@/stores/app-store';
-import { type UserTier, TIERS, AppState } from '@/lib/types';
+import { type UserTier, TIERS, AppState } from '@/lib/tl_utils/types';
 
 export const AppStoreContext = createContext<AppStoreInstance | null>(null);
 
