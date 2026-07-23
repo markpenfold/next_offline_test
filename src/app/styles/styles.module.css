@@ -238,6 +238,14 @@
   padding: 12px;
 }
 
+.container_split_1_3 {
+  display: grid;
+  grid-template-columns: 1fr 3fr; 
+  grid-auto-rows: minmax(555px, auto);
+  gap: 20px;
+  padding: 12px;
+}
+
 .warning_banner {
   background-color: #f0fdf4;
   border-bottom: 1px solid #bbf7d0;

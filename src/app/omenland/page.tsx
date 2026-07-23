@@ -7,6 +7,7 @@ import {IndexLoader} from '@/components/data/IndexLoader';
 import { DataView } from '@/components/data/DataView';
 import { TerrainShaderTest } from '@/components/terrain/TerrainShaderTest';
 import MyCanvas from '@/components/terrain/MyCanvas'
+import { TimelineSlider } from '@/components/terrain/Slider';
 
 
 export default async function OmenPage() {
@@ -20,10 +21,15 @@ const supabase = await createClient();
   }
 
   return (
-    <OmenWrap >
-      <MyCanvas/>
-  <DataView />
-      <IndexLoader/>
+
+     <OmenWrap >
+      <div className={styles.container_split_1_3}>
+        <IndexLoader/>
+        <MyCanvas/>
+      </div>
+      <TimelineSlider />
+      <DataView />
     </OmenWrap>
+   
     );
 }

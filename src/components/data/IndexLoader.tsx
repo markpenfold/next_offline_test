@@ -42,6 +42,7 @@ export function IndexLoader() {
   const loadingKeys = useDATAStore((s) => s.loadingKeys);
   const isInitializing = useDATAStore((s) => s.isInitializing);
   const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
+  const isGeologicalTime = useDATAStore((s) => s.isGeologicalTime);
 
   // Zustand Actions
   const addDownloadedIndex = useDATAStore((s) => s.addDownloadedIndex);
@@ -49,6 +50,7 @@ export function IndexLoader() {
   const removeFromDataView = useDATAStore((s) => s.removeFromDataView);
   const setKeyLoading = useDATAStore((s) => s.setKeyLoading);
   const setTerrainReady = useDATAStore((s) => s.setTerrainReady);
+  const setIsGeologicalTime = useDATAStore((s) => s.setIsGeologicalTime);
 
   const handleToggleDataView = async (item: AvailableIndex) => {
     if (!activeAccount?.id) return;
@@ -115,21 +117,35 @@ export function IndexLoader() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "600px", margin: "0 auto", fontFamily: "sans-serif" }}>
+    <div style={{ display: "flex", flexDirection: "column",  minWidth: "250px", margin: "0 auto", fontFamily: "sans-serif" }}>
+
+
+<div className="flex items-center gap-3 p-2">
+  <label className="text-sm text-gray-300 cursor-pointer flex items-center gap-2">
+    <input 
+      type="checkbox" 
+      checked={isGeologicalTime}
+      onChange={(e) => setIsGeologicalTime(e.target.checked)}
+      className="w-4 h-4 accent-green-500 bg-gray-800 border-gray-700 rounded"
+    />
+    Enable Deep Geological Time
+  </label>
+  <span className="text-xs text-gray-500">
+    {isGeologicalTime ? "(Full History)" : "(Limited to 50,000 years)"}
+  </span>
+</div>
+
 
       {/* WINDOW 1: INDEX SHARD SELECTION PILLS */}
-      <div style={{ backgroundColor: blue, padding: "1.25rem", color: white, borderRadius: "12px", height: "300px", display: "flex", flexDirection: "column" }}>
+      <div style={{ backgroundColor: blue,  color: white, height: "auto", maxHeight: "700px", display: "flex", flexDirection: "column" }}>
         <div style={{ flexShrink: 0, marginBottom: "0.85rem" }}>
-          <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Terrain Matrix Orchestrator</h2>
-          <p style={{ margin: "2px 0 0 0", fontSize: "0.75rem", opacity: 0.8 }}>
-            Add index buckets to recompile your active master_terrain view.
-          </p>
+          <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Select your histories</h2>
         </div>
 
         {isInitializing ? (
           <p style={{ fontSize: "0.85rem", opacity: 0.7 }}>Starting Analytical Engine...</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto", flex: 1, paddingRight: "6px" }}>
+          <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1}}>
             {availableIndexes.map((item) => {
               const isDownloaded = downloadedIndexes.includes(item.fileName);
               const isActive = activeDataViewIndexes.some((active) => active.fileName === item.fileName);
@@ -139,66 +155,50 @@ export function IndexLoader() {
               return (
                 <div key={item.fileName} style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr auto auto",
-                  gap: "12px",
+                  gridTemplateColumns: "1fr auto",
+                  gap: "1px",
                   alignItems: "center",
-                  background: isActive ? "rgba(21, 128, 61, 0.3)" : "rgba(0,0,0,0.2)",
-                  padding: "6px 8px 6px 12px",
-                  borderRadius: "999px",
-                  fontSize: "0.85rem",
-                  border: isActive ? `1px solid ${green}` : "1px solid transparent"
+                  background: isActive ? "rgba(181, 218, 195, 0.3)" : "rgba(0,0,0,0.2)",
+                  padding: "0px",
+                  fontSize: "0.6rem",
                 }}>
 
                   {/* LEFT: Tier Badge & Name */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", whiteSpace: "nowrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden", whiteSpace: "nowrap" }}>
                     <span style={{
                       fontSize: "0.6rem",
                       background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)",
-                      padding: "2px 6px",
-                      borderRadius: "999px",
-                      fontWeight: "bold",
+                      padding: "4px 6px",
+                      fontWeight: "light",
                       textTransform: "uppercase"
                     }}>
                       {item.tier ? item.tier.charAt(0) : "F"}
                     </span>
-                    <span style={{ fontWeight: "600", textOverflow: "ellipsis", overflow: "hidden" }}>
+                    <span style={{ paddingLeft:"4px", fontWeight: "100", fontSize: "0.6rem", textOverflow: "ellipsis", overflow: "hidden" }}>
                       {displayName}
                     </span>
                   </div>
 
-                  {/* MIDDLE: Action Button */}
-                  <div style={{ minWidth: "90px", textAlign: "center" }}>
+                  {/* RIGHT: Action Button */}
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button
                       disabled={isLoading}
                       onClick={() => handleToggleDataView(item)}
                       style={{
-                        background: isActive ? "transparent" : "rgba(255,255,255,0.1)",
+                        border: "none",
+                        background: isActive ? "rgba(222,222,222,0.7)" : "rgba(239, 166, 237, 0.1)",
                         color: isActive ? red : white,
-                        border: `1px solid ${isActive ? red : "rgba(255,255,255,0.4)"}`,
-                        borderRadius: "999px",
-                        padding: "4px 10px",
-                        fontSize: "0.75rem",
+                        fontSize: "0.6rem",
                         cursor: isLoading ? "not-allowed" : "pointer",
                         opacity: isLoading ? 0.5 : 1,
-                        width: "100%",
-                        fontWeight: "500",
+                        padding: "4px 8px",
+                        marginLeft: "8px",
+                        fontWeight: "400",
                         transition: "all 0.2s"
                       }}
                     >
-                      {isLoading ? "Working..." : isActive ? "Remove" : (isDownloaded ? "Add (Local)" : "Add (Cloud)")}
+                      {isLoading ? "Working..." : isActive ? "Remove" : "Add"}
                     </button>
-                  </div>
-
-                  {/* RIGHT: Engine Status */}
-                  <div style={{ minWidth: "90px", textAlign: "center" }}>
-                    <span style={{
-                      display: "block",
-                      color: isActive ? green : (isDownloaded ? "#a3e635" : "rgba(255,255,255,0.4)"),
-                      fontSize: "0.7rem",
-                      fontWeight: isActive ? "bold" : "normal"
-                    }}>
-                      {isActive ? "● Active View" : (isDownloaded ? "○ Cached" : "○ Remote")}
-                    </span>
                   </div>
 
                 </div>
@@ -208,10 +208,10 @@ export function IndexLoader() {
         )}
       </div>
 
-      {/* WINDOW 2: LOGS */}
+      {/* WINDOW 2: LOGS 
       <div style={{ background: "#111", color: "#0f0", padding: "12px", borderRadius: "8px", height: "150px", overflowY: "auto", fontSize: "0.75rem", fontFamily: "monospace" }}>
         {logs.map((log, i) => <div key={i}>{log}</div>)}
-      </div>
+      </div>*/}
     </div>
   );
 }

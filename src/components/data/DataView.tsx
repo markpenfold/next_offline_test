@@ -44,7 +44,7 @@ export function DataView() {
   const [loading, setLoading] = useState<boolean>(true);
   
   // 1. Placeholder state for startYear - ready for interactive timeline controls
-  const [startYear, setStartYear] = useState<number | null>(null);
+  const windowStartYear = useDATAStore((s) => s.windowStartYear);
 
   // Store Selectors
   const setTerrainData = useDATAStore((s) => s.setTerrainData);
@@ -74,12 +74,6 @@ export function DataView() {
         
         setTerrainData(matrix); 
         
-        // Default startYear to the earliest year if not set
-        if (matrix.length > 0) {
-          const firstYear = 900;
-          //Number(matrix[0][0]);
-          setStartYear((prev) => (prev === null ? firstYear : prev));
-        }
       } catch (err) {
         console.error("Failed to fetch terrain matrix:", err);
         setTerrainData(null);
@@ -92,27 +86,22 @@ export function DataView() {
   }, [isTerrainReady, activeAccount?.id, activeDataViewIndexes, setTerrainData]);
 
   // ---------------------------------------------------------------------------
-  // EFFECT 2: Update `terrainDataViewWindow` when `terrainData` OR `startYear` changes
+  // EFFECT 2: Update `terrainDataViewWindow` when `terrainData` OR `windowStartYear` changes
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!terrainData || terrainData.length === 0) {
-      setTerrainDataViewWindow(null);
+    if (!terrainData || terrainData.length === 0 || windowStartYear === null) {
       return;
     }
 
-    const effectiveStartYear = startYear ?? Number(terrainData[0][0]);
-
-    // Extract all unique categories to build uniform baseline rows
     const allCategories = Array.from(
       new Set(terrainData.flatMap((step) => step[1]))
     );
 
-    // Slice continuous 1,024 year span
-    const windowSlice = get1024WindowSlice(terrainData, effectiveStartYear, allCategories);
+    // Slice continuous 1,024 year span using the global slider value
+    const windowSlice = get1024WindowSlice(terrainData, windowStartYear, allCategories);
     
     setTerrainDataViewWindow(windowSlice);
-    console.log(`🪟 Updated terrainDataViewWindow: ${windowSlice.length} years (Starting: ${effectiveStartYear})`);
-  }, [terrainData, startYear, setTerrainDataViewWindow]);
+  }, [terrainData, windowStartYear, setTerrainDataViewWindow]);
 
   // ---------------------------------------------------------------------------
   // RENDER GUARDS & UI
@@ -130,7 +119,7 @@ export function DataView() {
   }
 
   return (
-    <div className="space-y-4 p-4">
+   <div className="space-y-4 p-4">
       <div>
         <h3 className="text-lg font-medium text-white">Terrain Data Loaded</h3>
         <p className="text-xs text-gray-400 mt-1">
@@ -139,6 +128,7 @@ export function DataView() {
         </p>
       </div>
 
+{/*
       <div className="bg-gray-950 rounded-lg border border-gray-800 overflow-hidden">
         <div className="p-2 bg-gray-900 border-b border-gray-800 text-xs text-gray-400">
           Raw Matrix Preview (Top 5 items)
@@ -171,6 +161,9 @@ export function DataView() {
           )}
         </pre>
       </div>
+      */}
+
+
     </div>
   );
 }

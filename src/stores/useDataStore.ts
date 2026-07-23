@@ -31,6 +31,13 @@ export interface DATAStore {
   isInitializing: boolean;
   isTerrainReady: boolean;
 
+  windowStartYear: number | null;
+  isGeologicalTime: boolean;
+
+
+  setIsGeologicalTime: (val: boolean) => void;
+  setWindowStartYear: (year: number | null) => void;
+
   // OPFS Disk Actions
   setDownloadedIndexes: (keys: string[]) => void;
   addDownloadedIndex: (key: string) => void;
@@ -103,6 +110,16 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   isInitialized: false,
   isInitializing: false,
   isTerrainReady: false,
+
+  windowStartYear: null,
+  isGeologicalTime: false, // Defaulting to "human" time (50k years)
+
+
+
+
+
+  setIsGeologicalTime: (val) => set({ isGeologicalTime: val }),
+  setWindowStartYear: (year) => set({ windowStartYear: year }),
 
   // --- OPFS DISK ACTIONS ---
   setDownloadedIndexes: (indexes) => set({ downloadedIndexes: indexes }),

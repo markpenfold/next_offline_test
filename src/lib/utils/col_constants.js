@@ -194,7 +194,7 @@ export const COLLECTION_COLORS_T6 = [
   '#7ab060',  // Punchy sage green
   '#3a80b0',  // Bold cerulean
   '#1e4060',  // Deep sky blue
-  '#1a1a2e',  // Dark shadow vault
+  '#5757a5',  // Dark shadow vault
   '#ede0c4',  // Warm fresco cream
   '#d4a040',  // Deep gilt ochre
   '#b84030',  // Venetian crimson
@@ -207,7 +207,25 @@ export const COLLECTION_COLORS_T6 = [
 ];
 
 
-
+// BEAUTIFUL — Tiepolo 16 (Greyscale)
+export const COLLECTION_COLORS_T6_GREYSCALE = [
+  '#ededed',  // Luminous cloud white
+  '#c1c1c1',  // Vivid Naples yellow
+  '#7e7e7e',  // Strong Venetian rose
+  '#979797',  // Punchy sage green
+  '#717171',  // Bold cerulean
+  '#393939',  // Deep sky blue
+  '#606060',  // Dark shadow vault
+  '#e1e1e1',  // Warm fresco cream
+  '#a5a5a5',  // Deep gilt ochre
+  '#626262',  // Venetian crimson
+  '#929292',  // Warm terra cotta
+  '#6c6c6c',  // Deep Venetian verdure
+  '#bababa',  // Pale celadon mist
+  '#b9b9b9',  // Aerial sky powder
+  '#545454',  // Mantle blue
+  '#252525',  // Twilight indigo
+];
 
 
 const COLLECTION_COLORS2 = [

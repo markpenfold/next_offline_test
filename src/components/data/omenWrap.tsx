@@ -26,7 +26,7 @@ export default function OmenWrap({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* THE RESPONSIVE GRID LAYOUT CONTAINER */}
-        <div className={styles.dashboardGrid}>
+        <div className={styles.pageContainer}>
           {/* Main children components injected here from your sub-pages */}
           {children}
         </div>

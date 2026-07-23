@@ -1,7 +1,7 @@
 // components/other/terrain/terrainUtils.ts
 
 import { Vector3 } from 'three';
-import { EventYear } from '@/app/store/types';
+import { EventYear } from '@/lib/utils/terrain_types';
 
 /**
  * Convert 3D world position to grid cell index (0-1023)

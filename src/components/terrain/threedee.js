@@ -11,7 +11,7 @@ import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants'
 //COLLECTION_COLORS_PONTORMO_FRESCO
 //COLLECTION_COLORS_P1
 //COLLECTION_COLORS_T6 *
-
+//COLLECTION_COLORS_T6_GREYSCALE
 import { MeshStandardNodeMaterial, DoubleSide } from 'three/webgpu';
 
 
