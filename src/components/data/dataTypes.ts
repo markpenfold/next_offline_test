@@ -68,8 +68,13 @@ export interface OmenlandInitPayload {
   downloadedIndexes: string[];
   loadedIndexes: string[];
   localProjects: Array<{ name: string; handle: FileSystemFileHandle }>;
-  activeDataViewIndexes: string[];
+  activeDataViewIndexes: ActiveDataViewIndex[];
   activeProjectName: string | null;
+  
+  // Hydrated from session.json / ProjectConfig
+  windowStartYear?: number | null;
+  fullYearRange?: [number, number] | null;
+  isGeologicalTime?: boolean;
 }
 
 export interface OPFSFile {
@@ -77,12 +82,27 @@ export interface OPFSFile {
   handle: FileSystemFileHandle
 }
 
+/**
+ * Universal project and session configuration state model saved to OPFS
+ */
 export interface ProjectConfig {
-  activeDataViewIndexes:ActiveDataViewIndex[] | string[];
- // year: number;
-  //month:number;
- // day:number;
-  updatedAt: string;
+  /** Name of the active workspace project (null when running in transient session.json mode) */
+  activeProjectName?: string | null;
+
+  /** Selected active dataset index selections */
+  activeDataViewIndexes?: ActiveDataViewIndex[];
+
+  /** Starting year anchor for the active 1,024-year WebGPU viewing window */
+  windowStartYear?: number | null;
+
+  /** Minimum and maximum year boundaries found across the active dataset [minYear, maxYear] */
+  fullYearRange?: [startYear: number, endYear: number] | null;
+
+  /** Toggle state for deep geological time vs. the 50,000-year human era limit */
+  isGeologicalTime?: boolean;
+
+  /** ISO 8601 timestamp automatically recorded when saved to OPFS */
+  updatedAt?: string;
 }
 
 export type TerrainYearStep = [
@@ -96,3 +116,4 @@ export interface ActiveDataViewIndex {
   fileName: string;
   category: string;
 }
+

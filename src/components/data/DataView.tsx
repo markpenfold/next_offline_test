@@ -1,79 +1,48 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from '@/providers/AppStoreProvider';
 import { useDATAStore } from '@/stores/useDataStore';
 import { getTSM } from '@/components/data/analytics';
-import { TerrainYearStep } from "./dataTypes";
+import MyCanvas from '@/components/terrain/MyCanvas'
+import { TimelineSlider } from '@/components/terrain/Slider';
+import { IndexLoader } from '@/components/data/IndexLoader';
+import styles from '@/app/styles/styles.module.css';
 
-/**
- * Fast client-side 1024-year slice generator.
- * Fills gaps with zero-count baseline rows for standard matrix dimensions.
- */
-function get1024WindowSlice(
-  fullTerrainData: TerrainYearStep[],
-  startYear: number,
-  categories: string[]
-): TerrainYearStep[] {
-  const yearMap = new Map<number, TerrainYearStep>();
-  for (let i = 0; i < fullTerrainData.length; i++) {
-    yearMap.set(Number(fullTerrainData[i][0]), fullTerrainData[i]);
-  }
 
-  // Pre-allocate template for missing zero-event years (number[] avoids TS errors)
-  const zeroCounts: number[] = new Array(categories.length).fill(0);
-  const emptyUuids: string[][] = categories.map(() => []);
-
-  const windowSlice: TerrainYearStep[] = new Array(1024);
-
-  for (let i = 0; i < 1024; i++) {
-    const year = startYear + i;
-    const match = yearMap.get(year);
-
-    if (match) {
-      windowSlice[i] = match;
-    } else {
-      windowSlice[i] = [year, categories, zeroCounts, emptyUuids];
-    }
-  }
-
-  return windowSlice;
-}
 
 export function DataView() {
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   
-  // 1. Placeholder state for startYear - ready for interactive timeline controls
-  const windowStartYear = useDATAStore((s) => s.windowStartYear);
-
-  // Store Selectors
+  
   const setTerrainData = useDATAStore((s) => s.setTerrainData);
   const terrainData = useDATAStore((s) => s.terrainData);
-
-  const setTerrainDataViewWindow = useDATAStore((s) => s.setTerrainDataViewWindow);
-  const terrainDataViewWindow = useDATAStore((s) => s.terrainDataViewWindow);
-
   const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
-  const activeAccount = useAppStore((s) => s.activeAccount);
   const isTerrainReady = useDATAStore((s) => s.isTerrainReady);
+  const activeAccount = useAppStore((s) => s.activeAccount);
 
   // ---------------------------------------------------------------------------
-  // EFFECT 1: Update `terrainData` when active indexes change or DuckDB mounts
+  // EFFECT 1: Update terrainData
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!isTerrainReady || !activeAccount?.id || !activeDataViewIndexes) {
-      setLoading(true);
+    if (!activeAccount?.id || !activeDataViewIndexes) return;
+
+    // If active indexes drop to 0, clear BOTH states immediately
+    if (activeDataViewIndexes.length === 0) {
+      console.log("🧹 Clearing terrain stores (0 active indexes)");
+      setTerrainData([]);      
       return;
     }
-    
+
+    if (!isTerrainReady) return;
+
+        
     async function fetchTerrain() {
+      console.log("fetchTerrain")
       setLoading(true);
       try {
         const matrix = await getTSM();
-        console.log("MATRIX RETURNED BY TSM:", matrix.length, "items");
-        
         setTerrainData(matrix); 
-        
       } catch (err) {
         console.error("Failed to fetch terrain matrix:", err);
         setTerrainData(null);
@@ -81,89 +50,44 @@ export function DataView() {
         setLoading(false);
       }
     }
-  
+      
     fetchTerrain();
-  }, [isTerrainReady, activeAccount?.id, activeDataViewIndexes, setTerrainData]);
+
+      }, [activeDataViewIndexes, isTerrainReady]);
+
+  
 
   // ---------------------------------------------------------------------------
-  // EFFECT 2: Update `terrainDataViewWindow` when `terrainData` OR `windowStartYear` changes
+  // RENDER UI (Stable layout)
   // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (!terrainData || terrainData.length === 0 || windowStartYear === null) {
-      return;
-    }
-
-    const allCategories = Array.from(
-      new Set(terrainData.flatMap((step) => step[1]))
-    );
-
-    // Slice continuous 1,024 year span using the global slider value
-    const windowSlice = get1024WindowSlice(terrainData, windowStartYear, allCategories);
-    
-    setTerrainDataViewWindow(windowSlice);
-  }, [terrainData, windowStartYear, setTerrainDataViewWindow]);
-
-  // ---------------------------------------------------------------------------
-  // RENDER GUARDS & UI
-  // ---------------------------------------------------------------------------
-  if (!isTerrainReady || loading) {
-    return <div className="p-4 text-sm text-gray-400">Loading terrain matrix...</div>;
-  }
-
-  if (!activeDataViewIndexes || !activeAccount?.id) {
-    return <div className="p-4 text-sm text-gray-400">No active index or account selected.</div>;
-  }
-
-  if (!terrainData || terrainData.length === 0) {
-    return <div className="p-4 text-sm text-gray-400">No Terrain data loaded.</div>;
-  }
-
+  
   return (
-   <div className="space-y-4 p-4">
-      <div>
-        <h3 className="text-lg font-medium text-white">Terrain Data Loaded</h3>
-        <p className="text-xs text-gray-400 mt-1">
-          Loaded <span className="text-green-400 font-mono">{terrainData.length}</span> total yearly intervals. 
-          Active window size: <span className="text-blue-400 font-mono">{terrainDataViewWindow?.length ?? 0}</span> years.
-        </p>
-      </div>
-
-{/*
-      <div className="bg-gray-950 rounded-lg border border-gray-800 overflow-hidden">
-        <div className="p-2 bg-gray-900 border-b border-gray-800 text-xs text-gray-400">
-          Raw Matrix Preview (Top 5 items)
+    <div className="space-y-4 p-4 relative min-h-screen">
+      
+      {/* Loading Overlay: Shows on top while fetching, without unmounting the canvas */}
+      {loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-lg">
+          <div className="text-white text-lg font-medium animate-pulse">
+            Loading terrain matrix...
+          </div>
         </div>
-        <pre className="p-4 bg-gray-900 text-green-400 overflow-auto text-xs font-mono max-h-[200px]">
-          {JSON.stringify(
-            terrainData.slice(0, 5).map(([year, categories, counts]) => [year, counts]), 
-            null, 
-            2
-          )}
-        </pre>
+      )}
 
-        <div className="p-2 bg-gray-900 border-b border-t border-gray-800 text-xs text-gray-400">
-          View Window Preview (Top 5 items in 1,024-year slice)
-        </div>
-        <pre className="p-4 bg-gray-900 text-blue-400 overflow-auto text-xs font-mono max-h-[250px]">
-          {JSON.stringify(
-            (terrainDataViewWindow || []).slice(0, 5).map(([year, categories, counts, uuids]) => [
-              year,
-              categories,
-              counts,
-              uuids.map((catUuids) => 
-                catUuids.length > 2 
-                  ? [catUuids[0], `... +${catUuids.length - 1} more UUIDs`] 
-                  : catUuids
-              )
-            ]), 
-            null, 
-            2
-          )}
-        </pre>
+
+      {/* Main Content Layout */}
+      <div className={styles.container_split_1_3}>
+        {/* IndexLoader is ALWAYS mounted so the user can interact with it */}
+        <IndexLoader />
+        
+       
+           <MyCanvas />
+  
       </div>
-      */}
+      
 
-
+        <TimelineSlider />
+    
+      
     </div>
   );
 }

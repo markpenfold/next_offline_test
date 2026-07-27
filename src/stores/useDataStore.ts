@@ -1,8 +1,7 @@
 import { create } from 'zustand';
-import { runOmenlandInit } from "@/components/data/omenlandInit";
-import { OmenlandInitPayload, OPFSFile, AvailableIndex } from '@/components/data/dataTypes';
-import { TerrainYearStep } from "@/components/data/dataTypes";
-import { saveProject, loadProject, getSavedProjects, saveSession } from '@/components/data/diskOPFS';
+import {startOmenland } from "@/components/data/omenlandInit";
+import { OmenlandInitPayload, OPFSFile, AvailableIndex, TerrainYearStep } from '@/components/data/dataTypes';
+import { saveProject, loadProject, getSavedProjects } from '@/components/data/diskOPFS';
 
 // 1. Defined structure for Active View Items
 export interface ActiveDataViewIndex {
@@ -19,24 +18,27 @@ export interface DATAStore {
 
   // 2. Application Workspace State (The Current Chart)
   activeDataViewIndexes: ActiveDataViewIndex[]; // Array of { fileName, category }
-  activeProjectName: string | null;            // null represents the Unsaved Scratchpad ('autosave')
+  activeProjectName: string | null;            // null represents the Unsaved Scratchpad ('session.json')
   localProjects: OPFSFile[];                  // User's saved workspace JSON metadata files
 
   // 3. Terrain Matrix Data State
   terrainData: TerrainYearStep[] | null;
-  terrainDataViewWindow: TerrainYearStep[] | null;
-
+ 
   // Core Engine Initialization Locks
   isInitialized: boolean;
   isInitializing: boolean;
   isTerrainReady: boolean;
 
+  // Global Time & Display Config
   windowStartYear: number | null;
+  fullYearRange: [number, number] | null;
   isGeologicalTime: boolean;
 
-
-  setIsGeologicalTime: (val: boolean) => void;
-  setWindowStartYear: (year: number | null) => void;
+  // --- STATE SETTERS ---
+  setIsGeologicalTime: (val: boolean, accountId?: string) => void;
+  setWindowStartYear: (year: number | null, accountId?: string) => void;
+  setFullYearRange: (range: [number, number] | null, accountId?: string) => void;
+  setActiveProjectName: (name: string | null, accountId?: string) => void;
 
   // OPFS Disk Actions
   setDownloadedIndexes: (keys: string[]) => void;
@@ -58,12 +60,12 @@ export interface DATAStore {
 
   // Terrain Matrix Actions
   setTerrainData: (data: TerrainYearStep[] | null) => void;
-  setTerrainDataViewWindow: (data: TerrainYearStep[] | null) => void;
 
   // Project Document Lifecycle Management Actions
   createNewProject: (accountId: string) => Promise<void>;
   saveCurrentProjectAs: (projectName: string, accountId: string) => Promise<void>;
   loadNamedProject: (projectName: string, accountId: string) => Promise<void>;
+  loadSessionContext: (accountId: string) => Promise<void>;
   refreshLocalProjects: (accountId: string) => Promise<void>;
 
   // The Bootloader
@@ -93,6 +95,32 @@ const normalizeActiveIndex = (
   };
 };
 
+/**
+ * DEBOUNCED AUTO-SAVE
+ * Safely batches rapid state changes (like timeline sliding) into a single OPFS disk write.
+ */
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function triggerAutoSave(accountId: string, getStore: () => DATAStore) {
+  if (!accountId) return;
+
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+  autoSaveTimer = setTimeout(async () => {
+    const state = getStore();
+
+    // Saves directly to activeProjectName.json OR session.json if null
+    await saveProject(accountId, state.activeProjectName, {
+      activeProjectName: state.activeProjectName,
+      activeDataViewIndexes: state.activeDataViewIndexes,
+      windowStartYear: state.windowStartYear,
+      isGeologicalTime: state.isGeologicalTime,
+      fullYearRange: state.fullYearRange,
+    });
+
+    console.log(`💾 Auto-saved working state to OPFS [${state.activeProjectName || 'session'}]`);
+  }, 400); // 400ms debounce
+}
+
 export const useDATAStore = create<DATAStore>((set, get) => ({
   // --- INITIAL STATES --- //
   availableIndexes: [], 
@@ -105,24 +133,39 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   // Terrain Data State
   terrainData: null,
-  terrainDataViewWindow: null,
 
   isInitialized: false,
   isInitializing: false,
   isTerrainReady: false,
 
   windowStartYear: null,
-  isGeologicalTime: false, // Defaulting to "human" time (50k years)
+  isGeologicalTime: false,
+  fullYearRange: null,
 
+  // --- CONFIG SETTERS W/ AUTO-SAVE TRIGGERS ---
+  setIsGeologicalTime: (val, accountId) => {
+    set({ isGeologicalTime: val });
+    if (accountId) triggerAutoSave(accountId, get);
+  },
+  
+  setWindowStartYear: (year, accountId) => {
+    set({ windowStartYear: year });
+    if (accountId) triggerAutoSave(accountId, get);
+  },
+  
+  setFullYearRange: (range, accountId) => {
+    set({ fullYearRange: range });
+    if (accountId) triggerAutoSave(accountId, get);
+  },
 
-
-
-
-  setIsGeologicalTime: (val) => set({ isGeologicalTime: val }),
-  setWindowStartYear: (year) => set({ windowStartYear: year }),
+  setActiveProjectName: (name, accountId) => {
+    set({ activeProjectName: name });
+    if (accountId) triggerAutoSave(accountId, get);
+  },
 
   // --- OPFS DISK ACTIONS ---
   setDownloadedIndexes: (indexes) => set({ downloadedIndexes: indexes }),
+
   addDownloadedIndex: (newIndex) =>
     set((state) => {
       if (state.downloadedIndexes.includes(newIndex)) return state;
@@ -131,6 +174,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   // --- DUCKDB / DATAVIEW ACTIVE CONTEXT ACTIONS ---
   setLoadedIndexes: (indexes) => set({ loadedIndexes: indexes }),
+
   addLoadedIndex: (newIndex) =>
     set((state) => {
       if (state.loadedIndexes.includes(newIndex)) return state;
@@ -157,85 +201,86 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     const normalized = items.map((item) => normalizeActiveIndex(item, available));
     
     set({ activeDataViewIndexes: normalized });
-    
-    if (accountId) {
-      const target = get().activeProjectName || 'autosave';
-      await saveProject(accountId, target, { activeDataViewIndexes: normalized });
-    }
+    if (accountId) triggerAutoSave(accountId, get);
   },
 
   addToDataView: async (targetItem, accountId) => {
+    
     const currentActive = get().activeDataViewIndexes;
     const available = get().availableIndexes;
-
     const normalizedItem = normalizeActiveIndex(targetItem, available);
 
-    // Prevent duplicates by checking fileName
     if (currentActive.some((item) => item.fileName === normalizedItem.fileName)) return;
 
-    const nextActive = [...currentActive, normalizedItem];
-    set({ activeDataViewIndexes: nextActive });
+    set({ activeDataViewIndexes: [...currentActive, normalizedItem] });
+        console.log("NOW WE HAVE THESE INDEXES IN THE DATA VIEW:", get().activeDataViewIndexes);
 
-    if (accountId) {
-      const target = get().activeProjectName || 'autosave';
-      await saveProject(accountId, target, { activeDataViewIndexes: nextActive });
-    }
+    if (accountId) triggerAutoSave(accountId, get);
   },
 
   removeFromDataView: async (fileName, accountId) => {
     const nextActive = get().activeDataViewIndexes.filter((item) => item.fileName !== fileName);
+    console.log("NOW WE HAVE THESE INDEXES IN THE DATA VIEW:", nextActive);
     set({ activeDataViewIndexes: nextActive });
-
-    if (accountId) {
-      const target = get().activeProjectName || 'autosave';
-      await saveProject(accountId, target, { activeDataViewIndexes: nextActive });
-    }
+    console.log("NOW WE HAVE THESE INDEXES IN THE DATA VIEW:", get().activeDataViewIndexes);
+    if (accountId) triggerAutoSave(accountId, get);
   },
 
   clearDataView: async (accountId) => {
     set({ activeDataViewIndexes: [] });
-
-    if (accountId) {
-      const target = get().activeProjectName || 'autosave';
-      await saveProject(accountId, target, { activeDataViewIndexes: [] });
-    }
+    if (accountId) triggerAutoSave(accountId, get);
   },
 
   // --- TERRAIN MATRIX ACTIONS ---
   setTerrainData: (data) => set({ terrainData: data }),
-  setTerrainDataViewWindow: (data) => set({ terrainDataViewWindow: data }),
-
-  // --- PROJECT DOCUMENT LIFECYCLE MANAGEMENT ACTIONS ---  //
   
-  /** Wipes current canvas context and defaults back to fresh autosave track **/
-  createNewProject: async (accountId) => {
+  // --- PROJECT DOCUMENT LIFECYCLE MANAGEMENT ACTIONS --- //
+  createNewProject: async (accountId: string) => {
     set({ 
       activeDataViewIndexes: [],
       activeProjectName: null,
       terrainData: null,
+      windowStartYear: null,
     });
 
     if (accountId) {
-      await saveSession(accountId, null);
-      await saveProject(accountId, 'autosave', { activeDataViewIndexes: [] });
+      await saveProject(accountId, null, { 
+        activeProjectName: null,
+        activeDataViewIndexes: [],
+        windowStartYear: null,
+      });
     }
   },
 
-  /** Snapshots current index selections out to a named file and registers session layout */
-  saveCurrentProjectAs: async (projectName, accountId) => {
+  saveCurrentProjectAs: async (projectName: string, accountId: string) => {
     if (!accountId || !projectName.trim()) return;
 
-    const currentLayout = get().activeDataViewIndexes;
-    
-    await saveProject(accountId, projectName, { activeDataViewIndexes: currentLayout });
+    const state = get();
+
+    // 1. Save explicitly to new project name
+    await saveProject(accountId, projectName, { 
+      activeProjectName: projectName,
+      activeDataViewIndexes: state.activeDataViewIndexes,
+      windowStartYear: state.windowStartYear,
+      isGeologicalTime: state.isGeologicalTime,
+      fullYearRange: state.fullYearRange,
+    });
+
     set({ activeProjectName: projectName });
-    await saveSession(accountId, projectName);
+
+    // 2. Also register it as the active session
+    await saveProject(accountId, null, { 
+      activeProjectName: projectName,
+      activeDataViewIndexes: state.activeDataViewIndexes,
+      windowStartYear: state.windowStartYear,
+      isGeologicalTime: state.isGeologicalTime,
+      fullYearRange: state.fullYearRange,
+    });
     
     await get().refreshLocalProjects(accountId);
   },
 
-  /** Reads structural configuration out of a dedicated project document track */
-  loadNamedProject: async (projectName, accountId) => {
+  loadNamedProject: async (projectName: string, accountId: string) => {
     if (!accountId) return;
     
     const targetConfig = await loadProject(accountId, projectName);
@@ -247,14 +292,42 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
       set({ 
         activeDataViewIndexes: normalizedActive,
-        activeProjectName: projectName
+        activeProjectName: projectName,
+        ...(targetConfig.windowStartYear !== undefined && { windowStartYear: targetConfig.windowStartYear }),
+        ...(targetConfig.isGeologicalTime !== undefined && { isGeologicalTime: targetConfig.isGeologicalTime }),
+        ...(targetConfig.fullYearRange !== undefined && { fullYearRange: targetConfig.fullYearRange }),
       });
       
-      await saveSession(accountId, projectName);
+      // Mirror load selection back to session default
+      await saveProject(accountId, null, { 
+        activeProjectName: projectName,
+        activeDataViewIndexes: normalizedActive,
+        windowStartYear: targetConfig.windowStartYear ?? null,
+        isGeologicalTime: targetConfig.isGeologicalTime ?? false,
+        fullYearRange: targetConfig.fullYearRange ?? null,
+      });
     }
   },
 
-  /** Scans the account-specific OPFS directory layout to pull up-to-date document descriptors */
+  loadSessionContext: async (accountId: string) => {
+    if (!accountId) return;
+
+    const session = await loadProject(accountId, null);
+    if (!session) return;
+
+    const available = get().availableIndexes;
+    const rawActive = session.activeDataViewIndexes || [];
+    const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
+
+    set({
+      activeProjectName: session.activeProjectName || null,
+      activeDataViewIndexes: normalizedActive,
+      ...(session.windowStartYear !== undefined && { windowStartYear: session.windowStartYear }),
+      ...(session.isGeologicalTime !== undefined && { isGeologicalTime: session.isGeologicalTime }),
+      ...(session.fullYearRange !== undefined && { fullYearRange: session.fullYearRange }),
+    });
+  },
+
   refreshLocalProjects: async (accountId: string) => {
     if (!accountId) return;
     try {
@@ -278,7 +351,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     set({ isInitializing: true });
 
     try {
-      const setUpData: OmenlandInitPayload = await runOmenlandInit(accountId);
+      const setUpData: OmenlandInitPayload = await startOmenland(accountId);
       const available = setUpData.availableIndexes || [];
       const rawActive = setUpData.activeDataViewIndexes || [];
       const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
@@ -288,8 +361,14 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         downloadedIndexes: setUpData.downloadedIndexes,
         loadedIndexes: setUpData.loadedIndexes,
         localProjects: setUpData.localProjects,
+        
+        // Hydrate configuration defaults (could come from session.json inside OmenlandInitPayload)
         activeDataViewIndexes: normalizedActive,
-        activeProjectName: setUpData.activeProjectName,
+        activeProjectName: setUpData.activeProjectName ?? null,
+        windowStartYear: setUpData.windowStartYear ?? null,
+        isGeologicalTime: setUpData.isGeologicalTime ?? false,
+        fullYearRange: setUpData.fullYearRange ?? null,
+
         isInitialized: true,
         isInitializing: false
       });

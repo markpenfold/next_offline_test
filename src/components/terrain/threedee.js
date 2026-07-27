@@ -26,6 +26,7 @@ function bandColor(i) {
 
 
 export const getMat3 = (g, hoverUV) => {
+ 
   const redMat = new MeshStandardNodeMaterial({
     roughness: 0.4,
     metalness: 0.5,
@@ -33,6 +34,7 @@ export const getMat3 = (g, hoverUV) => {
   });
 
   const numTimelines = g.userData.numTimelines || 0;
+  console.log("NUM TIMELINEZ: ", numTimelines)
   const vUV     = varying(vec2());   // NEW
   // This needs to be scaled by the maxHeight.
   //const sampleOffset = uniform(0.01).mul(g.userData.maxHeight); // tune: world units below surface to sample

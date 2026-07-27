@@ -230,97 +230,91 @@ export async function wipeOPFSFolder(dirName: string): Promise<boolean> {
   }
 }
 
-/** 
- * Load a specific configuration file routing directly through readFromOPFSFolder
- * Aligned with the canonical layout specification path: savedProjects/{accountId}/{projectName}.json
+// ============================================================================
+// PROJECT & SESSION UNIFIED MANAGEMENT
+// ============================================================================
+
+/**
+ * Standardizes filename resolution:
+ * null | undefined | "session" -> "session.json"
+ * "myProject" -> "myProject.json"
  */
-export async function loadProject(accountId: string, projectName: string): Promise<ProjectConfig | null> {
+function resolveProjectFileName(projectName?: string | null): string {
+  if (!projectName || projectName === "session") return "session.json";
+  return projectName.endsWith(".json") ? projectName : `${projectName}.json`;
+}
+
+/** 
+ * Loads a project layout or the runtime session context.
+ * Defaults to 'session.json' if projectName is omitted or null.
+ */
+export async function loadProject(
+  accountId: string, 
+  projectName?: string | null
+): Promise<ProjectConfig | null> {
   try {
     const dirPath = `savedProjects/${accountId}`;
-    const fileName = projectName.endsWith('.json') ? projectName : `${projectName}.json`;
+    const fileName = resolveProjectFileName(projectName);
     
-    // Prevent noisy console errors during fresh-boot fallbacks
-    const hasProject = await checkFileExists(dirPath, fileName);
-    if (!hasProject) return null;
+    const hasFile = await checkFileExists(dirPath, fileName);
+    if (!hasFile) return null;
 
-    const text = await readFromOPFSFolder(dirPath, fileName, 'text') as string;
+    const text = (await readFromOPFSFolder(dirPath, fileName, "text")) as string;
     return JSON.parse(text) as ProjectConfig;
   } catch (err) {
+    console.warn(`Could not load project/session context [${projectName || "session"}]`, err);
     return null;
   }
 }
-
 /** 
- * Save a configuration profile, pre-serializing data and routing through saveToOPFSFolder
- * Aligned with the canonical layout specification path: savedProjects/{accountId}/{projectName}.json
+ * Saves or updates a project layout or the default session state.
+ * Supports partial updates—merges new properties with existing disk state.
+ * Defaults to 'session.json' if projectName is omitted or null.
  */
 export async function saveProject(
   accountId: string, 
-  projectName: string, 
-  config: Omit<ProjectConfig, 'updatedAt'>
+  projectName: string | null | undefined, 
+  patch: Partial<ProjectConfig>
 ): Promise<boolean> {
-  try {
-    // Pre-serialization guard: catch memory or circular failures safely before calling disk storage
-    const payload: ProjectConfig = {
-      ...config,
-      updatedAt: new Date().toISOString()
-    };
-    const serializedData = JSON.stringify(payload, null, 2);
+  const fileName = resolveProjectFileName(projectName);
+  const dirPath = `savedProjects/${accountId}`;
 
-    const dirPath = `savedProjects/${accountId}`;
-    const fileName = projectName.endsWith('.json') ? projectName : `${projectName}.json`;
-    
+  try {
+    // 1. Fetch existing state from disk if present to support partial updates
+    const existing = (await loadProject(accountId, projectName)) || {};
+
+    // 2. Merge current disk data with new incoming patch
+    const updatedConfig = {
+      ...existing,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const serializedData = JSON.stringify(updatedConfig, null, 2);
     await saveToOPFSFolder(dirPath, fileName, serializedData);
+    
     return true;
   } catch (err) {
-    console.error(`❌ Failed to write project layout data for ${projectName}:`, err);
+    console.error(`❌ Failed to write project/session data [${fileName}]:`, err);
     return false;
   }
 }
-
-/** 
- * Persists active working context records directly through saveToOPFSFolder 
- */
-export async function saveSession(accountId: string, projectName: string | null): Promise<void> {
-  try {
-    const serializedSession = JSON.stringify({ activeProject: projectName });
-    await saveToOPFSFolder(`savedProjects/${accountId}`, 'session.json', serializedSession);
-  } catch (err) {
-    console.error(`❌ Failed to commit session context snapshot:`, err);
-  }
-}
-
-/** 
- * Retrieves active session track history directly via readFromOPFSFolder
- */
-export async function readSession(accountId: string): Promise<string | null> {
-  try {
-    const dirPath = `savedProjects/${accountId}`;
-    
-    // Quietly catch cold-starts before the reader throws console errors
-    const hasSession = await checkFileExists(dirPath, 'session.json');
-    if (!hasSession) return null;
-
-    const text = await readFromOPFSFolder(dirPath, 'session.json', 'text') as string;
-    const { activeProject } = JSON.parse(text);
-    return activeProject;
-  } catch (err) {
-    return null; 
-  }
-}
-
 /**
- * Returns saved workspace models and tracking profiles for an isolated account 
+ * Returns saved user project files for an account (excludes transient session.json)
  */
-export async function getSavedProjects(accountId: string): Promise<Array<{ name: string; handle: FileSystemFileHandle }>> {
+export async function getSavedProjects(
+  accountId: string
+): Promise<Array<{ name: string; handle: FileSystemFileHandle }>> {
   try {
     const dirPath = `savedProjects/${accountId}`;
     const entries = await getOPFSEntries(dirPath);
 
-    // Isolate pure configuration models cleanly while stripping away local dynamic tracks
-    return entries.filter(({ name }) => name.endsWith('.json') && name !== 'session.json');
+    // Isolate saved user configs while ignoring the auto-saved session file
+    return entries.filter(
+      ({ name }) => name.endsWith(".json") && name !== "session.json"
+    );
   } catch (err) {
-    console.error(`Failed to scan OPFS savedProjects indices for account ${accountId}:`, err);
+    console.error(`Failed to scan OPFS savedProjects for account ${accountId}:`, err);
     return [];
   }
 }

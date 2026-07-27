@@ -1,37 +1,36 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState, useCallback } from 'react';
+import { useRef, useMemo, useEffect, useCallback } from 'react';
 import * as THREE from 'three/webgpu';
 import { getMat3 } from './threedee.js';
 import { useUIStore } from '@/stores/useUIStore';
 import { useThree } from '@react-three/fiber';
 import { getSmoothArray } from './helpers.js';
 import { useDATAStore } from '@/stores/useDataStore';
+import { get1024WindowSlice } from '@/components/data/analytics';
 
-const MAX_TIMELINES = 16; // Matches band0 .. band15 in TSL material
+const MAX_TIMELINES = 16; 
 
 export function TerrainShaderTest() {
     const meshRef    = useRef(null);
     const resolution = 512;
-    
-    const [numTimelines, setNumTimelines] = useState(0);
 
-    // 1. Listen to the 1,024-year view window instead of full terrainData
-    const tDataViewWindow = useDATAStore((state) => state.terrainDataViewWindow);
-    const isReady         = useDATAStore((state) => state.isTerrainReady);
-    const hoverUV         = useUIStore((state) => state.hoverUV);
-    const invalidate      = useThree((state) => state.invalidate);
+    const isReady               = useDATAStore((state) => state.isTerrainReady);
+    const hoverUV               = useUIStore((state) => state.hoverUV);
+    const invalidate            = useThree((state) => state.invalidate);
+    const terrainData           = useDATAStore((s) => s.terrainData);
+    const windowStartYear       = useDATAStore((s) => s.windowStartYear);
+    const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
+    const emptyRaycast          = useCallback(() => {}, []);
 
-    const emptyRaycast    = useCallback(() => {}, []);
+    const { nTimelines, categories } = useMemo(() => {
+        const count = activeDataViewIndexes.length;
+        return {
+            nTimelines: count > MAX_TIMELINES ? MAX_TIMELINES : count, 
+            categories: activeDataViewIndexes.map(i => i.category)
+        };
+    }, [activeDataViewIndexes]);
 
-    console.log("🔍 Terrain Component State:", { 
-      isReady, 
-      windowCount: tDataViewWindow?.length 
-    });
-
-    ///////////////////////////////////////////////////////////
-    // BASE GEOMETRY
-    ///////////////////////////////////////////////////////////
     const geometry = useMemo(() => {
         const geo = new THREE.PlaneGeometry(400, 400, resolution - 1, resolution - 1);
         geo.rotateX(-Math.PI / 2);
@@ -40,44 +39,37 @@ export function TerrainShaderTest() {
 
     useEffect(() => () => geometry.dispose(), [geometry]);
 
+    const computedWindow = useMemo(() => {
+        if (!terrainData || terrainData.length === 0 || windowStartYear === null) {
+            return [];
+        }
+        return get1024WindowSlice(terrainData, windowStartYear, categories);
+    }, [terrainData, windowStartYear, categories]);
+
     ///////////////////////////////////////////////////////////
     // COMPUTE FUNCTIONS
     ///////////////////////////////////////////////////////////
-
-    // 1. Derive grid shape and category list from TSM view window data
     function computeGridMeta(data) {
-        if (!data || data.length === 0) {
-            return { baseCount: 0, gridSize: 0, numTimelines: 0, categories: [] };
-        }
-        const baseCount  = data.length;
-        // For a 1024 item window, Math.sqrt(1024) gives a perfect 32x32 matrix grid
-        const gridSize   = Math.floor(Math.sqrt(baseCount));
-        
-        // Find categories from the first non-empty step or default to empty array
-        const categories = data.find((step) => step && step[1]?.length > 0)?.[1] || data[0][1] || [];
-        let nTimelines   = categories.length;
-        if (nTimelines > MAX_TIMELINES) nTimelines = MAX_TIMELINES;
-
-        return { baseCount, gridSize, numTimelines: nTimelines, categories };
+        if (!data || data.length === 0) return { baseCount: 0, gridSize: 0 };
+        return { baseCount: data.length, gridSize: Math.floor(Math.sqrt(data.length)) };
     }
 
-    // 2. Spline-smooth heights and per-layer values
     function computeSmoothedData(data, gridMeta) {
-        const { baseCount, gridSize, numTimelines } = gridMeta;
-        const rawLayers = Array.from({ length: numTimelines }, () => new Float32Array(baseCount));
+        const { baseCount, gridSize } = gridMeta;
+        const rawLayers = Array.from({ length: nTimelines }, () => new Float32Array(baseCount));
         const hMatrix   = [];
 
         for (let row = 0; row < gridSize; row++) {
             const rowVectors = [];
             for (let col = 0; col < gridSize; col++) {
-                const idx      = row * gridSize + col;
+                const idx = row * gridSize + col;
                 const eventRow = data[idx];
-                let total      = 0;
+                let total = 0;
 
-                for (let t = 0; t < numTimelines; t++) {
-                    const val         = (eventRow && eventRow[2]) ? (eventRow[2][t] ?? 0) : 0;
+                for (let t = 0; t < nTimelines; t++) {
+                    const val = (eventRow && eventRow[2]) ? (eventRow[2][t] ?? 0) : 0;
                     rawLayers[t][idx] = val;
-                    total            += val;
+                    total += val;
                 }
                 rowVectors.push(new THREE.Vector2(col, total > 0 ? Math.log(total + 1) * 15 : 0));
             }
@@ -87,7 +79,7 @@ export function TerrainShaderTest() {
         const smoothHeights  = getSmoothArray(hMatrix, resolution);
         const smoothedLayers = [];
 
-        for (let t = 0; t < numTimelines; t++) {
+        for (let t = 0; t < nTimelines; t++) {
             const layerMatrix = [];
             for (let row = 0; row < gridSize; row++) {
                 const rowVectors = [];
@@ -101,37 +93,66 @@ export function TerrainShaderTest() {
             smoothedLayers.push(smoothed);
         }
 
-        return { smoothHeights, smoothedLayers, numTimelines };
+        return { smoothHeights, smoothedLayers };
     }
 
-    // 3. Build cumulative band buffers from smoothed layers
-    function computeBandBuffers(smoothedLayers, nTimelines) {
+    function computeBandBuffers(smoothedLayers) {
         const vertexCount = smoothedLayers[0]?.length || geometry.attributes.position.count;
         const cumBufs = Array.from({ length: MAX_TIMELINES }, () => new Float32Array(vertexCount));
 
         for (let v = 0; v < vertexCount; v++) {
             let cum = 0;
             for (let t = 0; t < nTimelines; t++) {
-                cum          += smoothedLayers[t]?.[v] ?? 0;
+                cum += smoothedLayers[t]?.[v] ?? 0;
                 cumBufs[t][v] = cum > 0 ? Math.log(cum + 1) * 15 : 0;
             }
         }
         return cumBufs;
     }
 
-    // 4. Write all computed data into GPU geometry buffers
-    function writeGeometry(smoothHeights, bandBufs, nTimelines, categories) {
-        const posAttr     = geometry.attributes.position;
+    function writeGeometryInPlace(smoothHeights, bandBufs, nT, cats) {
+        const posAttr = geometry.attributes.position;
         const vertexCount = posAttr.count;
-        const heights     = new Float32Array(vertexCount);
+
+        if (!geometry.attributes.heightBuffer) {
+            geometry.setAttribute('heightBuffer', new THREE.Float32BufferAttribute(new Float32Array(vertexCount), 1));
+        }
+        const heightAttr = geometry.attributes.heightBuffer;
+
+        for (let t = 0; t < MAX_TIMELINES; t++) {
+            if (!geometry.attributes[`band${t}`]) {
+                geometry.setAttribute(`band${t}`, new THREE.Float32BufferAttribute(new Float32Array(vertexCount), 1));
+            }
+        }
 
         let maxHeight = -Infinity, minHeight = Infinity;
         let runningTotal = 0, nonZeroCount = 0;
 
+        if (nT === 0 || !smoothHeights || smoothHeights.length === 0) {
+            for (let i = 0; i < vertexCount; i++) posAttr.array[i * 3 + 1] = 0;
+            heightAttr.array.fill(0);
+            for (let t = 0; t < MAX_TIMELINES; t++) {
+                const attr = geometry.attributes[`band${t}`];
+                attr.array.fill(0);
+                attr.needsUpdate = true;
+            }
+            posAttr.needsUpdate = true;
+            heightAttr.needsUpdate = true;
+            geometry.computeVertexNormals();
+            geometry.computeBoundingBox();
+            geometry.computeBoundingSphere();
+            return;
+        }
+
         for (let i = 0; i < vertexCount; i++) {
-            const h = smoothHeights[i] < 0.55 ? 0 : smoothHeights[i];
-            heights[i]               = h;
-            posAttr.array[i * 3 + 1] = h;
+            let h = 0;
+            if (smoothHeights && i < smoothHeights.length) {
+                const rawH = smoothHeights[i];
+                if (rawH !== undefined && !isNaN(rawH) && rawH >= 0.55) h = rawH;
+            }
+            heightAttr.array[i] = h;
+            posAttr.array[i * 3 + 1] = h; 
+            
             if (h > maxHeight) maxHeight = h;
             if (h > 0) {
                 if (h < minHeight) minHeight = h;
@@ -141,56 +162,67 @@ export function TerrainShaderTest() {
         }
 
         posAttr.needsUpdate = true;
+        heightAttr.needsUpdate = true;
         geometry.computeVertexNormals();
+        geometry.computeBoundingBox();
+        geometry.computeBoundingSphere();
 
+        // set the banding buffers
         for (let t = 0; t < MAX_TIMELINES; t++) {
-            const buf = bandBufs[t] || new Float32Array(vertexCount);
-            geometry.setAttribute(`band${t}`, new THREE.Float32BufferAttribute(buf, 1));
+            const attr = geometry.attributes[`band${t}`];
+            const buf = bandBufs[t];
+            if (buf && buf.length === vertexCount) {
+                attr.array.set(buf);
+            } else {
+                attr.array.fill(0);
+            }
+            attr.needsUpdate = true;
         }
-        geometry.setAttribute('heightBuffer', new THREE.Float32BufferAttribute(heights, 1));
 
-        geometry.userData.numTimelines  = nTimelines;
+        geometry.userData.numTimelines  = nT;
         geometry.userData.maxHeight     = maxHeight === -Infinity ? 0 : maxHeight;
         geometry.userData.minHeight     = minHeight === Infinity ? 0 : minHeight;
         geometry.userData.averageHeight = nonZeroCount > 0 ? runningTotal / nonZeroCount : 0;
         geometry.userData.maxTimelines  = MAX_TIMELINES;
-        geometry.userData.categories    = categories;
+        geometry.userData.categories    = cats;
     }
 
-    // 5. Build the TSL material from current geometry state
-    function buildMaterial() {
-        const mat       = getMat3(geometry, null);
+    ///////////////////////////////////////////////////////////
+    // THE SYNCHRONIZED PIPELINE (Fixes the desync)
+    ///////////////////////////////////////////////////////////
+    
+    // Step 1: Only do the pure math computation here
+    const bufferData = useMemo(() => {
+        if (!computedWindow || computedWindow.length === 0) return null;
+        
+        const gridMeta = computeGridMeta(computedWindow);
+        const { smoothHeights, smoothedLayers } = computeSmoothedData(computedWindow, gridMeta);
+        const bandBufs = computeBandBuffers(smoothedLayers);
+        
+        return { smoothHeights, bandBufs };
+    }, [computedWindow, nTimelines]);
+
+    // Step 2: Write buffers to Geometry FIRST, then compile Material SECOND
+    const material = useMemo(() => {
+        if (!isReady) return null;
+
+        // A. Inject the relative values (the bands) into the geometry attributes
+        if (bufferData) {
+            writeGeometryInPlace(bufferData.smoothHeights, bufferData.bandBufs, nTimelines, categories);
+        } else {
+            writeGeometryInPlace([], [], 0, []);
+        }
+
+        // B. Because we just updated the geometry above, getMat3 now has perfect 
+        // access to the populated attributes (band0, band1) AND userData.maxHeight
+        const mat = getMat3(geometry, null);
         mat.needsUpdate = true;
         return mat;
-    }
+    }, [isReady, geometry, bufferData, nTimelines, categories]);
 
     ///////////////////////////////////////////////////////////
-    // WATCHERS
+    // CLEANUP & TRIGGERS
     ///////////////////////////////////////////////////////////
-
-    // 1. DATA WINDOW WATCHER: Recompute spline buffers whenever 1,024 window slides or changes
-    useEffect(() => {
-        if (!isReady || !tDataViewWindow || tDataViewWindow.length === 0) return;
-
-        console.log("🏔️ TerrainShaderTest processing 1,024-year view window...");
-
-        const gridMeta                     = computeGridMeta(tDataViewWindow);
-        const { smoothHeights, smoothedLayers,
-                numTimelines: nTimelines } = computeSmoothedData(tDataViewWindow, gridMeta);
-        const bandBufs                     = computeBandBuffers(smoothedLayers, nTimelines);
-        
-        writeGeometry(smoothHeights, bandBufs, nTimelines, gridMeta.categories);
-        setNumTimelines(nTimelines);
-        invalidate(); // Force WebGPU/R3F frame render
-    }, [tDataViewWindow, isReady, invalidate]);
-
-    // 2. Material construction cache
-    const material = useMemo(() => {
-        if (!isReady || numTimelines === 0) return null;
-        return buildMaterial();
-    }, [isReady, numTimelines, tDataViewWindow]);
-
-    // 3. Material Cleanup
     useEffect(() => {
         return () => {
             if (!material) return;
@@ -202,21 +234,17 @@ export function TerrainShaderTest() {
         };
     }, [material]);
 
-    // 4. Hover Uniform updates
     useEffect(() => {
         if (!material?.userData?.hoverUVUniform) return;
         const u = material.userData.hoverUVUniform;
         hoverUV ? u.value.set(hoverUV.x, hoverUV.y) : u.value.set(-1.0, -1.0);
     }, [hoverUV, material]);
 
-    // 5. Frame trigger on material ready
     useEffect(() => {
+        // Trigger a re-render frame if the material updates
         if (material && meshRef.current) invalidate();
     }, [material, invalidate]);
 
-    ///////////////////////////////////////////////////////////
-    // RENDER
-    ///////////////////////////////////////////////////////////
     if (!isReady || !material) return null;
 
     return (

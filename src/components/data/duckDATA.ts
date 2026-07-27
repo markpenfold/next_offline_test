@@ -73,7 +73,7 @@ export async function loadShardIntoEngine(
   onLog?: (msg: string) => void
 ): Promise<string | null> {
   const log = (msg: string) => onLog?.(msg);
-  console.log("Loading shard:", fileName, 'from dir:', dir);
+  //console.log("Loading shard:", fileName, 'from dir:', dir);
 
   try {
     const db = await getSharedDuckDBEngine();

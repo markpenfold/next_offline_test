@@ -8,10 +8,10 @@ export function TimelineSlider() {
   const windowStartYear = useDATAStore((s) => s.windowStartYear);
   const setWindowStartYear = useDATAStore((s) => s.setWindowStartYear);
   
-  // 1. Bring in the toggle state
+  // Bring in the toggle state for geological time
   const isGeologicalTime = useDATAStore((s) => s.isGeologicalTime);
 
-  // 2. Calculate boundaries with the 50,000-year limit
+  // Calculate boundaries for full data set - 50,000-year limit
   const { minYear, maxYear, sliderMax } = useMemo(() => {
     if (!terrainData || terrainData.length === 0) {
       return { minYear: 0, maxYear: 0, sliderMax: 0 };
@@ -37,8 +37,8 @@ export function TimelineSlider() {
     if (windowStartYear === null) {
       setWindowStartYear(sliderMax);
     } else if (!isGeologicalTime && windowStartYear < minYear) {
-      // If user turns OFF geological time while in deep past, snap them to the oldest human limit
-      setWindowStartYear(minYear);
+      // If user turns OFF geological time while in deep past, snap them to 'now'
+      setWindowStartYear(sliderMax);
     }
   }, [
     terrainData, 

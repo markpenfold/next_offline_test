@@ -194,33 +194,29 @@ export async function getTSM(): Promise<TerrainYearStep[]> {
 /**
  * Fast client-side 1024-year slice generator (runs in < 0.5ms)
  */
-export function get1024WindowSlice(
-  fullTerrainData: TerrainYearStep[],
-  startYear: number,
-  categories: string[]
-): TerrainYearStep[] {
-  // Build lookup cache once or re-use
-  const yearMap = new Map<number, TerrainYearStep>();
-  for (let i = 0; i < fullTerrainData.length; i++) {
-    yearMap.set(Number(fullTerrainData[i][0]), fullTerrainData[i]);
-  }
-
-  // Pre-allocate empty padding template
-  const zeroCounts: number[] = new Array(categories.length).fill(0);
-  const emptyUuids = categories.map(() => []);
-
-  const windowSlice: TerrainYearStep[] = new Array(1024);
-
-  for (let i = 0; i < 1024; i++) {
-    const year = startYear + i;
-    const match = yearMap.get(year);
-    if (match) {
-      windowSlice[i] = match;
-    } else {
-      // Return zeroed structure for missing year
-      windowSlice[i] = [year, categories, zeroCounts, emptyUuids];
-    }
-  }
-
-  return windowSlice;
-}
+ export function get1024WindowSlice(
+   fullTerrainData: TerrainYearStep[],
+   startYear: number,
+   categories: string[]
+ ): TerrainYearStep[] {
+   // ... keep your existing get1024WindowSlice logic exact as is ...
+   const yearMap = new Map<number, TerrainYearStep>();
+   for (let i = 0; i < fullTerrainData.length; i++) {
+     yearMap.set(Number(fullTerrainData[i][0]), fullTerrainData[i]);
+   }
+ 
+   const zeroCounts: number[] = new Array(categories.length).fill(0);
+   const emptyUuids: string[][] = categories.map(() => []);
+   const windowSlice: TerrainYearStep[] = new Array(1024);
+ 
+   for (let i = 0; i < 1024; i++) {
+     const year = startYear + i;
+     const match = yearMap.get(year);
+     if (match) {
+       windowSlice[i] = match;
+     } else {
+       windowSlice[i] = [year, categories, zeroCounts, emptyUuids];
+     }
+   }
+   return windowSlice;
+ }

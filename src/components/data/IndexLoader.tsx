@@ -55,14 +55,16 @@ export function IndexLoader() {
   const handleToggleDataView = async (item: AvailableIndex) => {
     if (!activeAccount?.id) return;
 
-    const { fileName } = item;
+    const  fileName  = item.fileName;
+    //do we already have this item in the activeIndexes array?
     const isActive = activeDataViewIndexes.some((active) => active.fileName === fileName);
 
     setKeyLoading(fileName, true);
 
     try {
-      setTerrainReady(false); // 🔒 Lock the gate while updating terrain
+      setTerrainReady(false); // Lock the gate while updating terrain
 
+      // IF we DON'T have the index in the dataView already
       if (!isActive) {
         // --- ADD FLOW ---
         if (!downloadedIndexes.includes(fileName)) {
@@ -74,11 +76,10 @@ export function IndexLoader() {
           if (!success) throw new Error("Cloud download failed.");
           addDownloadedIndex(fileName); // Sync local disk state
         }
-
+        // Then add to data view
         await addToDataView(item, activeAccount.id);
       } else {
         // --- REMOVE FLOW ---
-        addLog(`🦆 Removing ${fileName} from terrain...`);
         await removeFromDataView(fileName, activeAccount.id);
       }
 
