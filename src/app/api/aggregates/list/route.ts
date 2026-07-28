@@ -76,17 +76,17 @@ export async function POST(req: NextRequest) {
       const rawKey = object.Key!;
       const parts = rawKey.split("/");
 
-      // Structure: ['free' | 'pro', 'category=<cat>', 'version=<v>', 'index.parquet']
+      // Structure: ['free' | 'pro', 'category=<cat>', 'version=<v>', 'data.parquet']
       const tierStr = parts[0];
       const tier = normalizeTier(tierStr);
 
       // Extract category (e.g. "category=music_albums" -> "music_albums")
-      const categoryPart = parts.find((p) => p.startsWith("category=")) || parts[1] || "";
-      const category = categoryPart.replace(/^category=/, "");
+      const categoryPart = parts.find((p) => p.startsWith("master_category=")) || parts[1] || "";
+      const category = categoryPart.replace(/^master_category=/, "");
 
       // Extract version (e.g. "version=v1" -> "v1")
-      const versionPart = parts.find((p) => p.startsWith("version=")) || parts[parts.length - 2] || "v1";
-      const version = versionPart.replace(/^version=/, "");
+      const versionPart = parts.find((p) => p.startsWith("v")) || parts[parts.length - 2] || "v1";
+      const version = versionPart;
 
       // Unique OPFS-friendly identifier
       const fileName = `index__${tier}__${category}__version__${version}.parquet`;

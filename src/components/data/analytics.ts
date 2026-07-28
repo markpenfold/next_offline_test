@@ -87,7 +87,7 @@ export async function setTerrainTable(loadedIndexes: string[]) {
   for (const fileName of loadedIndexes) {
     await loadShardIntoEngine('indexes', fileName);
   }
-  console.log("LOADED INDEXES In syncTerrainTable:", loadedIndexes);
+  console.log("LOADED INDEXES In setTerrainTable:", loadedIndexes);
 
   const parquetFiles = loadedIndexes.map(f => `'${f}'`).join(', ');
 
@@ -96,13 +96,13 @@ export async function setTerrainTable(loadedIndexes: string[]) {
       CREATE OR REPLACE TABLE master_terrain AS 
       SELECT 
           year, 
-          split_part(filename, '__', 2) AS tier,
-          left(split_part(filename, '__', 2), 1) || '_' || category AS category,
+          tier,
+          left(tier, 1) || '_' || master_category AS category,
           SUM(event_count) AS cat_count,
           MAX(highest_precision) AS cat_precision,
           flatten(list(uuids)) AS event_cat_uuids
-      FROM read_parquet([${parquetFiles}], filename=true)
-      GROUP BY year, category, tier
+      FROM read_parquet([${parquetFiles}])
+      GROUP BY year, master_category, tier
       ORDER BY year ASC, category ASC;
       `;
 
@@ -111,7 +111,7 @@ export async function setTerrainTable(loadedIndexes: string[]) {
     console.log("🟢 Master Terrain Table successfully compiled in DuckDB");
     
     // 2. 🔍 Preview top 5 rows in the console
-    const preview = await runQuery(`SELECT * FROM master_terrain LIMIT 5;`, true);
+    const preview = await runQuery(`SELECT * FROM master_terrain ORDER BY year DESC LIMIT 5;`, true);
 
     if (preview.data) {
       console.log("📊 master_terrain Preview (Top 5 Rows):");
@@ -167,6 +167,7 @@ export async function getTSM(): Promise<TerrainYearStep[]> {
 
     yearDataMap.get(year)!.set(category, { count, uuids: rowUuids });
   }
+  //console.log("ERE BE YEAR DATA MAP: ", yearDataMap);
 
   const sortedYears = Array.from(yearDataMap.keys()).sort((a, b) => a - b);
 
@@ -193,14 +194,21 @@ export async function getTSM(): Promise<TerrainYearStep[]> {
 
 /**
  * Fast client-side 1024-year slice generator (runs in < 0.5ms)
+ *export type TerrainYearStep = [
+   number,     // 0: Year
+   string[],   // 1: Categories
+   number[],   // 2: Counts
+   string[][]  // 3: UUIDs grouped by category
+ ];
  */
  export function get1024WindowSlice(
    fullTerrainData: TerrainYearStep[],
    startYear: number,
    categories: string[]
  ): TerrainYearStep[] {
-   // ... keep your existing get1024WindowSlice logic exact as is ...
-   const yearMap = new Map<number, TerrainYearStep>();
+
+
+  const yearMap = new Map<number, TerrainYearStep>();
    for (let i = 0; i < fullTerrainData.length; i++) {
      yearMap.set(Number(fullTerrainData[i][0]), fullTerrainData[i]);
    }
@@ -218,5 +226,6 @@ export async function getTSM(): Promise<TerrainYearStep[]> {
        windowSlice[i] = [year, categories, zeroCounts, emptyUuids];
      }
    }
+   console.log("windowslice windowslicewindowslicewindowslicewindowslice:", windowSlice.length)
    return windowSlice;
  }

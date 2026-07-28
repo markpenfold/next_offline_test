@@ -1,6 +1,6 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import {getSubdirectoryHandle, getLocalOPFSIndexes} from '@/components/data/diskOPFS'
-
+import { buildLocalIndexFileName } from "./cloudR2";
 
 
 // 🔒 THE CONCURRENCY LOCKS
@@ -119,16 +119,6 @@ export async function unloadShardFromEngine(
     return false;
   }
 }
-
-export function buildLocalIndexFileName(
-  tier: string,
-  category: string,
-  version: string = "v1"
-): string {
-  const cleanVersion = version || "v1";
-  return `index__${tier}__${category}__${cleanVersion}.parquet`;
-}
-
 
 export async function rebuildDataView(activeFiles: string[]): Promise<boolean> {
   try {

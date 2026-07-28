@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Construct the ONE and ONLY true R2 key
-    const targetKey = `${requestedTier}/category=${category}/version=${version}/index.parquet`;
+    const targetKey = `${requestedTier}/master_category=${category}/${version}/index.parquet`;
 
     console.log(`📡 Fetching R2 Object: "${targetKey}" from bucket "${BUCKET_NAME}"`);
 

@@ -52,6 +52,9 @@ export function IndexLoader() {
   const setTerrainReady = useDATAStore((s) => s.setTerrainReady);
   const setIsGeologicalTime = useDATAStore((s) => s.setIsGeologicalTime);
 
+  //console.log("downloadedIndexes in IndexLoader:", downloadedIndexes )
+
+
   const handleToggleDataView = async (item: AvailableIndex) => {
     if (!activeAccount?.id) return;
 
@@ -76,7 +79,8 @@ export function IndexLoader() {
           if (!success) throw new Error("Cloud download failed.");
           addDownloadedIndex(fileName); // Sync local disk state
         }
-        // Then add to data view
+        // Then add AvailableIndex to data view //////////////////
+        /// This holds all the necessary info on an index ////////
         await addToDataView(item, activeAccount.id);
       } else {
         // --- REMOVE FLOW ---
@@ -93,11 +97,6 @@ export function IndexLoader() {
 
       if (success) {
         setTerrainReady(true);
-        addLog(
-          isActive
-            ? `🟢 Cleared ${fileName} from active view.`
-            : `✅ Successfully integrated ${fileName}.`
-        );
       } else {
         setTerrainReady(false);
         throw new Error("Failed to compile terrain.");

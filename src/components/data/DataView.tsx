@@ -22,7 +22,7 @@ export function DataView() {
   const activeAccount = useAppStore((s) => s.activeAccount);
 
   // ---------------------------------------------------------------------------
-  // EFFECT 1: Update terrainData
+  // Update terrainData
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!activeAccount?.id || !activeDataViewIndexes) return;
@@ -42,6 +42,7 @@ export function DataView() {
       setLoading(true);
       try {
         const matrix = await getTSM();
+        console.log("TERRAIN MATRIX ABOUT TO BE SET WITH: ", matrix);
         setTerrainData(matrix); 
       } catch (err) {
         console.error("Failed to fetch terrain matrix:", err);
@@ -55,7 +56,6 @@ export function DataView() {
 
       }, [activeDataViewIndexes, isTerrainReady]);
 
-  
 
   // ---------------------------------------------------------------------------
   // RENDER UI (Stable layout)
@@ -63,31 +63,15 @@ export function DataView() {
   
   return (
     <div className="space-y-4 p-4 relative min-h-screen">
-      
-      {/* Loading Overlay: Shows on top while fetching, without unmounting the canvas */}
-      {loading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-lg">
-          <div className="text-white text-lg font-medium animate-pulse">
-            Loading terrain matrix...
-          </div>
-        </div>
-      )}
-
-
+   
       {/* Main Content Layout */}
       <div className={styles.container_split_1_3}>
         {/* IndexLoader is ALWAYS mounted so the user can interact with it */}
         <IndexLoader />
-        
-       
-           <MyCanvas />
-  
+        {/* Canvas holds the TerrainShaderTest */}
+        <MyCanvas />
       </div>
-      
-
         <TimelineSlider />
-    
-      
     </div>
   );
 }

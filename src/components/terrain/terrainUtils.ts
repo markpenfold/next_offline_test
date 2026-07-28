@@ -2,8 +2,50 @@
 
 import { Vector3 } from 'three';
 import { EventYear } from '@/lib/utils/terrain_types';
+import * as THREE from 'three';
+
+export function setupTerrainGeometry(geometry: THREE.BufferGeometry, numVertices: number) {
+  // Each attribute holds 4 slot components (x, y, z, w) per vertex
+  const createVec4Attribute = () =>
+    new THREE.BufferAttribute(new Float32Array(numVertices * 4).fill(0), 4);
+
+  geometry.setAttribute('bands0', createVec4Attribute()); // Slots 0, 1, 2, 3
+  geometry.setAttribute('bands1', createVec4Attribute()); // Slots 4, 5, 6, 7
+  geometry.setAttribute('bands2', createVec4Attribute()); // Slots 8, 9, 10, 11
+}
 
 
+
+/**
+ * Updates a single slot's float data inside the target THREE.BufferAttribute
+ * without re-uploading the other 2 vec4 attributes.
+ */
+export function syncSlotToGeometry(
+  geometry: THREE.BufferGeometry,
+  slotIndex: number,
+  slotBuffer: Float32Array
+) {
+  if (slotIndex < 0 || slotIndex >= 12) return;
+
+  // 1. Calculate which physical attribute and vec4 component to target
+  const attrIndex = Math.floor(slotIndex / 4); // 0 -> bands0, 1 -> bands1, 2 -> bands2
+  const compIndex = slotIndex % 4;             // 0 -> x, 1 -> y, 2 -> z, 3 -> w
+  const attrName = `bands${attrIndex}`;
+
+  const attribute = geometry.getAttribute(attrName) as THREE.BufferAttribute;
+  if (!attribute) return;
+
+  const array = attribute.array as Float32Array;
+  const numVertices = slotBuffer.length;
+
+  // 2. Overwrite ONLY the component (x, y, z, or w) belonging to this slot
+  for (let i = 0; i < numVertices; i++) {
+    array[i * 4 + compIndex] = slotBuffer[i];
+  }
+
+  // 3. Mark ONLY this attribute for GPU update!
+  attribute.needsUpdate = true;
+}
 
 /**
  * Convert 3D world position to grid cell index (0-1023)
