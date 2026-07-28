@@ -1,211 +1,118 @@
 import { create } from 'zustand';
 import { startOmenland } from '@/components/data/omenlandInit';
+import { hydrateSingleSlot, sliceWindow } from '@/components/data/dataHelpers';
 import {
   OmenlandInitPayload,
   OPFSFile,
   AvailableIndex,
-  TerrainYearStep,
+  ActiveDataViewIndex,
 } from '@/components/data/dataTypes';
 import {
   saveProject,
   loadProject,
   getSavedProjects,
 } from '@/components/data/diskOPFS';
-
-import {COLLECTION_COLORS_T6} from '@/lib/utils/col_constants'
-
-
-/* THIS IS THE PRIMARY RESOURCE /////////////////////////////////////////////////
-export interface AvailableIndex {
-  key:string;
-  fileName: string;
-  category:string;
-  tier: "free" | "pro"; 
-  cube: string;         
-  s3Key?: string;        
-  sizeBytes?: number;   
-  handle?: FileSystemFileHandle; 
-  version:string;
-}/////////////////////////////////////////////////////////////////////////////////
- */
-
+import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
 
 // ============================================================================
-// 1. 12-SLOT ARCHITECTURE DEFINITIONS
+// 1. HARDWARE SLOT DEFINITION
 // ============================================================================
 
 export interface Slot {
   id: number; // 0 to 11 (Maps 1:1 to GPU attribute slots)
-  fileName: string | null; // e.g., "war_events.parquet"
-  category: string | null; // Display category name (e.g., "War")
-  isActive: boolean; // Is this slot currently in use?
-  color: string; // Permanent hex color anchored to this slot index
+  fileName: string | null;
+  category: string | null;
+  isActive: boolean;
+  color: string;
+  terrainIndexData: Map<number, { count: number; uuids: string[] }> | null;
   buffer: Float32Array; // 1024-element float array sent to GPU attribute
-  uuidMap: Map<number, string[]>; // Year -> array of UUIDs for click/hover lookups
+  uuidMap: Map<number, string[]>;
 }
 
+export const createInitialSlots = (): Slot[] => {
+  return Array.from({ length: 12 }, function (_, i) {
+    return {
+      id: i,
+      fileName: null,
+      category: null,
+      isActive: false,
+      color: COLLECTION_COLORS_T6[i],
+      terrainIndexData: null,
+      buffer: new Float32Array(1024).fill(0),
+      uuidMap: new Map(),
+    };
+  });
+};
 
-
-// create 12 empty slots.
-export const createInitialSlots = (): Slot[] =>
-  Array.from({ length: 12 }, (_, i) => ({
-    id: i,
-    fileName: null,
-    category: null,
-    isActive: false,
-    color: COLLECTION_COLORS_T6[i],
-    buffer: new Float32Array(1024).fill(0),
-    uuidMap: new Map(),
-  }));
-
-export interface ActiveDataViewIndex {
-  fileName: string;
-  category: string;
-}
 
 // ============================================================================
 // 2. STORE INTERFACE
 // ============================================================================
 
 export interface DATAStore {
-  // Infrastructure States (Disk/Memory Cache)
+  // Infrastructure Registries
   availableIndexes: AvailableIndex[];
-  downloadedIndexes: string[]; // Files currently stored in OPFS
-  loadedIndexes: string[]; // Files currently mounted in DuckDB VFS
-  loadingKeys: string[]; // Keys actively downloading/mounting right now
+  downloadedIndexes: string[];
+  loadingKeys: string[];
 
-
-  // Active State (The Current Chart)
+  // Active Session State
   activeDataViewIndexes: ActiveDataViewIndex[];
-  terrainData: TerrainYearStep[] | null;
-  // 12-Slot Hardware Render Registry (GPU Bridge)
   slots: Slot[];
+
   // Global Time & Display Config
-  windowStartYear: number | null;
-  fullYearRange: [number, number] | null;
+  windowStartYear: number;
   isGeologicalTime: boolean;
 
-
-  // Project stuff 
+  // Project Session
   activeProjectName: string | null;
   localProjects: OPFSFile[];
 
-  // Core Engine Locks
+  // Locks
   isInitialized: boolean;
   isInitializing: boolean;
-  isTerrainReady: boolean;
 
+  // --- ACTIONS ---
 
+  /** Atomic action to push a new ActiveDataViewIndex object into session state */
+  addActiveDataViewIndex: (item: ActiveDataViewIndex) => void;
 
-  // --- STATE SETTERS ---
+  /** Atomic action to filter out an ActiveDataViewIndex object by fileName */
+  removeActiveDataViewIndex: (fileName: string) => void;
+  setWindowStartYear: (year: number, accountId?: string) => void;
   setIsGeologicalTime: (val: boolean, accountId?: string) => void;
-  setWindowStartYear: (year: number | null, accountId?: string) => void;
-  setFullYearRange: (range: [number, number] | null, accountId?: string) => void;
-  setActiveProjectName: (name: string | null, accountId?: string) => void;
-
-  // OPFS Disk Actions
-  setDownloadedIndexes: (keys: string[]) => void;
-  addDownloadedIndex: (key: string) => void;
-
-  // DuckDB VFS Actions
-  setLoadedIndexes: (keys: string[]) => void;
-  addLoadedIndex: (key: string) => void;
-  removeLoadedIndex: (key: string) => void;
-
-  // Loading Controller Actions
   setKeyLoading: (key: string, isLoading: boolean) => void;
 
-  // Analysis & Slot Actions
-  addToDataView: (item: ActiveDataViewIndex | AvailableIndex | string, accountId: string) => Promise<void>;
-  removeFromDataView: (fileName: string, accountId: string) => Promise<void>;
-  clearDataView: (accountId: string) => Promise<void>;
-  setDataView: (items: (ActiveDataViewIndex | string)[], accountId: string) => Promise<void>;
-
-  // Shader & Slot Helpers
-  updateSlotBuffer: (slotIndex: number, buffer: Float32Array, uuidMap?: Map<number, string[]>) => void;
-  swapSlots: (fromIndex: number, toIndex: number, accountId?: string) => void;
-  getSlotByFileName: (fileName: string) => Slot | undefined;
-  getSlotByCategory: (category: string) => Slot | undefined;
+  // Slot Actions
+addToSlot: (item: AvailableIndex, accountId?: string) => Promise<void>;
+clearSlot: (slotIndex: number, accountId?: string) => void;  clearAllSlots: (accountId?: string) => void;
+clearFileFromSlots: (target: string | AvailableIndex, accountId?: string) => void;
   getUUIDsForEvent: (slotIndex: number, year: number) => string[];
 
-  // Terrain Matrix Actions
-  setTerrainData: (data: TerrainYearStep[] | null) => void;
-
-  // Project Document Lifecycle Management
+  // Project Lifecycle
   createNewProject: (accountId: string) => Promise<void>;
   saveCurrentProjectAs: (projectName: string, accountId: string) => Promise<void>;
   loadNamedProject: (projectName: string, accountId: string) => Promise<void>;
-  loadSessionContext: (accountId: string) => Promise<void>;
   refreshLocalProjects: (accountId: string) => Promise<void>;
 
   // Bootloader
   initializeOmenland: (accountId: string) => Promise<void>;
-  setTerrainReady: (val: boolean) => void;
 }
 
 // ============================================================================
-// 3. HELPERS
+// 3. INTERNAL HELPERS
 // ============================================================================
 
-// guarantee a consistent, fully-populated { fileName, category } object (ActiveDataViewIndex)
-const normalizeActiveIndex = (
-  input: ActiveDataViewIndex | AvailableIndex | string,
-  availableIndexes: AvailableIndex[]
-): ActiveDataViewIndex => {
-  if (typeof input === 'string') {
-    const found = availableIndexes.find((a) => a.fileName === input || a.key === input);
-    return {
-      fileName: input,
-      category: found ? found.category : input,
-    };
-  }
 
-  return {
-    fileName: input.fileName,
-    category:
-      input.category ||
-      availableIndexes.find((a) => a.fileName === input.fileName)?.category ||
-      input.fileName,
-  };
-};
-
-
-// Syncs the 12-Slot registry into `activeDataViewIndexes` format for disk persistence.
-const deriveActiveIndexesFromSlots = (slots: Slot[]): ActiveDataViewIndex[] => {
-  return slots
-    .filter((s) => s.isActive && s.fileName)
-    .map((s) => ({ fileName: s.fileName!, category: s.category || s.fileName! }));
-};
-
-
-// Cues up the 12-Slots from active indexes.
-// These are then ready to have their buffers set
-const hydrateSlotsFromActiveIndexes = (
-  items: ActiveDataViewIndex[],
-  availableIndexes: AvailableIndex[]
-): Slot[] => {
-  const newSlots = createInitialSlots();
-  const normalized = items.map((item) => normalizeActiveIndex(item, availableIndexes));
-
-  normalized.slice(0, 12).forEach((item, index) => {
-    newSlots[index] = {
-      ...newSlots[index],
-      fileName: item.fileName,
-      category: item.category,
-      isActive: true,
-    };
-  });
-
-  return newSlots;
-};
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-function triggerAutoSave(accountId: string, getStore: () => DATAStore) {
+function triggerAutoSave(accountId: string | undefined, getStore: () => DATAStore) {
   if (!accountId) return;
 
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+  }
 
-  autoSaveTimer = setTimeout(async () => {
+  autoSaveTimer = setTimeout(async function () {
     const state = getStore();
 
     await saveProject(accountId, state.activeProjectName, {
@@ -213,388 +120,359 @@ function triggerAutoSave(accountId: string, getStore: () => DATAStore) {
       activeDataViewIndexes: state.activeDataViewIndexes,
       windowStartYear: state.windowStartYear,
       isGeologicalTime: state.isGeologicalTime,
-      fullYearRange: state.fullYearRange,
     });
 
-    console.log(`💾 Auto-saved working state to OPFS [${state.activeProjectName || 'session'}]`);
+    console.log(`💾 Auto-saved state to OPFS [${state.activeProjectName || 'session'}]`);
   }, 400);
 }
 
 // ============================================================================
-// 4. ZUSTAND STORE IMPLEMENTATION
+// 4. ZUSTAND STORE
 // ============================================================================
 
 export const useDATAStore = create<DATAStore>((set, get) => ({
   // --- INITIAL STATES ---
   availableIndexes: [],
   downloadedIndexes: [],
-  loadedIndexes: [],
   loadingKeys: [],
+
   activeDataViewIndexes: [],
+  slots: createInitialSlots(),
+
+  windowStartYear: 1000,
+  isGeologicalTime: false,
+
   activeProjectName: null,
   localProjects: [],
 
-  // 12-Slot Registry Initialization
-  slots: createInitialSlots(),
-  // Terrain Data State
-  terrainData: null,
-  windowStartYear: null,
-  isGeologicalTime: false,
-  fullYearRange: null,
-
-
   isInitialized: false,
   isInitializing: false,
-  isTerrainReady: false,
 
+  // update active view indexes
+  addActiveDataViewIndex: (item: ActiveDataViewIndex) => {
+  const current = get().activeDataViewIndexes;
+  // Prevent duplicates
+  if (current.some((x) => x.fileName === item.fileName)) return;
 
-  // --- CONFIG SETTERS W/ AUTO-SAVE ---
-  setIsGeologicalTime: (val, accountId) => {
+  set({
+    activeDataViewIndexes: [...current, item],
+  });
+},
+
+removeActiveDataViewIndex: (fileName: string) => {
+  set({
+    activeDataViewIndexes: get().activeDataViewIndexes.filter(
+      (item) => item.fileName !== fileName
+    ),
+  });
+},
+
+  // --- CONFIG SETTERS ---
+  setIsGeologicalTime: function (val, accountId) {
     set({ isGeologicalTime: val });
-    if (accountId) triggerAutoSave(accountId, get);
+    triggerAutoSave(accountId, get);
   },
 
-  setWindowStartYear: (year, accountId) => {
-    set({ windowStartYear: year });
-    if (accountId) triggerAutoSave(accountId, get);
-  },
-
-  setFullYearRange: (range, accountId) => {
-    set({ fullYearRange: range });
-    if (accountId) triggerAutoSave(accountId, get);
-  },
-
-  setActiveProjectName: (name, accountId) => {
-    set({ activeProjectName: name });
-    if (accountId) triggerAutoSave(accountId, get);
-  },
-
-
-
-
-  // --- OPFS DISK ACTIONS ---
-  setDownloadedIndexes: (indexes) => set({ downloadedIndexes: indexes }),
-
-  addDownloadedIndex: (newIndex) =>
-    set((state) => {
-      if (state.downloadedIndexes.includes(newIndex)) return state;
-      return { downloadedIndexes: [...state.downloadedIndexes, newIndex] };
-    }),
-
-  // --- DUCKDB / VFS ACTIONS ---
-  setLoadedIndexes: (indexes) => set({ loadedIndexes: indexes }),
-
-  addLoadedIndex: (newIndex) =>
-    set((state) => {
-      if (state.loadedIndexes.includes(newIndex)) return state;
-      return { loadedIndexes: [...state.loadedIndexes, newIndex] };
-    }),
-
-  removeLoadedIndex: (deleteIndex) =>
-    set((state) => ({
-      loadedIndexes: state.loadedIndexes.filter((idx) => idx !== deleteIndex),
-    })),
-
-  // --- LOADING CONTROLLER ---
-  setKeyLoading: (key, isLoading) =>
-    set((state) => ({
-      loadingKeys: isLoading
-        ? state.loadingKeys.includes(key)
-          ? state.loadingKeys
-          : [...state.loadingKeys, key]
-        : state.loadingKeys.filter((k) => k !== key),
-    })),
-
-
-
-
-
-  // --- WORKSPACE & SLOT SELECTION ACTIONS --- //
-  setDataView: async (items, accountId) => {
-    // so available holds all the data on all the indexes
-    const available = get().availableIndexes;
-    // normalized is an ActiveDataViewIndex { fileName, category }
-    const normalized = items.map((item) => normalizeActiveIndex(item, available));
-    // prepare for buffer injection
-    const newSlots = hydrateSlotsFromActiveIndexes(normalized, available);
-
-    set({
-      slots: newSlots,
-      activeDataViewIndexes: deriveActiveIndexesFromSlots(newSlots),
-    });
-
-    if (accountId) triggerAutoSave(accountId, get);
-  },
-
-  addToDataView: async (targetItem, accountId) => {
+  setWindowStartYear: function (year, accountId) {
     const currentSlots = get().slots;
-    const available = get().availableIndexes;
-    const normalizedItem = normalizeActiveIndex(targetItem, available);
+    const reSlicedSlots = [...currentSlots];
 
-    // 1. Check if item is already active in any slot
-    if (currentSlots.some((s) => s.isActive && s.fileName === normalizedItem.fileName)) {
-      return;
+    for (let i = 0; i < reSlicedSlots.length; i = i + 1) {
+      const slot = reSlicedSlots[i];
+      if (slot.isActive && slot.terrainIndexData) {
+        const slice = sliceWindow(slot.terrainIndexData, year);
+        reSlicedSlots[i] = {
+          ...slot,
+          buffer: slice.buffer,
+          uuidMap: slice.uuidMap,
+        };
+      }
     }
 
-    // 2. Find the first empty slot (0 to 11)
-    const freeSlotIndex = currentSlots.findIndex((s) => !s.isActive);
-    if (freeSlotIndex === -1) {
-      console.warn('All 12 terrain slots are full! Remove a timeline to add another.');
-      return;
-    }
-
-    // 3. Occupy the free slot without shifting existing ones
-    const updatedSlots = [...currentSlots];
-    updatedSlots[freeSlotIndex] = {
-      ...updatedSlots[freeSlotIndex],
-      fileName: normalizedItem.fileName,
-      category: normalizedItem.category,
-      isActive: true,
-      buffer: new Float32Array(1024).fill(0),
-      uuidMap: new Map(),
-    };
-
     set({
-      slots: updatedSlots,
-      activeDataViewIndexes: deriveActiveIndexesFromSlots(updatedSlots),
+      windowStartYear: year,
+      slots: reSlicedSlots,
     });
 
-    if (accountId) triggerAutoSave(accountId, get);
+    triggerAutoSave(accountId, get);
   },
 
-  removeFromDataView: async (fileName, accountId) => {
+  setKeyLoading: function (key, isLoading) {
+    const currentKeys = get().loadingKeys;
+    let nextKeys: string[] = [];
+
+    if (isLoading) {
+      if (currentKeys.includes(key)) {
+        nextKeys = currentKeys;
+      } else {
+        nextKeys = [...currentKeys, key];
+      }
+    } else {
+      nextKeys = currentKeys.filter(function (k) {
+        return k !== key;
+      });
+    }
+
+    set({ loadingKeys: nextKeys });
+  },
+
+  // --- SLOT ACTIONS ---
+  addToSlot: async function (item: AvailableIndex, accountId?: string) {
+  const currentSlots = get().slots;
+  const currentYear = get().windowStartYear;
+
+  // 1. Check if already mounted
+  const alreadyExists = currentSlots.some((slot) => slot.isActive && slot.fileName === item.fileName);
+  if (alreadyExists) return;
+
+  // 2. Find open hardware slot
+  const freeSlotIndex = currentSlots.findIndex((slot) => !slot.isActive);
+  if (freeSlotIndex === -1) {
+    console.warn('All 12 terrain slots are full!');
+    return;
+  }
+
+  // 3. Hydrate slot—passes item.category directly
+  const hydratedSlot = await hydrateSingleSlot(
+    item.fileName,
+    freeSlotIndex,
+    currentYear,
+    item.category
+  );
+
+  const updatedSlots = [...currentSlots];
+  updatedSlots[freeSlotIndex] = hydratedSlot;
+
+  set({ slots: updatedSlots });
+
+  // 4. Update activeDataViewIndexes directly with zero array searches
+  get().addActiveDataViewIndex({
+    fileName: item.fileName,
+    category: item.category,
+    tier: item.tier,
+  });
+
+  triggerAutoSave(accountId, get);
+},
+
+  clearSlot: function (slotIndex, accountId) {
+    if (slotIndex < 0 || slotIndex >= 12) return;
+
     const currentSlots = get().slots;
-    const slotIndex = currentSlots.findIndex((s) => s.isActive && s.fileName === fileName);
+    let slotty = currentSlots[slotIndex];
+    const indexKiller = slotty?.fileName;
 
-    if (slotIndex === -1) return;
-
-    // Clear the specific slot. DO NOT SHIFT array elements so GPU indices remain anchored!
+    // Only remove from active indexes if a file was actually loaded
+    if (indexKiller) {
+      get().removeActiveDataViewIndex(indexKiller);
+    }
     const updatedSlots = [...currentSlots];
+
     updatedSlots[slotIndex] = {
-      ...updatedSlots[slotIndex],
+      id: slotIndex,
       fileName: null,
       category: null,
       isActive: false,
+      color: COLLECTION_COLORS_T6[slotIndex],
+      terrainIndexData: null,
       buffer: new Float32Array(1024).fill(0),
       uuidMap: new Map(),
     };
+    
 
     set({
       slots: updatedSlots,
-      activeDataViewIndexes: deriveActiveIndexesFromSlots(updatedSlots),
+      
     });
 
-    if (accountId) triggerAutoSave(accountId, get);
+    triggerAutoSave(accountId, get);
   },
 
-  clearDataView: async (accountId) => {
+ clearFileFromSlots: function (target: string | AvailableIndex, accountId?: string) {
+  const fileName = typeof target === 'string' ? target : target.fileName;
+  const slots = get().slots;
+
+  const slotIndex = slots.findIndex((slot) => slot.fileName === fileName);
+  if (slotIndex !== -1) {
+    get().clearSlot(slotIndex, accountId);
+  }
+},
+
+  clearAllSlots: function (accountId) {
     set({
       slots: createInitialSlots(),
       activeDataViewIndexes: [],
-      terrainData: null,
     });
 
-    if (accountId) triggerAutoSave(accountId, get);
+    triggerAutoSave(accountId, get);
   },
 
-  // --- SHADER <--> SLOT HELPERS --- //
-  updateSlotBuffer: (slotIndex, buffer, uuidMap) => {
-    const slots = get().slots;
-    if (slotIndex < 0 || slotIndex >= 12) return;
+  
 
-    const updatedSlots = [...slots];
-    updatedSlots[slotIndex] = {
-      ...updatedSlots[slotIndex],
-      buffer,
-      ...(uuidMap && { uuidMap }),
-    };
-
-    set({ slots: updatedSlots });
-  },
-
-  swapSlots: (fromIndex, toIndex, accountId) => {
-    const slots = get().slots;
-    if (fromIndex < 0 || fromIndex >= 12 || toIndex < 0 || toIndex >= 12) return;
-
-    const updatedSlots = [...slots];
-    // Swap payloads while preserving slot.id (0..11) and slot.color alignment
-    const slotA = updatedSlots[fromIndex];
-    const slotB = updatedSlots[toIndex];
-
-    updatedSlots[fromIndex] = { ...slotB, id: fromIndex, color: COLLECTION_COLORS_T6[fromIndex] };
-    updatedSlots[toIndex] = { ...slotA, id: toIndex, color: COLLECTION_COLORS_T6[toIndex] };
-
-    set({
-      slots: updatedSlots,
-      activeDataViewIndexes: deriveActiveIndexesFromSlots(updatedSlots),
-    });
-
-    if (accountId) triggerAutoSave(accountId, get);
-  },
-
-  getSlotByFileName: (fileName) => {
-    return get().slots.find((s) => s.fileName === fileName);
-  },
-
-  getSlotByCategory: (category) => {
-    return get().slots.find((s) => s.category === category);
-  },
-
-  getUUIDsForEvent: (slotIndex, year) => {
+  getUUIDsForEvent: function (slotIndex, year) {
     const slot = get().slots[slotIndex];
     if (!slot || !slot.isActive) return [];
     return slot.uuidMap.get(year) || [];
   },
 
-  // --- TERRAIN MATRIX ACTIONS ---
-  setTerrainData: (data) => set({ terrainData: data }),
+  // --- PROJECT LIFECYCLE ---
 
-  // --- PROJECT DOCUMENT LIFECYCLE MANAGEMENT ---
-  createNewProject: async (accountId: string) => {
+  createNewProject: async function (accountId) {
     set({
       slots: createInitialSlots(),
       activeDataViewIndexes: [],
       activeProjectName: null,
-      terrainData: null,
-      windowStartYear: null,
+      windowStartYear: 1000,
     });
 
     if (accountId) {
       await saveProject(accountId, null, {
         activeProjectName: null,
         activeDataViewIndexes: [],
-        windowStartYear: null,
+        windowStartYear: 1000,
       });
     }
   },
 
-  saveCurrentProjectAs: async (projectName: string, accountId: string) => {
+  saveCurrentProjectAs: async function (projectName, accountId) {
     if (!accountId || !projectName.trim()) return;
 
     const state = get();
 
-    await saveProject(accountId, projectName, {
+    const projectPayload = {
       activeProjectName: projectName,
       activeDataViewIndexes: state.activeDataViewIndexes,
       windowStartYear: state.windowStartYear,
       isGeologicalTime: state.isGeologicalTime,
-      fullYearRange: state.fullYearRange,
-    });
+    };
+
+    await saveProject(accountId, projectName, projectPayload);
+    await saveProject(accountId, null, projectPayload);
 
     set({ activeProjectName: projectName });
-
-    await saveProject(accountId, null, {
-      activeProjectName: projectName,
-      activeDataViewIndexes: state.activeDataViewIndexes,
-      windowStartYear: state.windowStartYear,
-      isGeologicalTime: state.isGeologicalTime,
-      fullYearRange: state.fullYearRange,
-    });
-
     await get().refreshLocalProjects(accountId);
   },
 
-  loadNamedProject: async (projectName: string, accountId: string) => {
-    if (!accountId) return;
+  
+  
+  loadNamedProject: async function (projectName, accountId) {
+  if (!accountId) return;
 
-    const targetConfig = await loadProject(accountId, projectName);
+  const targetConfig = await loadProject(accountId, projectName);
+  if (!targetConfig) return;
 
-    if (targetConfig) {
-      const available = get().availableIndexes;
-      const rawActive = targetConfig.activeDataViewIndexes || [];
-      const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
-      const newSlots = hydrateSlotsFromActiveIndexes(normalizedActive, available);
+  const available = get().availableIndexes;
+  const rawActive = targetConfig.activeDataViewIndexes || [];
+  const targetYear = targetConfig.windowStartYear || 1000;
 
-      set({
-        slots: newSlots,
-        activeDataViewIndexes: normalizedActive,
-        activeProjectName: projectName,
-        ...(targetConfig.windowStartYear !== undefined && { windowStartYear: targetConfig.windowStartYear }),
-        ...(targetConfig.isGeologicalTime !== undefined && { isGeologicalTime: targetConfig.isGeologicalTime }),
-        ...(targetConfig.fullYearRange !== undefined && { fullYearRange: targetConfig.fullYearRange }),
-      });
-
-      await saveProject(accountId, null, {
-        activeProjectName: projectName,
-        activeDataViewIndexes: normalizedActive,
-        windowStartYear: targetConfig.windowStartYear ?? null,
-        isGeologicalTime: targetConfig.isGeologicalTime ?? false,
-        fullYearRange: targetConfig.fullYearRange ?? null,
-      });
+  // 1. Normalize rawActive to clean ActiveDataViewIndex[] objects
+  const activeObjects: ActiveDataViewIndex[] = rawActive.map((item: any) => {
+    if (typeof item === 'object' && item !== null && 'fileName' in item) {
+      return item;
     }
-  },
+    // Legacy string fallback (e.g. older session JSONs on disk)
+    const match = available.find((a) => a.fileName === item);
+    return {
+      fileName: item,
+      category: match?.category || match?.cube || 'unknown',
+      tier: match?.tier || 'free',
+    };
+  });
 
-  loadSessionContext: async (accountId: string) => {
-    if (!accountId) return;
+  // 2. Hydrate slots cleanly—pass activeObj.category as parameter 4
+  const newSlots = createInitialSlots();
+  for (let i = 0; i < Math.min(activeObjects.length, 12); i++) {
+    const activeObj = activeObjects[i];
 
-    const session = await loadProject(accountId, null);
-    if (!session) return;
+      newSlots[i] = await hydrateSingleSlot(
+      activeObj.fileName, // 1. string
+      i,                  // 2. slot index
+      targetYear,         // 3. window start year
+      activeObj.category, // 4. category display name (bypasses lookup inside hydrateSingleSlot!)
+      available           // 5. fallback catalog
+    );
+  }
 
-    const available = get().availableIndexes;
-    const rawActive = session.activeDataViewIndexes || [];
-    const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
-    const newSlots = hydrateSlotsFromActiveIndexes(normalizedActive, available);
+  // 3. Commit clean object array to store
+  set({
+    slots: newSlots,
+    activeDataViewIndexes: activeObjects,
+    activeProjectName: projectName,
+    windowStartYear: targetYear,
+    isGeologicalTime: targetConfig.isGeologicalTime || false,
+  });
+},
 
-    set({
-      slots: newSlots,
-      activeProjectName: session.activeProjectName || null,
-      activeDataViewIndexes: normalizedActive,
-      ...(session.windowStartYear !== undefined && { windowStartYear: session.windowStartYear }),
-      ...(session.isGeologicalTime !== undefined && { isGeologicalTime: session.isGeologicalTime }),
-      ...(session.fullYearRange !== undefined && { fullYearRange: session.fullYearRange }),
-    });
-  },
-
-  refreshLocalProjects: async (accountId: string) => {
+  refreshLocalProjects: async function (accountId) {
     if (!accountId) return;
     try {
       const entries = await getSavedProjects(accountId);
-
-      const updatedProjects: OPFSFile[] = entries.map((entry) => ({
-        name: entry.name,
-        handle: entry.handle,
-      }));
-
+      const updatedProjects: OPFSFile[] = entries.map(function (entry) {
+        return { name: entry.name, handle: entry.handle };
+      });
       set({ localProjects: updatedProjects });
     } catch (error) {
-      console.error(`Failed to refresh local projects for account ${accountId}:`, error);
+      console.error(`Failed to refresh local projects:`, error);
     }
   },
 
   // --- BOOTLOADER ---
-  initializeOmenland: async (accountId: string) => {
-    if (get().isInitializing || get().isInitialized) return;
 
-    set({ isInitializing: true });
+  initializeOmenland: async function (accountId) {
+  if (get().isInitializing || get().isInitialized) return;
 
-    try {
-      const setUpData: OmenlandInitPayload = await startOmenland(accountId);
-      const available = setUpData.availableIndexes || [];
-      const rawActive = setUpData.activeDataViewIndexes || [];
-      const normalizedActive = rawActive.map((item: any) => normalizeActiveIndex(item, available));
-      const initialSlots = hydrateSlotsFromActiveIndexes(normalizedActive, available);
+  set({ isInitializing: true });
 
-      set({
-        availableIndexes: available,
-        downloadedIndexes: setUpData.downloadedIndexes,
-        loadedIndexes: setUpData.loadedIndexes,
-        localProjects: setUpData.localProjects,
+  try {
+    const setUpData: OmenlandInitPayload = await startOmenland(accountId);
+    const available = setUpData.availableIndexes || [];
+    const rawActive = setUpData.activeDataViewIndexes || [];
+    const targetYear = setUpData.windowStartYear || 1000;
 
-        slots: initialSlots,
-        activeDataViewIndexes: normalizedActive,
-        activeProjectName: setUpData.activeProjectName ?? null,
-        windowStartYear: setUpData.windowStartYear ?? null,
-        isGeologicalTime: setUpData.isGeologicalTime ?? false,
-        fullYearRange: setUpData.fullYearRange ?? null,
+    // 1. Normalize rawActive into clean ActiveDataViewIndex[] objects upfront
+    const activeObjects: ActiveDataViewIndex[] = rawActive.map((item: any) => {
+      if (typeof item === 'object' && item !== null && 'fileName' in item) {
+        return item;
+      }
+      // Legacy string fallback for older session configs
+      const match = available.find((a) => a.fileName === item);
+      return {
+        fileName: item,
+        category: match?.category || match?.cube || 'unknown',
+        tier: match?.tier || 'free',
+      };
+    });
 
-        isInitialized: true,
-        isInitializing: false,
-      });
-    } catch (error) {
-      console.error('Critical failure during Omenland initialization:', error);
-      set({ isInitializing: false });
+    // 2. Hydrate slots cleanly—pass activeObj.category directly as parameter 4
+    const initialSlots = createInitialSlots();
+    for (let i = 0; i < Math.min(activeObjects.length, 12); i++) {
+      const activeObj = activeObjects[i];
+
+      initialSlots[i] = await hydrateSingleSlot(
+        activeObj.fileName, // 1. fileName (string)
+        i,                  // 2. slot index
+        targetYear,         // 3. window start year
+        activeObj.category, // 4. category (bypasses search in hydrateSingleSlot)
+        available           // 5. fallback catalog
+      );
     }
-  },
 
-  setTerrainReady: (val) => set({ isTerrainReady: val }),
+    // 3. Commit state with clean normalized activeDataViewIndexes
+    set({
+      availableIndexes: available,
+      downloadedIndexes: setUpData.downloadedIndexes,
+      localProjects: setUpData.localProjects,
+      slots: initialSlots,
+      activeDataViewIndexes: activeObjects,
+      activeProjectName: setUpData.activeProjectName || null,
+      windowStartYear: targetYear,
+      isGeologicalTime: setUpData.isGeologicalTime || false,
+      isInitialized: true,
+      isInitializing: false,
+    });
+  } catch (error) {
+    console.error('Critical failure during initialization:', error);
+    set({ isInitializing: false });
+  }
+},
 }));

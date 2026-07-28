@@ -4,7 +4,6 @@ import { useEffect, useMemo } from "react";
 import { useDATAStore } from "@/stores/useDataStore";
 
 export function TimelineSlider() {
-  const terrainData = useDATAStore((s) => s.terrainData);
   const windowStartYear = useDATAStore((s) => s.windowStartYear);
   const setWindowStartYear = useDATAStore((s) => s.setWindowStartYear);
   
@@ -28,11 +27,10 @@ export function TimelineSlider() {
     const sMax = Math.max(min, max - 1024);
     
     return { minYear: min, maxYear: max, sliderMax: sMax };
-  }, [terrainData, isGeologicalTime]);
+  }, [isGeologicalTime]);
 
   // 3. Initialize default window, or "rescue" the window if it falls out of bounds
   useEffect(() => {
-    if (!terrainData || terrainData.length === 0) return;
 
     if (windowStartYear === null) {
       setWindowStartYear(sliderMax);
@@ -41,7 +39,7 @@ export function TimelineSlider() {
       setWindowStartYear(sliderMax);
     }
   }, [
-    terrainData, 
+
     windowStartYear, 
     sliderMax, 
     minYear, 
@@ -49,7 +47,6 @@ export function TimelineSlider() {
     setWindowStartYear
   ]);
 
-  if (!terrainData || terrainData.length === 0) return null;
 
   const currentStart = windowStartYear ?? sliderMax;
   const currentEnd = currentStart + 1024;

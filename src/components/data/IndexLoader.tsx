@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { getMasterIndex } from "./cloudR2";
-import { AvailableIndex } from "./dataTypes";
+import { checkFileExists } from "./diskOPFS";
+import { AvailableIndex } from "@/components/data/dataTypes";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { useDATAStore } from "@/stores/useDataStore";
-import { setTerrainTable } from "./analytics";
 
 const white = "rgb(245,245,245)";
 const red = "rgb(162, 5, 5)";
 const blue = "rgb(65,105,225)";
-const green = "rgb(27, 99, 116)";
 
 // Helper: Formats category and version into clean title (e.g., "Music Albums V1")
 function formatIndexDisplayName(category = "", version = "v1"): string {
@@ -27,13 +26,13 @@ function formatIndexDisplayName(category = "", version = "v1"): string {
 }
 
 export function IndexLoader() {
-  // Local UI State (Debug Log Window)
+  // Local UI Debug Logs
   const [logs, setLogs] = useState<string[]>([]);
   const addLog = (message: string) => {
     setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
   };
 
-  // App Store Context
+  // App Store Context (Account Info)
   const activeAccount = useAppStore((s) => s.activeAccount);
 
   // Zustand State (Single Source of Truth)
@@ -44,137 +43,154 @@ export function IndexLoader() {
   const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
   const isGeologicalTime = useDATAStore((s) => s.isGeologicalTime);
 
-  // Zustand Actions
-  const addDownloadedIndex = useDATAStore((s) => s.addDownloadedIndex);
-  const addToDataView = useDATAStore((s) => s.addToDataView);
-  const removeFromDataView = useDATAStore((s) => s.removeFromDataView);
+  // Zustand Store Actions
   const setKeyLoading = useDATAStore((s) => s.setKeyLoading);
-  const setTerrainReady = useDATAStore((s) => s.setTerrainReady);
   const setIsGeologicalTime = useDATAStore((s) => s.setIsGeologicalTime);
-
-  //console.log("downloadedIndexes in IndexLoader:", downloadedIndexes )
-
-
+  const addToSlot = useDATAStore((s) => s.addToSlot);
+  const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
+  
+  /**
+   * Toggles an index shard: Checks local slot state -> OPFS disk cache -> Remote R2 download -> Slot Hydration
+   */
   const handleToggleDataView = async (item: AvailableIndex) => {
-    if (!activeAccount?.id) return;
+    const fileName = item.fileName;
+    
+    // Resolve active account ID (supports object or raw string ID)
+    const accountId = typeof activeAccount === "object" ? activeAccount?.id : activeAccount;
 
-    const  fileName  = item.fileName;
-    //do we already have this item in the activeIndexes array?
+    if (!accountId) {
+      addLog("❌ Action aborted: Active account context is missing.");
+      return;
+    }
+
+    // Guard 1: Prevent duplicate concurrent requests
+    if (loadingKeys.includes(fileName)) return;
+
     const isActive = activeDataViewIndexes.some((active) => active.fileName === fileName);
 
-    setKeyLoading(fileName, true);
-
     try {
-      setTerrainReady(false); // Lock the gate while updating terrain
+      setKeyLoading(fileName, true);
 
-      // IF we DON'T have the index in the dataView already
-      if (!isActive) {
-        // --- ADD FLOW ---
-        if (!downloadedIndexes.includes(fileName)) {
-          addLog(`☁️ Downloading ${fileName}...`);
-          const { success } = await getMasterIndex({
-            item,
-            accountId: activeAccount.id,
-          });
-          if (!success) throw new Error("Cloud download failed.");
-          addDownloadedIndex(fileName); // Sync local disk state
+      // ========================================================================
+      // 1. REMOVAL PATH: Index is already active in a hardware slot
+      // ========================================================================
+      if (isActive) {
+        addLog(`Removing ${fileName} from active slot...`);
+        await removeFromSlot(fileName);
+        addLog(`Successfully removed ${fileName}.`);
+        return;
+      }
+
+      // ========================================================================
+      // 2. CAPACITY GUARD: Prevent exceeding maximum hardware slots (e.g. 8)
+      // ========================================================================
+      const MAX_SLOTS = 8;
+      if (activeDataViewIndexes.length >= MAX_SLOTS) {
+        addLog(`⚠️ Maximum slot capacity reached (${MAX_SLOTS}). Remove a dataset first.`);
+        return;
+      }
+
+      // ========================================================================
+      // 3. CHECK LOCAL DISK (OPFS)
+      // ========================================================================
+      addLog(`Checking local OPFS cache for /indexes/${fileName}...`);
+      const existsOnDisk = await checkFileExists("indexes", fileName);
+
+      if (!existsOnDisk) {
+        // ======================================================================
+        // 4. FETCH FROM REMOTE R2 STORAGE
+        // ======================================================================
+        addLog(`📡 Cache Miss. Fetching master index from remote storage...`);
+        
+        const result = await getMasterIndex({
+          item,
+          accountId,
+        });
+
+        if (!result.success) {
+          throw new Error(`Failed to download ${fileName} from remote storage.`);
         }
-        // Then add AvailableIndex to data view //////////////////
-        /// This holds all the necessary info on an index ////////
-        await addToDataView(item, activeAccount.id);
+
+        console.log(`🟢 Downloaded and saved to OPFS: /indexes/${fileName}`);
       } else {
-        // --- REMOVE FLOW ---
-        await removeFromDataView(fileName, activeAccount.id);
+        addLog(`⚡ Local Cache Hit! Found /indexes/${fileName} on disk.`);
       }
 
-      // --- RECOMPILE DUCKDB TABLE ---
-      const activeFileNames = useDATAStore
-        .getState()
-        .activeDataViewIndexes.map((i) => i.fileName);
+      // ========================================================================
+      // 5. HYDRATE INTO HARDWARE SLOT & MEMORY
+      // ========================================================================
+      addLog(`Loading ${fileName} into execution slot...`);
+      await addToSlot(item);
+      addLog(`Successfully activated ${fileName}!`);
 
-      console.log(`🦆 Recompiling master_terrain...`);
-      const { success } = await setTerrainTable(activeFileNames);
-
-      if (success) {
-        setTerrainReady(true);
-      } else {
-        setTerrainReady(false);
-        throw new Error("Failed to compile terrain.");
-      }
     } catch (err: any) {
-      addLog(`❌ Action failed: ${err.message}`);
-
-      // Revert Zustand state on failure
-      if (!isActive) {
-        await removeFromDataView(fileName, activeAccount.id);
-      } else {
-        await addToDataView(item, activeAccount.id);
-      }
-      setTerrainReady(false);
+      console.error(`❌ Failed to toggle ${fileName}:`, err);
+      addLog(`❌ Error: ${err.message}`);
     } finally {
+      // Ensure loading flag is ALWAYS cleared
       setKeyLoading(fileName, false);
     }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column",  minWidth: "250px", margin: "0 auto", fontFamily: "sans-serif" }}>
-
-
-<div className="flex items-center gap-3 p-2">
-  <label className="text-sm text-gray-300 cursor-pointer flex items-center gap-2">
-    <input 
-      type="checkbox" 
-      checked={isGeologicalTime}
-      onChange={(e) => setIsGeologicalTime(e.target.checked)}
-      className="w-4 h-4 accent-green-500 bg-gray-800 border-gray-700 rounded"
-    />
-    Enable Deep Geological Time
-  </label>
-  <span className="text-xs text-gray-500">
-    {isGeologicalTime ? "(Full History)" : "(Limited to 50,000 years)"}
-  </span>
-</div>
-
+    <div style={{ display: "flex", flexDirection: "column", minWidth: "250px", margin: "0 auto", fontFamily: "sans-serif" }}>
+      
+      {/* GEOLOGICAL TIME TOGGLE */}
+      <div className="flex items-center gap-3 p-2">
+        <label className="text-sm text-gray-300 cursor-pointer flex items-center gap-2">
+          <input 
+            type="checkbox" 
+            checked={isGeologicalTime}
+            onChange={(e) => setIsGeologicalTime(e.target.checked)}
+            className="w-4 h-4 accent-green-500 bg-gray-800 border-gray-700 rounded"
+          />
+          Enable Deep Geological Time
+        </label>
+        <span className="text-xs text-gray-500">
+          {isGeologicalTime ? "(Full History)" : "(Limited to 50,000 years)"}
+        </span>
+      </div>
 
       {/* WINDOW 1: INDEX SHARD SELECTION PILLS */}
-      <div style={{ backgroundColor: blue,  color: white, height: "auto", maxHeight: "700px", display: "flex", flexDirection: "column" }}>
-        <div style={{ flexShrink: 0, marginBottom: "0.85rem" }}>
+      <div style={{ backgroundColor: blue, color: white, height: "auto", maxHeight: "700px", display: "flex", flexDirection: "column" }}>
+        <div style={{ flexShrink: 0, marginBottom: "0.85rem", padding: "8px 8px 0px 8px" }}>
           <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Select your histories</h2>
         </div>
 
         {isInitializing ? (
-          <p style={{ fontSize: "0.85rem", opacity: 0.7 }}>Starting Analytical Engine...</p>
+          <p style={{ fontSize: "0.85rem", opacity: 0.7, padding: "8px" }}>Starting Analytical Engine...</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1}}>
+          <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
             {availableIndexes.map((item) => {
-              const isDownloaded = downloadedIndexes.includes(item.fileName);
               const isActive = activeDataViewIndexes.some((active) => active.fileName === item.fileName);
               const isLoading = loadingKeys.includes(item.fileName);
               const displayName = formatIndexDisplayName(item.category, item.version);
 
               return (
-                <div key={item.fileName} style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  gap: "1px",
-                  alignItems: "center",
-                  background: isActive ? "rgba(181, 218, 195, 0.3)" : "rgba(0,0,0,0.2)",
-                  padding: "0px",
-                  fontSize: "0.6rem",
-                }}>
-
+                <div 
+                  key={item.fileName} 
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: "1px",
+                    alignItems: "center",
+                    background: isActive ? "rgba(181, 218, 195, 0.3)" : "rgba(0,0,0,0.2)",
+                    padding: "0px",
+                    fontSize: "0.6rem",
+                  }}
+                >
                   {/* LEFT: Tier Badge & Name */}
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden", whiteSpace: "nowrap" }}>
                     <span style={{
                       fontSize: "0.6rem",
                       background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)",
                       padding: "4px 6px",
-                      fontWeight: "light",
+                      fontWeight: "normal",
                       textTransform: "uppercase"
                     }}>
                       {item.tier ? item.tier.charAt(0) : "F"}
                     </span>
-                    <span style={{ paddingLeft:"4px", fontWeight: "100", fontSize: "0.6rem", textOverflow: "ellipsis", overflow: "hidden" }}>
+                    <span style={{ paddingLeft: "4px", fontWeight: "100", fontSize: "0.6rem", textOverflow: "ellipsis", overflow: "hidden" }}>
                       {displayName}
                     </span>
                   </div>
@@ -200,7 +216,6 @@ export function IndexLoader() {
                       {isLoading ? "Working..." : isActive ? "Remove" : "Add"}
                     </button>
                   </div>
-
                 </div>
               );
             })}
@@ -208,10 +223,12 @@ export function IndexLoader() {
         )}
       </div>
 
-      {/* WINDOW 2: LOGS 
-      <div style={{ background: "#111", color: "#0f0", padding: "12px", borderRadius: "8px", height: "150px", overflowY: "auto", fontSize: "0.75rem", fontFamily: "monospace" }}>
+      {/* WINDOW 2: DEBUG LOGS (Uncomment when debugging) */}
+      {/* 
+      <div style={{ background: "#111", color: "#0f0", padding: "12px", borderRadius: "8px", height: "150px", overflowY: "auto", fontSize: "0.75rem", fontFamily: "monospace", marginTop: "12px" }}>
         {logs.map((log, i) => <div key={i}>{log}</div>)}
-      </div>*/}
+      </div> 
+      */}
     </div>
   );
 }

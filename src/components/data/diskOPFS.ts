@@ -1,13 +1,15 @@
-import { AvailableIndex, OPFSDirectory, ProjectConfig } from "@/components/data/dataTypes"
+import { AvailableIndex, ProjectConfig } from "@/components/data/dataTypes";
+
+// ============================================================================
+// 1. CORE DIRECTORY & FILE PRIMITIVES
+// ============================================================================
 
 /**
- * Get or create a specific directory or deeply nested subdirectory handle in OPFS
- * Supports single folders ("indexes") or relative paths ("savedProjects/acc_123")
+ * Get or create a specific directory path in OPFS.
+ * Supports relative paths like "savedProjects/acc_123"
  */
 export async function getDirectory(dirName: string): Promise<FileSystemDirectoryHandle> {
   let currentHandle = await navigator.storage.getDirectory();
-  
-  // Strip leading/trailing slashes and split path into segments
   const segments = dirName.split("/").filter((s) => s.length > 0);
 
   for (const segment of segments) {
@@ -18,8 +20,63 @@ export async function getDirectory(dirName: string): Promise<FileSystemDirectory
 }
 
 /**
- * Save data into a specific OPFS directory or nested path tracking block
- * Encapsulates the Atomic Transaction Abort sequence to protect against file corruption
+ * Checks if a specific file exists within an OPFS directory
+ */
+export async function checkFileExists(dirName: string, fileName: string): Promise<boolean> {
+  try {
+    const dirHandle = await getDirectory(dirName);
+    await dirHandle.getFileHandle(fileName, { create: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches a single FileSystemFileHandle for DuckDB VFS mounting
+ */
+export async function getOPFSFileHandle(
+  dirName: string, 
+  fileName: string
+): Promise<FileSystemFileHandle | null> {
+  try {
+    const dirHandle = await getDirectory(dirName);
+    return await dirHandle.getFileHandle(fileName, { create: false });
+  } catch (err) {
+    console.error(`❌ Could not find file handle for /${dirName}/${fileName}:`, err);
+    return null;
+  }
+}
+
+/**
+ * Returns all (name + file handle) entries in a specified OPFS folder
+ */
+export async function getOPFSEntries(
+  dirName: string
+): Promise<Array<{ name: string; handle: FileSystemFileHandle }>> {
+  try {
+    const dirHandle = await getDirectory(dirName);
+    const entries: Array<{ name: string; handle: FileSystemFileHandle }> = [];
+
+    const entriesIterator = dirHandle.entries() as AsyncIterable<[string, FileSystemHandle]>;
+    for await (const [name, handle] of entriesIterator) {
+      if (handle.kind === "file") {
+        entries.push({ name, handle: handle as FileSystemFileHandle });
+      }
+    }
+
+    return entries;
+  } catch (err) {
+    return [];
+  }
+}
+
+// ============================================================================
+// 2. READ / WRITE / DELETE ACTIONS
+// ============================================================================
+
+/**
+ * Atomic write into an OPFS folder (uses transaction abort protection)
  */
 export async function saveToOPFSFolder(
   dirName: string, 
@@ -32,37 +89,24 @@ export async function saveToOPFSFolder(
     const dirHandle = await getDirectory(dirName);
     const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
     
-    // 1. Acquire Lock
     writable = await fileHandle.createWritable();
-    
-    // 2. Write Data
     await writable.write(data);
-    
-    // 3. Commit & Defuse Lock
     await writable.close();
     writable = null; 
 
     console.log(`💾 Saved to OPFS: /${dirName}/${fileName}`);
     return `${dirName}/${fileName}`;
-    
   } catch (err) {
     console.error(`❌ OPFS Write Error [/${dirName}/${fileName}]:`, err);
-    
-    // 4. Abort Transaction on Failure
     if (writable) {
-      try {
-        await writable.abort();
-      } catch (abortErr) {
-        console.error(`🚨 Fatal: Failed to abort writable stream [/${dirName}/${fileName}]:`, abortErr);
-      }
+      try { await writable.abort(); } catch {}
     }
-    
     throw err; 
   }
 }
 
 /**
- * Universal Reader primitive leveraging stable file snapshots
+ * Reads text or binary buffers from OPFS
  */
 export async function readFromOPFSFolder(
   dirName: string,
@@ -81,86 +125,33 @@ export async function readFromOPFSFolder(
   }
 }
 
-/**
- * List all filenames currently stored inside a specific OPFS folder
- */
-export async function listOPFSFolder(dirName: string): Promise<Set<string>> {
+export async function deleteOPFSFile(dirName: string, fileName: string): Promise<boolean> {
   try {
     const dirHandle = await getDirectory(dirName);
-    const files = new Set<string>();
-
-    const keysIterator = dirHandle.keys() as AsyncIterable<string>;
-    for await (const name of keysIterator) {
-      files.add(name);
-    }
-    return files;
-  } catch (err) {
-    return new Set(); // Folder doesn't exist yet or is empty
-  }
-}
-
-/**
- * Returns a set of filenames found in the given directory mapping
- */
-export async function getLocalCacheManifest(dirName: "indexes" | "data" = "data"): Promise<Set<string>> {
-  try {
-    const entries = await getOPFSEntries(dirName);
-    const existingFiles = new Set<string>();
-    
-    for (const entry of entries) {
-      existingFiles.add(entry.name);
-    }
-    
-    console.log(`📂 Get local cache manifest for /${dirName} ->`, existingFiles);
-    return existingFiles;
-  } catch (err) {
-    console.error(`❌ Failed to read OPFS directory maps for /${dirName}:`, err);
-    return new Set();
-  }
-}
-
-/**
- * Returns all (name + file handle) in a specified OPFS folder path cleanly
- */
-export async function getOPFSEntries(dirName: string): Promise<Array<{ name: string; handle: FileSystemFileHandle }>> {
-  try {
-    const dirHandle = await getDirectory(dirName);
-    const entries: Array<{ name: string; handle: FileSystemFileHandle }> = [];
-
-    const entriesIterator = dirHandle.entries() as AsyncIterable<[string, FileSystemHandle]>;
-    for await (const [name, handle] of entriesIterator) {
-      if (handle.kind === "file") {
-        entries.push({ name, handle: handle as FileSystemFileHandle });
-      }
-    }
-
-    return entries;
-  } catch (err) {
-    return [];
-  }
-} 
-
-/**
- * Checks if a specific file exists within an OPFS subdirectory path
- */
-export async function checkFileExists(dirName: string, fileName: string): Promise<boolean> {
-  try {
-    const dirHandle = await getDirectory(dirName);
-    await dirHandle.getFileHandle(fileName, { create: false });
+    await dirHandle.removeEntry(fileName);
+    console.log(`🗑️ Deleted: /${dirName}/${fileName}`);
     return true;
-  } catch {
+  } catch (err) {
+    console.warn(`Could not delete /${dirName}/${fileName}`, err);
+    return false;
+  }
+}
+
+export async function wipeOPFSFolder(dirName: string): Promise<boolean> {
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry(dirName, { recursive: true });
+    await getDirectory(dirName);
+    console.log(`🧹 OPFS directory /${dirName} wiped clean!`);
+    return true;
+  } catch (err) {
     return false;
   }
 }
 
 /**
- * Deep-path traversal navigation tool preserved for explicit handling continuity
+ * Scans local OPFS index files, extracting schemas for initialization
  */
-export async function getSubdirectoryHandle(dirPath: string): Promise<FileSystemDirectoryHandle> {
-  return getDirectory(dirPath);
-}
-
-// Scans local OPFS index files, extracting schemas and assembling valid analytical shards
 export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promise<AvailableIndex[]> {
   const log = (msg: string) => onLog?.(msg);
   const foundIndexes: AvailableIndex[] = [];
@@ -183,7 +174,7 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
           fileName: name,
           tier,
           cube,
-          category: cube, // 👈 Added: Ensures 'category' exists on AvailableIndex
+          category: cube,
           version,
           sizeBytes: file.size,
           handle,
@@ -199,55 +190,16 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
     return [];
   }
 }
-// Safely removes an entry target from an explicit storage path
-export async function deleteOPFSFile(dirName: string, fileName: string): Promise<boolean> {
-  try {
-    const dirHandle = await getDirectory(dirName);
-    await dirHandle.removeEntry(fileName);
-    console.log(`🗑️ Deleted: /${dirName}/${fileName}`);
-    return true;
-  } catch (err) {
-    console.warn(`Could not delete /${dirName}/${fileName}`, err);
-    return false;
-  }
-}
-
-
-// Purges and cleanly reinstantiates a specific tracking folder path
-export async function wipeOPFSFolder(dirName: string): Promise<boolean> {
-  try {
-    const root = await navigator.storage.getDirectory();
-    await root.removeEntry(dirName, { recursive: true });
-    
-    // Instantly preserve future write operations by generating an empty node context
-    await getDirectory(dirName);
-    
-    console.log(`🧹 OPFS directory /${dirName} wiped clean!`);
-    return true;
-  } catch (err) {
-    console.log(`Directory /${dirName} was already empty or didn't exist.`);
-    return false;
-  }
-}
 
 // ============================================================================
-// PROJECT & SESSION UNIFIED MANAGEMENT
+// 3. PROJECT & SESSION PERSISTENCE
 // ============================================================================
 
-/**
- * Standardizes filename resolution:
- * null | undefined | "session" -> "session.json"
- * "myProject" -> "myProject.json"
- */
 function resolveProjectFileName(projectName?: string | null): string {
   if (!projectName || projectName === "session") return "session.json";
   return projectName.endsWith(".json") ? projectName : `${projectName}.json`;
 }
 
-/** 
- * Loads a project layout or the runtime session context.
- * Defaults to 'session.json' if projectName is omitted or null.
- */
 export async function loadProject(
   accountId: string, 
   projectName?: string | null
@@ -266,11 +218,7 @@ export async function loadProject(
     return null;
   }
 }
-/** 
- * Saves or updates a project layout or the default session state.
- * Supports partial updates—merges new properties with existing disk state.
- * Defaults to 'session.json' if projectName is omitted or null.
- */
+
 export async function saveProject(
   accountId: string, 
   projectName: string | null | undefined, 
@@ -280,10 +228,7 @@ export async function saveProject(
   const dirPath = `savedProjects/${accountId}`;
 
   try {
-    // 1. Fetch existing state from disk if present to support partial updates
     const existing = (await loadProject(accountId, projectName)) || {};
-
-    // 2. Merge current disk data with new incoming patch
     const updatedConfig = {
       ...existing,
       ...patch,
@@ -299,9 +244,7 @@ export async function saveProject(
     return false;
   }
 }
-/**
- * Returns saved user project files for an account (excludes transient session.json)
- */
+
 export async function getSavedProjects(
   accountId: string
 ): Promise<Array<{ name: string; handle: FileSystemFileHandle }>> {
@@ -309,7 +252,6 @@ export async function getSavedProjects(
     const dirPath = `savedProjects/${accountId}`;
     const entries = await getOPFSEntries(dirPath);
 
-    // Isolate saved user configs while ignoring the auto-saved session file
     return entries.filter(
       ({ name }) => name.endsWith(".json") && name !== "session.json"
     );

@@ -1,14 +1,13 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
-import {getSubdirectoryHandle, getLocalOPFSIndexes} from '@/components/data/diskOPFS'
-import { buildLocalIndexFileName } from "./cloudR2";
-
+import { getOPFSFileHandle } from "@/components/data/diskOPFS";
 
 // 🔒 THE CONCURRENCY LOCKS
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
-let isIndexLoading = false;
 
-/*** Coalesces concurrent boot requests into a single shared execution thread.*/
+/**
+ * Coalesces concurrent boot requests into a single shared execution thread.
+ */
 export async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
   if (dbInstance) return dbInstance;
   if (initPromise) return initPromise;
@@ -52,11 +51,9 @@ export async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
       dbInstance = db;
       return db;
     } catch (error) {
-      // Clear initPromise on error so future calls can retry
       initPromise = null;
       throw error;
     } finally {
-      // Safely revoke Blob URL only after instantiation finishes
       if (blobURL) {
         URL.revokeObjectURL(blobURL);
       }
@@ -66,24 +63,29 @@ export async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
   return initPromise;
 }
 
+/**
+ * Mounts an OPFS Parquet file handle directly into DuckDB's virtual filesystem (VFS)
+ */
 export async function loadShardIntoEngine(
   dir: string,
   fileName: string,
-  fileHandle?: FileSystemFileHandle, // ✨ New optional parameter
+  fileHandle?: FileSystemFileHandle,
   onLog?: (msg: string) => void
 ): Promise<string | null> {
   const log = (msg: string) => onLog?.(msg);
-  //console.log("Loading shard:", fileName, 'from dir:', dir);
 
   try {
     const db = await getSharedDuckDBEngine();
     
     let handleToMount = fileHandle;
 
-    // Fallback: If no handle was provided, do the manual disk lookup
+    // Fallback: Fetch file handle from disk using updated diskOPFS helper
     if (!handleToMount) {
-      const dirHandle = await getSubdirectoryHandle(dir);
-      handleToMount = await dirHandle.getFileHandle(fileName);
+      handleToMount = (await getOPFSFileHandle(dir, fileName)) || undefined;
+    }
+
+    if (!handleToMount) {
+      throw new Error(`Could not locate handle for /${dir}/${fileName}`);
     }
 
     // Extract the raw File object from the handle
@@ -106,6 +108,9 @@ export async function loadShardIntoEngine(
   }
 }
 
+/**
+ * Drops a mounted file handle from DuckDB's VFS to free up worker memory
+ */
 export async function unloadShardFromEngine(
   fileName: string,
   onLog?: (msg: string) => void
@@ -120,23 +125,23 @@ export async function unloadShardFromEngine(
   }
 }
 
+/**
+ * Rebuilds the unified DuckDB SQL view `currentDataView` across all active files
+ */
 export async function rebuildDataView(activeFiles: string[]): Promise<boolean> {
   try {
     const db = await getSharedDuckDBEngine();
     const conn = await db.connect();
 
-    // If the user removed everything, drop the view and exit
     if (activeFiles.length === 0) {
       await conn.query(`DROP VIEW IF EXISTS currentDataView;`);
       await conn.close();
       return true;
     }
 
-    // Build the SQL: SELECT * FROM 'file1.parquet' UNION ALL SELECT * FROM 'file2.parquet'
     const selectStatements = activeFiles.map(fileName => `SELECT * FROM '${fileName}'`);
     const unionQuery = selectStatements.join('\nUNION ALL\n');
 
-    // CREATE OR REPLACE VIEW instantly updates the pointer
     await conn.query(`CREATE OR REPLACE VIEW currentDataView AS \n${unionQuery}`);
     
     await conn.close();

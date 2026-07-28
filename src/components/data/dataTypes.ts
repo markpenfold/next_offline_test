@@ -66,7 +66,6 @@ export type TerrainTuple = [
 export interface OmenlandInitPayload {
   availableIndexes: AvailableIndex[];
   downloadedIndexes: string[];
-  loadedIndexes: string[];
   localProjects: Array<{ name: string; handle: FileSystemFileHandle }>;
   activeDataViewIndexes: ActiveDataViewIndex[];
   activeProjectName: string | null;
@@ -115,5 +114,6 @@ export type TerrainYearStep = [
 export interface ActiveDataViewIndex {
   fileName: string;
   category: string;
+  tier: string;
 }
 

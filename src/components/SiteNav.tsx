@@ -60,7 +60,7 @@ function AuthenticatedSiteNav() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
 
-  console.log("HAS AVATAR in sitenav?", profile?.has_avatar)
+  //console.log("HAS AVATAR in sitenav?", profile?.has_avatar)
   const getInitials = () => {
       const identifier = profile?.username || profile?.email || 'OL'
       return identifier
