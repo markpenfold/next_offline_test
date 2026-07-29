@@ -6,47 +6,41 @@ import { useDATAStore } from "@/stores/useDataStore";
 export function TimelineSlider() {
   const windowStartYear = useDATAStore((s) => s.windowStartYear);
   const setWindowStartYear = useDATAStore((s) => s.setWindowStartYear);
-  
-  // Bring in the toggle state for geological time
   const isGeologicalTime = useDATAStore((s) => s.isGeologicalTime);
+  
+  // 1. Hook directly into the derived totalYearSpan from our Zustand store
+  const totalYearSpan = useDATAStore((s) => s.totalYearSpan);
 
-  // Calculate boundaries for full data set - 50,000-year limit
+  // 2. Calculate boundaries for full dataset
   const { minYear, maxYear, sliderMax } = useMemo(() => {
-    if (!terrainData || terrainData.length === 0) {
-      return { minYear: 0, maxYear: 0, sliderMax: 0 };
-    }
-    
-    const absoluteMin = Number(terrainData[0][0]);
-    const max = Number(terrainData[terrainData.length - 1][0]);
-    
-    // The 50k cutoff limit
+    const [absoluteMin, max] = totalYearSpan || [1000, 2024];
+
+    // The 50k cutoff limit for human era
     const humanEraMin = max - 50000;
-    
+
     // Determine the effective minimum based on the toggle
-    const min = isGeologicalTime ? absoluteMin : Math.max(absoluteMin, humanEraMin);
+    const min = isGeologicalTime
+      ? absoluteMin
+      : Math.max(absoluteMin, humanEraMin);
+
+    // Ensure sliderMax doesn't fall below min if total dataset span is under 1024 years
     const sMax = Math.max(min, max - 1024);
-    
+
     return { minYear: min, maxYear: max, sliderMax: sMax };
-  }, [isGeologicalTime]);
+  }, [totalYearSpan, isGeologicalTime]);
 
-  // 3. Initialize default window, or "rescue" the window if it falls out of bounds
+  // 3. Keep windowStartYear safely clamped within bounds whenever data or mode changes
   useEffect(() => {
-
     if (windowStartYear === null) {
       setWindowStartYear(sliderMax);
-    } else if (!isGeologicalTime && windowStartYear < minYear) {
-      // If user turns OFF geological time while in deep past, snap them to 'now'
+    } else if (windowStartYear < minYear) {
+      // Snap to minYear if user turns OFF geological time while in deep past
+      setWindowStartYear(minYear);
+    } else if (windowStartYear > sliderMax) {
+      // Prevent overshooting when slots change
       setWindowStartYear(sliderMax);
     }
-  }, [
-
-    windowStartYear, 
-    sliderMax, 
-    minYear, 
-    isGeologicalTime, 
-    setWindowStartYear
-  ]);
-
+  }, [windowStartYear, sliderMax, minYear, setWindowStartYear]);
 
   const currentStart = windowStartYear ?? sliderMax;
   const currentEnd = currentStart + 1024;
@@ -60,7 +54,7 @@ export function TimelineSlider() {
         </span>
         <span className="text-gray-500">Max: {maxYear}</span>
       </div>
-      
+
       <input
         type="range"
         min={minYear}

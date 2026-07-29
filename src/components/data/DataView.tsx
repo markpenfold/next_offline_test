@@ -29,7 +29,7 @@ export function DataView() {
         {/* Canvas holds the TerrainShaderTest */}
         <MyCanvas />
       </div>
-       {/*  <TimelineSlider />*/}
+         <TimelineSlider />
     </div>
   );
 }

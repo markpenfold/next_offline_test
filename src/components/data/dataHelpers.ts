@@ -134,55 +134,80 @@ export async function loadSlotIndexData(
   return indexMap;
 }
 
+export interface HydrationResult {
+  slot: Slot;
+  resolvedWindowStartYear: number;
+}
 
-// Hydrates a single target slot given a file name, assigned slot index, 
-// and the current window start year.
 export async function hydrateSingleSlot(
   fileName: string,
   slotIndex: number,
-  windowStartYear: number,
-  categoryName?: string | null,
-  availableIndexes?: AvailableIndex[]
-): Promise<Slot> {
-
-  // 1. Resolve category display name
-  let resolvedCategory: string = categoryName || '';
-
-  if (!resolvedCategory && availableIndexes) {
-    const matchedIndex = availableIndexes.find(function (item: AvailableIndex) {
-      return item.fileName === fileName;
-    });
-
-    if (matchedIndex) {
-      resolvedCategory = matchedIndex.category;
-    }
+  windowStartYear: number | null,
+  category: string
+): Promise<HydrationResult> {
+  // Guard 1: Metadata integrity check
+  if (!category) {
+    throw new Error(
+      `[hydrateSingleSlot] Failed slot ${slotIndex}: Missing required category for dataset '${fileName}'.`
+    );
   }
 
-  // Fallback to filename if no category metadata was found
-  if (!resolvedCategory) {
-    resolvedCategory = fileName;
-  }
-
-  // 2. Load the full timeline Map directly from the OPFS Parquet file via DuckDB
+  // 1. Load the full timeline Map directly from the OPFS Parquet file via DuckDB
   const terrainIndexData = await loadSlotIndexData(fileName);
 
-  // 3. Generate the 1024-year Float32Array buffer and uuidMap for this window
-  const windowSlice = sliceWindow(terrainIndexData, windowStartYear);
+  // Guard 2: Dataset integrity check
+  if (!terrainIndexData || terrainIndexData.size === 0) {
+    throw new Error(
+      `[hydrateSingleSlot] Failed slot ${slotIndex}: Parquet dataset '${fileName}' contains no temporal data.`
+    );
+  }
 
-  // 4. Resolve hex color assigned to this slot index
-  const slotColor: string = COLLECTION_COLORS_T6[slotIndex] || '#ffffff';
+  // 2. Extract min/max directly from pre-sorted Map keys
+  const years = Array.from(terrainIndexData.keys());
+  const minYear = years[0];
+  const maxYear = years[years.length - 1];
 
-  // 5. Build and return the fully populated Slot object explicitly
-  const hydratedSlot: Slot = {
+  // 3. Resolve start year (bootstraps to minYear on first run when store year is null)
+  const resolvedYear = windowStartYear ?? minYear;
+
+  // 4. Generate the 1024-year Float32Array buffer and uuidMap
+  const windowSlice = sliceWindow(terrainIndexData, resolvedYear);
+
+  // 5. Build and return explicit Slot object + resolved window year
+  const slot: Slot = {
     id: slotIndex,
-    fileName: fileName,
-    category: resolvedCategory,
+    fileName,
+    category,
     isActive: true,
-    color: slotColor,
-    terrainIndexData: terrainIndexData,
+    color: COLLECTION_COLORS_T6[slotIndex] || '#ffffff',
+    terrainIndexData,
     buffer: windowSlice.buffer,
     uuidMap: windowSlice.uuidMap,
+    minYear,
+    maxYear,
   };
 
-  return hydratedSlot;
+  return { slot, resolvedWindowStartYear: resolvedYear };
 }
+
+
+export function deriveTotalYearSpan(
+  slots: Slot[],
+  defaultSpan: [number, number] = [1000, 2024]
+): [number, number] {
+  // Filter for active slots that have valid min/max year bounds
+  const activeSlots = slots.filter(
+    (s) => s.isActive && s.minYear !== undefined && s.maxYear !== undefined
+  );
+
+  if (activeSlots.length === 0) return defaultSpan;
+
+  const min = Math.min(...activeSlots.map((s) => s.minYear!));
+  const max = Math.max(...activeSlots.map((s) => s.maxYear!));
+
+  return [min, max];
+}
+
+
+
+

@@ -94,9 +94,6 @@ export interface ProjectConfig {
   /** Starting year anchor for the active 1,024-year WebGPU viewing window */
   windowStartYear?: number | null;
 
-  /** Minimum and maximum year boundaries found across the active dataset [minYear, maxYear] */
-  fullYearRange?: [startYear: number, endYear: number] | null;
-
   /** Toggle state for deep geological time vs. the 50,000-year human era limit */
   isGeologicalTime?: boolean;
 
