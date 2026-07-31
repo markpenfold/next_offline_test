@@ -17,8 +17,6 @@ export function logScaleHeights(heightArray, scale = 15) {
   return out;
 }
 
-
-
 export function getHeightArray(splines, curve_points){
     const heightArray = new Array(curve_points * curve_points);
     
@@ -40,7 +38,6 @@ export function getHeightArray(splines, curve_points){
     return heightArray;
 }
 
-
 export function handleCurves(curveArray, curve_points, dimension){
     var heightArray2 = new Array();
     for(let a=0; a<curveArray.length; a++){
@@ -52,7 +49,6 @@ export function handleCurves(curveArray, curve_points, dimension){
     //console.log("points:", heightArray2.length);
     return heightArray2;
 }
-
 
 //generate array of splines from h_matrix of vec2s
 export function get_x_splines(hMap){
@@ -109,7 +105,6 @@ export function getSmoothArray(hmap, curve_points) {
     return hArray;
 }
 
-
 export function heightArrayToSmoothMatrix(heightArray) {
     //console.log('height array:', heightArray);
     const gridSize = Math.sqrt(heightArray.length);
@@ -129,10 +124,8 @@ export function heightArrayToSmoothMatrix(heightArray) {
     return matrix;
 }
 
-
-
 export function updatePlane13(geo, tsmData, curve_points = 64) {
-  const MAX_TIMELINES = 16;
+  const MAX_TIMELINES = 12;
   const posAttr = geo.attributes.position;
   const vertexCount = posAttr.count;
 
@@ -243,17 +236,10 @@ export function updatePlane13(geo, tsmData, curve_points = 64) {
   return geo;
 }
 
-
-
-
-
-
 export function updatePlane13x(geo, aggregatedEvents, curve_points = 64) {
   const MAX_TIMELINES = 10;
   const posAttr = geo.attributes.position;
   const vertexCount = posAttr.count;
-
-
 
   let numTimelines = aggregatedEvents[0].length - 1;
   
@@ -376,56 +362,6 @@ export function updatePlane13x(geo, aggregatedEvents, curve_points = 64) {
   //console.log("GEEEEEEEEEEEEEEEEEO:", geo);
   return geo;
 }
-
-
-
-
-
-
-export function updatePlane14(geo, smoothedSlotArrays) {
-  // smoothedSlotArrays = array of 12 Float32Arrays (length = vertexCount)
-  const vertexCount = geo.attributes.position.count;
-
-  // Allocate 3 vec4 attribute buffers (vertexCount * 4)
-  const b0_3 = new Float32Array(vertexCount * 4);
-  const b4_7 = new Float32Array(vertexCount * 4);
-  const b8_11 = new Float32Array(vertexCount * 4);
-
-  const buffers = [b0_3, b4_7, b8_11];
-
-  for (let slotIdx = 0; slotIdx < 12; slotIdx++) {
-    const slotData = smoothedSlotArrays[slotIdx];
-    if (!slotData) continue;
-
-    const attrIdx = Math.floor(slotIdx / 4);
-    const compIdx = slotIdx % 4;
-    const targetBuf = buffers[attrIdx];
-
-    for (let v = 0; v < vertexCount; v++) {
-      targetBuf[v * 4 + compIdx] = slotData[v] || 0;
-    }
-  }
-
-  // Upload the 3 vec4 attributes to WebGPU
-  geo.setAttribute('bands0', new THREE.Float32BufferAttribute(b0_3, 4));
-  geo.setAttribute('bands1', new THREE.Float32BufferAttribute(b4_7, 4));
-  geo.setAttribute('bands2', new THREE.Float32BufferAttribute(b8_11, 4));
-
-  return geo;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

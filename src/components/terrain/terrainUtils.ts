@@ -4,6 +4,60 @@ import { Vector3 } from 'three';
 import { EventYear } from '@/lib/utils/terrain_types';
 import * as THREE from 'three';
 
+
+// helpers.ts
+export function computeNormalsFromGrid(
+  heightGrid: Float32Array, 
+  resolution: number
+): Float32Array {
+  const normals = new Float32Array(resolution * resolution * 3);
+  
+  // Helper to get height at index
+  const getH = (x: number, z: number) => {
+    const cx = Math.max(0, Math.min(resolution - 1, x));
+    const cz = Math.max(0, Math.min(resolution - 1, z));
+    return heightGrid[cz * resolution + cx];
+  };
+
+  for (let z = 0; z < resolution; z++) {
+    for (let x = 0; x < resolution; x++) {
+      // Finite difference: look at neighbors
+      const hL = getH(x - 1, z);
+      const hR = getH(x + 1, z);
+      const hD = getH(x, z - 1);
+      const hU = getH(x, z + 1);
+
+      // Normal vector (cross product of tangent and bitangent)
+      // Tangent: (2, hR - hL, 0)
+      // Bitangent: (0, hU - hD, 2)
+      const nx = hL - hR;
+      const ny = 2.0; // scale factor
+      const nz = hD - hU;
+      
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      const idx = (z * resolution + x) * 3;
+      
+      normals[idx] = nx / len;
+      normals[idx + 1] = ny / len;
+      normals[idx + 2] = nz / len;
+    }
+  }
+  return normals;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export function setupTerrainGeometry(geometry: THREE.BufferGeometry, numVertices: number) {
   // Each attribute holds 4 slot components (x, y, z, w) per vertex
   const createVec4Attribute = () =>

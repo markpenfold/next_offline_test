@@ -2,8 +2,9 @@
 
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
-import { TerrainShaderTest } from './TerrainShaderTest';
 import { OrbitControls } from '@react-three/drei';
+import { TerrainOrchestrator } from './TerrainOrchestrator';
+import {Scene} from './OmenScene'
 
 export default function MyCanvas() {
   return (
@@ -36,11 +37,11 @@ export default function MyCanvas() {
           camera.updateProjectionMatrix();
         }}
       >
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[10, 50, 10]} intensity={2.0} />
-          
-        <TerrainShaderTest />
-        <OrbitControls />
+          <ambientLight intensity={1.5} />
+          <directionalLight position={[10, 50, 10]} intensity={2.0} />
+          <TerrainOrchestrator />
+          <Scene resolution={512}/>
+          <OrbitControls />
       </Canvas>
     </div>
   );

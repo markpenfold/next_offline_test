@@ -189,15 +189,17 @@ export const ORIGINAL_COLORS = [
 // BEAUTIFUL — Tiepolo 16
 export const COLLECTION_COLORS_T6 = [
   '#a0c0d8',  // Aerial sky powder
-  '#f2ede4',  // Luminous cloud white
+  '#dac69e',  // Luminous cloud white
   '#d06040',  // Strong Venetian rose
   '#7ab060',  // Punchy sage green
-  '#3a80b0',  // Bold cerulean
-  '#1e4060',  // Deep sky blue
+  'rgba(76, 149, 231, 1.0)',  // Bold cerulean
+  '#a8c8a0',  // Pale celadon mist
+  '#b94839',  // Venetian crimson
+  '#5183e0',  // Deep sky blue
+  
+
   '#5757a5',  // Dark shadow vault
   '#ede0c4',  // Warm fresco cream
-  '#a8c8a0',  // Pale celadon mist
-  '#b84030',  // Venetian crimson
   '#e8c060',  // Vivid Naples yellow
   '#4e8050',  // Deep Venetian verdure
   

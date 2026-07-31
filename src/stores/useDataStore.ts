@@ -14,6 +14,8 @@ import {
 } from '@/components/data/diskOPFS';
 import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
 
+
+
 // ============================================================================
 // 1. HARDWARE SLOT DEFINITION
 // ============================================================================
@@ -65,15 +67,19 @@ export interface DATAStore {
   downloadedIndexes: string[];
   loadingKeys: string[];
 
+
   // Active Session State
   activeDataViewIndexes: ActiveDataViewIndex[];
   slots: Slot[];
   lastChangedSlot: ChangedSlotEvent | null;
+  accountId:string  | null;
+ 
 
   // Global Time & Display Config
   totalYearSpan: [number, number];
   windowStartYear: number | null;
   isGeologicalTime: boolean;
+  stepsize:number;
 
   // Project Session
   activeProjectName: string | null;
@@ -187,9 +193,15 @@ export async function populateSlots({
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-function triggerAutoSave(accountId: string | undefined, getStore: () => DATAStore) {
-  if (!accountId) return;
+function triggerAutoSave(getStore: () => DATAStore) {
+  const state = getStore();
 
+  const accountId = state.accountId;
+
+  // Prevent auto-saving while store is uninitialized or booting
+  if (!accountId || !state.isInitialized || state.isInitializing) return;
+
+  console.log("AUTO SAVING: ")
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer);
   }
@@ -204,7 +216,7 @@ function triggerAutoSave(accountId: string | undefined, getStore: () => DATAStor
       isGeologicalTime: state.isGeologicalTime,
     });
 
-    console.log(`💾 Auto-saved state to OPFS [${state.activeProjectName || 'session'}]`);
+    console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes }]`);
   }, 400);
 }
 
@@ -221,10 +233,12 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   activeDataViewIndexes: [],
   slots: createInitialSlots(),
   lastChangedSlot: null,
+  accountId:null,
 
   totalYearSpan: [0,0],
   windowStartYear: null,
   isGeologicalTime: false,
+  stepsize: 1,
 
   activeProjectName: null,
   localProjects: [],
@@ -254,7 +268,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   // --- CONFIG SETTERS ---
   setIsGeologicalTime: function (val, accountId) {
     set({ isGeologicalTime: val });
-    triggerAutoSave(accountId, get);
+    triggerAutoSave(get);
   },
 
   setWindowStartYear: function (year, accountId) {
@@ -264,7 +278,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     for (let i = 0; i < reSlicedSlots.length; i = i + 1) {
       const slot = reSlicedSlots[i];
       if (slot.isActive && slot.terrainIndexData) {
-        const slice = sliceWindow(slot.terrainIndexData, year);
+        const slice = sliceWindow(slot.terrainIndexData, year, get().stepsize, slot.minYear, slot.maxYear);
         reSlicedSlots[i] = {
           ...slot,
           buffer: slice.buffer,
@@ -278,7 +292,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       slots: reSlicedSlots,
     });
 
-    triggerAutoSave(accountId, get);
+    triggerAutoSave(get);
   },
 
   setKeyLoading: function (key, isLoading) {
@@ -342,7 +356,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       tier: item.tier,
     });
 
-  triggerAutoSave(accountId, get);
+  triggerAutoSave(get);
 },
 
   clearSlot: function (slotIndex, accountId) {
@@ -376,7 +390,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       lastChangedSlot: { indices: slotIndex, nonce: Date.now() },
     });
 
-    triggerAutoSave(accountId, get);
+    triggerAutoSave(get);
   },
 
   clearFileFromSlots: function (target: string | AvailableIndex, accountId?: string) {
@@ -396,7 +410,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
     });
 
-    triggerAutoSave(accountId, get);
+    triggerAutoSave(get);
   },
 
 
@@ -509,6 +523,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         isInitialized: true,
         isInitializing: false,
       });
+
+      console.log("ERE BE DEM SLOTS YOU ASKED FOR MASSA:", get().slots)
     } catch (error) {
       console.error('Critical failure during initialization:', error);
       set({ isInitializing: false });

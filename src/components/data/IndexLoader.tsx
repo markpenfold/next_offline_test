@@ -75,18 +75,16 @@ export function IndexLoader() {
       // 1. REMOVAL PATH: Index is already active in a hardware slot
       // ========================================================================
       if (isActive) {
-        addLog(`Removing ${fileName} from active slot...`);
         await removeFromSlot(fileName);
-        addLog(`Successfully removed ${fileName}.`);
         return;
       }
 
       // ========================================================================
       // 2. CAPACITY GUARD: Prevent exceeding maximum hardware slots (e.g. 8)
       // ========================================================================
-      const MAX_SLOTS = 8;
+      const MAX_SLOTS = 12;
       if (activeDataViewIndexes.length >= MAX_SLOTS) {
-        addLog(`⚠️ Maximum slot capacity reached (${MAX_SLOTS}). Remove a dataset first.`);
+        console.log(`⚠️ Maximum slot capacity reached (${MAX_SLOTS}). Remove a dataset first.`);
         return;
       }
 
@@ -100,7 +98,7 @@ export function IndexLoader() {
         // ======================================================================
         // 4. FETCH FROM REMOTE R2 STORAGE
         // ======================================================================
-        addLog(`📡 Cache Miss. Fetching master index from remote storage...`);
+        console.log(`📡 Cache Miss. Fetching master index from remote storage...`);
         
         const result = await getMasterIndex({
           item,
@@ -110,7 +108,6 @@ export function IndexLoader() {
         if (!result.success) {
           throw new Error(`Failed to download ${fileName} from remote storage.`);
         }
-
         console.log(`🟢 Downloaded and saved to OPFS: /indexes/${fileName}`);
       } else {
         addLog(`⚡ Local Cache Hit! Found /indexes/${fileName} on disk.`);
@@ -119,13 +116,13 @@ export function IndexLoader() {
       // ========================================================================
       // 5. HYDRATE INTO HARDWARE SLOT & MEMORY
       // ========================================================================
-      addLog(`Loading ${fileName} into execution slot...`);
+      console.log(`Loading ${fileName} into execution slot...`);
       await addToSlot(item);
-      addLog(`Successfully activated ${fileName}!`);
+      console.log(`Successfully activated ${fileName}!`);
 
     } catch (err: any) {
       console.error(`❌ Failed to toggle ${fileName}:`, err);
-      addLog(`❌ Error: ${err.message}`);
+      console.log(`❌ Error: ${err.message}`);
     } finally {
       // Ensure loading flag is ALWAYS cleared
       setKeyLoading(fileName, false);

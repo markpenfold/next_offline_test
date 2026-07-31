@@ -2,80 +2,23 @@
 
 import { useRef, useMemo, useEffect, useCallback } from 'react';
 import * as THREE from 'three/webgpu';
-import { getMat4 } from './shader_x.js';
+import { getMat3 } from './threedee.js';
 import { useUIStore } from '@/stores/useUIStore';
 import { useThree } from '@react-three/fiber';
-import { getSmoothArray } from './helpers.js';
 import { useDATAStore } from '@/stores/useDataStore';
-import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
+import { StorageBufferAttribute } from 'three/webgpu';
 
-const MAX_SLOTS = 12; // 3 x vec4 = 12 fixed slots
-
-/**
- * Writes smoothed float data into a single slot channel in CPU memory.
- * Does NOT flag `needsUpdate` directly so the caller can batch uploads efficiently.
- */
-export function updateSingleSlotData(
-  geometry: THREE.BufferGeometry,
-  slotIndex: number,
-  smoothedRawData: Float32Array | null
-) {
-  const attrIndex = Math.floor(slotIndex / 4); // 0 (bands0), 1 (bands1), or 2 (bands2)
-  const compIndex = slotIndex % 4;             // 0 (x), 1 (y), 2 (z), or 3 (w)
-  const attrName = `bands${attrIndex}`;
-
-  const attr = geometry.getAttribute(attrName) as THREE.BufferAttribute;
-  if (!attr) return;
-
-  const array = attr.array as Float32Array;
-  const vertexCount = geometry.attributes.position.count;
-
-  // Stride: vertex * 4 + component
-  for (let v = 0; v < vertexCount; v++) {
-    array[v * 4 + compIndex] = smoothedRawData ? (smoothedRawData[v] || 0) : 0;
-  }
-}
-
-/**
- * Helper to smooth a raw 1D slot buffer (e.g. 1024 floats) up to target vertex resolution
- * without applying log scaling (log scaling occurs dynamically on the GPU).
- */
-function smoothRawSlotBuffer(rawBuffer: Float32Array | number[], targetPoints: number): Float32Array {
-  if (!rawBuffer || rawBuffer.length === 0) {
-    return new Float32Array(targetPoints * targetPoints);
-  }
-
-  const gridSize = Math.sqrt(rawBuffer.length); // e.g. Math.sqrt(1024) = 32
-  const hMatrix: THREE.Vector2[][] = [];
-
-  for (let row = 0; row < gridSize; row++) {
-    const rowVectors: THREE.Vector2[] = [];
-    for (let col = 0; col < gridSize; col++) {
-      const idx = row * gridSize + col;
-      const val = rawBuffer[idx] ?? 0;
-      rowVectors.push(new THREE.Vector2(col, val < 0 ? 0 : val));
-    }
-    hMatrix.push(rowVectors);
-  }
-
-  // Smooth via 2D spline curves -> returns array of length targetPoints * targetPoints
-  const smoothed = getSmoothArray(hMatrix, targetPoints);
-  const out = new Float32Array(smoothed.length);
-  for (let i = 0; i < smoothed.length; i++) {
-    out[i] = smoothed[i] < 0 ? 0 : smoothed[i];
-  }
-  return out;
-}
+const MAX_SLOTS = 12; // Matching bands0, bands1, bands2 (3 x vec4 = 12 slots)
 
 export function TerrainShaderTest() {
   const meshRef = useRef<THREE.Mesh>(null);
-  const resolution = 64; // Grid vertex resolution (64 x 64 = 4096 vertices)
+  const workerRef = useRef<Worker | null>(null);
+  const resolution = 512;
 
   const slots = useDATAStore((state) => state.slots);
-  const lastChangedSlot = useDATAStore((state) => state.lastChangedSlot);
-  
   const hoverUV = useUIStore((state) => state.hoverUV);
   const invalidate = useThree((state) => state.invalidate);
+  const windowStartYear = useDATAStore((s) => s.windowStartYear);
 
   const emptyRaycast = useCallback(() => {}, []);
 
@@ -83,30 +26,30 @@ export function TerrainShaderTest() {
   // 1. BASE GEOMETRY — Created ONCE with pre-allocated vec4 attributes
   ///////////////////////////////////////////////////////////
   const geometry = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(400, 400, resolution - 1, resolution - 1);
-    geo.rotateX(-Math.PI / 2);
+  const geo = new THREE.PlaneGeometry(400, 400, resolution - 1, resolution - 1);
+  geo.rotateX(-Math.PI / 2);
 
-    const vertexCount = geo.attributes.position.count;
+  const vertexCount = geo.attributes.position.count;
 
-    // Pre-allocate 3 vec4 attributes for 12 fixed slots (4 slots per vec4)
-    const b0 = new THREE.Float32BufferAttribute(new Float32Array(vertexCount * 4), 4);
-    const b1 = new THREE.Float32BufferAttribute(new Float32Array(vertexCount * 4), 4);
-    const b2 = new THREE.Float32BufferAttribute(new Float32Array(vertexCount * 4), 4);
+  // 1. Upgrade position buffer to be writable by the Compute Shader
+  const originalPositions = geo.attributes.position.array;
+  geo.setAttribute('position', new StorageBufferAttribute(originalPositions, 3));
 
-    b0.setUsage(THREE.DynamicDrawUsage);
-    b1.setUsage(THREE.DynamicDrawUsage);
-    b2.setUsage(THREE.DynamicDrawUsage);
+  // 2. Height attribute buffer
+  geo.setAttribute('heightBuffer', new StorageBufferAttribute(new Float32Array(vertexCount), 1));
 
-    geo.setAttribute('bands0', b0); // Slots 0..3
-    geo.setAttribute('bands1', b1); // Slots 4..7
-    geo.setAttribute('bands2', b2); // Slots 8..11
+  // 3. Pre-allocate 3 vec4 attributes for 12 fixed slots (Storage buffers!)
+  geo.setAttribute('bands0', new StorageBufferAttribute(new Float32Array(vertexCount * 4), 4)); // Slots 0..3
+  geo.setAttribute('bands1', new StorageBufferAttribute(new Float32Array(vertexCount * 4), 4)); // Slots 4..7
+  geo.setAttribute('bands2', new StorageBufferAttribute(new Float32Array(vertexCount * 4), 4)); // Slots 8..11
 
-    geo.userData.minHeight = 0;
-    geo.userData.maxHeight = 10;
-    geo.userData.averageHeight = 5;
+  geo.userData.minHeight = 0;
+  geo.userData.maxHeight = 10;
+  geo.userData.averageHeight = 5;
+  geo.userData.numTimelines = 0;
 
-    return geo;
-  }, [resolution]);
+  return geo;
+}, [resolution]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
@@ -115,76 +58,123 @@ export function TerrainShaderTest() {
   ///////////////////////////////////////////////////////////
   const material = useMemo(() => {
     if (!geometry) return null;
-    const mat = getMat4(geometry, hoverUV);
+
+    // getMat3 compiles the static 12-slot loop and slotColorUniforms array
+    const mat = getMat3(geometry, null);
     mat.needsUpdate = true;
     return mat;
   }, [geometry]);
 
-  useEffect(() => () => material?.dispose(), [material]);
+  // clean up
+  useEffect(() => {
+    return () => {
+      if (!material) return;
+      const ud = material.userData;
+      if (ud?.heightTexture) ud.heightTexture.dispose();
+      if (ud?.strataTexture) ud.strataTexture.dispose();
+      if (ud?.timelineTextures) ud.timelineTextures.forEach((t: THREE.Texture) => t?.dispose());
+      material.dispose();
+    };
+  }, [material]);
 
   ///////////////////////////////////////////////////////////
-  // 3. TARGETED EVENT-DRIVEN VRAM & UNIFORM UPDATES
+  // 3. WORKER INITIALIZATION & EVENT LISTENER
   ///////////////////////////////////////////////////////////
   useEffect(() => {
-    if (!geometry || !material) return;
+    // Instantiate background calculation worker
+    workerRef.current = new Worker(new URL('./terrain.worker.ts', import.meta.url));
 
-    // If no lastChangedSlot event has fired yet, do an initial full pass
-    const targetIndices = lastChangedSlot
-      ? lastChangedSlot.indices
-      : 'ALL';
+    workerRef.current.onmessage = (event: MessageEvent) => {
+      const { heights, bands0, bands1, bands2, metadata } = event.data;
 
-    // A. Resolve target slots list
-    let slotsToUpdate: number[] = [];
-    if (targetIndices === 'ALL') {
-      slotsToUpdate = Array.from({ length: MAX_SLOTS }, (_, i) => i); // [0..11]
-    } else if (Array.isArray(targetIndices)) {
-      slotsToUpdate = targetIndices;
-    } else {
-      slotsToUpdate = [targetIndices];
-    }
+      // 1. Update position Y positions
+      const posAttr = geometry.attributes.position;
+      const posArray = posAttr.array as Float32Array;
+      for (let i = 0; i < heights.length; i++) {
+        posArray[i * 3 + 1] = heights[i];
+      }
+      posAttr.needsUpdate = true;
 
-    const dirtyAttrs = new Set<string>();
-
-    // B. Process target slots
-    slotsToUpdate.forEach((slotIndex) => {
-      if (slotIndex < 0 || slotIndex >= MAX_SLOTS) return;
-
-      const slot = slots[slotIndex];
-
-      // 1. Sync Buffer Data
-      if (slot && slot.isActive && slot.buffer) {
-        const smoothedRaw = smoothRawSlotBuffer(slot.buffer, resolution);
-        updateSingleSlotData(geometry, slotIndex, smoothedRaw);
-      } else {
-        // missing/inactive slot -> zeros out channel in CPU array
-        updateSingleSlotData(geometry, slotIndex, null);
+      // 2. RECOMPUTE NORMALS TO FIX SHADING
+      geometry.computeVertexNormals();
+      if (geometry.attributes.normal) {
+        geometry.attributes.normal.needsUpdate = true;
       }
 
-      // Mark affected attribute for VRAM re-upload
-      const attrIndex = Math.floor(slotIndex / 4);
-      dirtyAttrs.add(`bands${attrIndex}`);
+      // 3. Update heightBuffer
+      const heightAttr = geometry.getAttribute('heightBuffer') as THREE.BufferAttribute;
+      (heightAttr.array as Float32Array).set(heights);
+      heightAttr.needsUpdate = true;
 
-      // 2. Sync Color Uniform
-      const uColor = material.userData.slotColorUniforms?.[slotIndex];
-      if (uColor) {
-        const hex = slot && slot.isActive && slot.color 
-          ? slot.color 
-          : COLLECTION_COLORS_T6[slotIndex];
-        uColor.value.set(hex);
-      }
-    });
+      // 4. Update vec4 bands0, bands1, bands2
+      const b0Attr = geometry.getAttribute('bands0') as THREE.BufferAttribute;
+      const b1Attr = geometry.getAttribute('bands1') as THREE.BufferAttribute;
+      const b2Attr = geometry.getAttribute('bands2') as THREE.BufferAttribute;
 
-    // C. Single Batched WebGPU VRAM Upload Pass
-    dirtyAttrs.forEach((attrName) => {
-      const attr = geometry.getAttribute(attrName);
-      if (attr) attr.needsUpdate = true;
-    });
+      (b0Attr.array as Float32Array).set(bands0);
+      (b1Attr.array as Float32Array).set(bands2 ? bands0 : bands0); // set transformed array
+      (b0Attr.array as Float32Array).set(bands0);
+      (b1Attr.array as Float32Array).set(bands1);
+      (b2Attr.array as Float32Array).set(bands2);
 
-    invalidate();
-  }, [lastChangedSlot, slots, geometry, material, resolution, invalidate]);
+      b0Attr.needsUpdate = true;
+      b1Attr.needsUpdate = true;
+      b2Attr.needsUpdate = true;
+
+      // 5. Assign updated metadata to geometry userData
+      Object.assign(geometry.userData, metadata);
+
+      invalidate();
+    };
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, [geometry, invalidate]);
 
   ///////////////////////////////////////////////////////////
-  // 4. HOVER UNIFORM SYNC
+  // 4. IN-PLACE ATTRIBUTE & UNIFORM UPDATES VIA WORKER
+  ///////////////////////////////////////////////////////////
+  useEffect(() => {
+    if (!slots || slots.length === 0 || !workerRef.current) return;
+
+    // 1. Determine grid cell count (e.g. 1024 for a 32x32 grid)
+    const baseCount = slots[0]?.buffer?.length || 1024;
+    const numSlots = Math.min(slots.length, MAX_SLOTS);
+    const numCols = numSlots + 1; // +1 to account for column 0 (grid index/header offset in worker)
+
+    // 2. Flatten slot buffers into a contiguous Float32Array
+    // Layout per grid cell `r`: [0: cellId, 1: slot0_val, 2: slot1_val, ..., numSlots: slotN_val]
+    const flatSlots = new Float32Array(baseCount * numCols);
+
+    for (let r = 0; r < baseCount; r++) {
+      const rowOffset = r * numCols;
+      flatSlots[rowOffset] = r; // Cell ID in column 0
+
+      for (let s = 0; s < numSlots; s++) {
+        const slot = slots[s];
+        // Sample buffer value if slot exists and is active, otherwise default to 0
+        const val = slot && slot.isActive && slot.buffer ? (slot.buffer[r] ?? 0) : 0;
+        flatSlots[rowOffset + (s + 1)] = val;
+      }
+    }
+
+    // 3. Zero-copy transfer ArrayBuffer to the worker
+    workerRef.current.postMessage(
+      {
+        flatSlots: flatSlots.buffer,
+        baseCount,
+        numCols,
+        resolution,
+        maxSlots: MAX_SLOTS,
+        windowStartYear,
+      },
+      { transfer: [flatSlots.buffer] } // Zero-copy transfer options object
+    );
+  }, [slots, windowStartYear, resolution]);
+
+  ///////////////////////////////////////////////////////////
+  // 5. HOVER UNIFORM SYNC
   ///////////////////////////////////////////////////////////
   useEffect(() => {
     if (!material?.userData?.hoverUVUniform) return;

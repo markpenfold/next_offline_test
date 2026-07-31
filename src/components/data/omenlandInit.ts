@@ -93,7 +93,7 @@ async function loadFromSession(
 }> {
   const savedProjectsList = await getSavedProjects(accountId).catch(() => []);
   const sessionConfig = await loadProject(accountId, null).catch(() => null);
-
+  //console.log("SESSSSSSSSSSSSSSSSSSSSSSSSION: ", sessionConfig)
   const isBlankSession = !sessionConfig || !sessionConfig.activeDataViewIndexes?.length;
 
   if (isBlankSession) {

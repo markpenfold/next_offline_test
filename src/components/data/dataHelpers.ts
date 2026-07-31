@@ -21,29 +21,52 @@ export interface SliceResult {
 // Helper: sliceWindow
 // ============================================================================
 
-/**
- * Slices and bins a dataset starting from `startYear` across 1024 GPU histogram channels.
- * 
- * @param terrainIndexData Map of target year -> { count, uuids }
- * @param startYear The window offset (e.g. 1000 AD or -65,000,000 for geological view)
- * @param stepSize Scale multiplier per bin (default: 1 year per bin)
- */
 export function sliceWindow(
-  terrainIndexData: TerrainIndexMap | null,
+  terrainIndexData: Map<number, { count: number; uuids: string[] }> | null,
   startYear: number,
-  stepSize: number = 1
+  stepSize: number = 1,
+  minYear?: number,
+  maxYear?: number
 ): SliceResult {
   // 1. Allocation is guaranteed to be 0-initialized by JS spec
   const buffer = new Float32Array(1024);
   const uuidMap = new Map<number, string[]>();
 
-  // 2. Instant exit if empty (~0 ms)
+  // 2. Instant exit if completely empty (~0 ms)
   if (!terrainIndexData || terrainIndexData.size === 0) {
     return { buffer, uuidMap };
   }
 
-  // 3. Fixed 1024-step extraction (3 microseconds in V8)
-  for (let i = 0; i < 1024; i = i + 1) {
+  // Calculate the absolute end year of this current sliding window
+  const endYear = startYear + 1023 * stepSize;
+
+  // 3. EARLY EXIT: Entire window is outside the timeline's range (~0 ms)
+  if (minYear !== undefined && maxYear !== undefined) {
+    if (startYear > maxYear || endYear < minYear) {
+      return { buffer, uuidMap }; 
+    }
+  }
+
+  // 4. PARTIAL OVERLAP OPTIMIZATION: Only loop through valid indices
+  let startIndex = 0;
+  let endIndex = 1024;
+
+  if (minYear !== undefined && minYear > startYear) {
+    // Math.ceil ensures we snap to the next valid step index
+    startIndex = Math.ceil((minYear - startYear) / stepSize);
+  }
+
+  if (maxYear !== undefined && maxYear < endYear) {
+    // Math.floor ensures we don't overshoot the max year
+    endIndex = Math.floor((maxYear - startYear) / stepSize) + 1;
+  }
+
+  // Safety clamp just in case of weird step-size math
+  startIndex = Math.max(0, startIndex);
+  endIndex = Math.min(1024, endIndex);
+
+  // 5. Fixed/Clamped extraction loop
+  for (let i = startIndex; i < endIndex; i++) {
     const currentYear = startYear + i * stepSize;
     const entry = terrainIndexData.get(currentYear);
 

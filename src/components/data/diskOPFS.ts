@@ -227,6 +227,7 @@ export async function saveProject(
 ): Promise<boolean> {
   const fileName = resolveProjectFileName(projectName);
   const dirPath = `savedProjects/${accountId}`;
+  console.log("SAVING PROJECTP:", projectName, patch);
 
   try {
     const existing = (await loadProject(accountId, projectName)) || {};
