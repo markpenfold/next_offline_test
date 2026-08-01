@@ -3,7 +3,7 @@ import "@/app/styles/globals.css";
 import { AppStoreProvider } from "@/providers/AppStoreProvider";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from 'react-hot-toast';
-import { StoreSync } from '@/components/data/StoreSync';
+import { StoreSync } from '@/stores/StoreSync';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

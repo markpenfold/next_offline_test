@@ -1,4 +1,7 @@
 import { getMat3 } from './fastShader';
+import { getMat4 } from './fs3';
+import {getUrushi } from './urushi'
+import {getUrushiB } from './urushiB'
 import { useMemo, useRef } from 'react';
 import { StorageBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three/webgpu';
@@ -45,7 +48,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
   }, [resolution]);
 
   const material = useMemo(() => {
-    return getMat3(geometry, null);
+    return getUrushi(geometry, null);
   }, [geometry]);
 
   return (

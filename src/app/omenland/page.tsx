@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import OmenWrap from '@/components/data/omenWrap';
 import {ShardSelector} from '@/components/data/ShardSelector';
 import { DataView } from '@/components/data/DataView';
+import { OmenMenu } from '@/components/OmenlandMenu';
 
 
 
@@ -20,6 +21,7 @@ const supabase = await createClient();
   return (
 
     <OmenWrap >
+      <OmenMenu />
       <DataView />
     </OmenWrap>
    

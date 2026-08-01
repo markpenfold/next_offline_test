@@ -1,8 +1,10 @@
+// components/terrain/TerrainOrchestrator.tsx
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
 import { useDATAStore } from '@/stores/useDataStore';
-import { createTerrainCompute } from './terrainCompute';
+import { createTerrainCompute } from './terrainComputeB';
+import { cpuTerrainFallback } from './cpuTerrainFallback';
 
 interface OrchestratorProps {
   geometry: THREE.BufferGeometry;
@@ -13,46 +15,57 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
   geometry, 
   resolution 
 }) => {
-  // 1. Grab renderer and invalidate function from R3F context
   const { gl, invalidate } = useThree();
   const renderer = gl as unknown as THREE.WebGPURenderer;
 
+  // 1. Read Zustand Store (Slots AND fallback flag)
   const slots = useDATAStore((state) => state.slots);
+  const useWebGL = useDATAStore((state) => state.useWebGL);
+
   const MASTER_BUFFER = useMemo(() => new Float32Array(12288), []);
 
-
-
+  // 2. Compute Node initialization (Skip if in WebGL mode)
   const { computeNode, rawStorageAttr } = useMemo(() => {
-    // If geometry isn't passed or ready, 
-    // don't attempt to build compute nodes
-    if (!geometry || !geometry.attributes || !geometry.attributes.position) {
-    return { computeNode: null, rawStorageAttr: null };
-  }
-
+    if (!geometry?.attributes?.position || useWebGL) {
+      return { computeNode: null, rawStorageAttr: null };
+    }
     return createTerrainCompute(geometry, resolution, MASTER_BUFFER);
-  }, [geometry, resolution, MASTER_BUFFER]);
+  }, [geometry, resolution, MASTER_BUFFER, useWebGL]);
 
+  // 3. Main Computation Execution Loop
   useEffect(() => {
-    if (!renderer || !computeNode || !rawStorageAttr) return;
+    if (!geometry) return;
 
+    // Fill Master Buffer
     MASTER_BUFFER.fill(0);
+    let activeCount = 0;
 
     slots.forEach((slot, index) => {
       const offset = index * 1024;
       if (slot.isActive && slot.buffer instanceof Float32Array) {
         MASTER_BUFFER.set(slot.buffer, offset);
+        activeCount++;
       }
     });
 
-    rawStorageAttr.array.set(MASTER_BUFFER);
-    rawStorageAttr.needsUpdate = true;
+    // Dynamically update active timelines for shaders/materials
+    geometry.userData.activeTimelines = activeCount;
 
-    // Compute on GPU and then notify R3F to render frame (for frameloop="demand")
-    renderer.computeAsync(computeNode).then(() => {
-      invalidate(); // <--- Forces R3F to draw the new frame on canvas!
-    });
+    // Branch execution based on Zustand state
+    if (!useWebGL && renderer && computeNode && rawStorageAttr) {
+      // 🚀 Native WebGPU Hardware Path
+      rawStorageAttr.array.set(MASTER_BUFFER);
+      rawStorageAttr.needsUpdate = true;
 
-  }, [slots, renderer, computeNode, rawStorageAttr, MASTER_BUFFER, invalidate]);
+      renderer.computeAsync(computeNode).then(() => {
+        invalidate();
+      });
+    } else if (useWebGL) {
+      // 🛡️ WebGL CPU Fallback Path
+      cpuTerrainFallback(geometry, resolution, MASTER_BUFFER);
+      invalidate();
+    }
+  }, [slots, renderer, computeNode, rawStorageAttr, MASTER_BUFFER, geometry, resolution, useWebGL, invalidate]);
 
   return null;
 };

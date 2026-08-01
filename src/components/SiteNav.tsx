@@ -94,10 +94,11 @@ function AuthenticatedSiteNav() {
         {!isOnline && <span className={classes.offlineBadge}>Offline Mode</span>}
         
       <div className={`${classes.collapsibleMenu} ${isMenuOpen ? classes.open : ''}`}>
+        <LogoutButton />
           <Link href="/pricing" className={classes.link}>Pricing</Link>
            <Link href="/dash" className={classes.link}>Dashboard</Link>
            <Link href="/omenland" className={classes.link}>Omenland</Link>
-           <LogoutButton />
+           
           
         </div>
 

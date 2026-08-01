@@ -5,7 +5,7 @@ import {
   positionWorld, uniform, positionLocal, distance
 } from 'three/tsl';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
-import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
+import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants'
 
 const bandUniforms = COLLECTION_COLORS_T6.map(hex => uniform(color(hex)));
 
@@ -34,7 +34,10 @@ export const getMat3 = (g, hoverUV) => {
     float(0.0),
     float(1.0)
   );
-  const sampleOffset = normalizedY.mul(avH).mul(float(0.111));
+
+  const sampleOffset = normalizedY.sub(minH).mul(float(0.7));
+    //const sampleOffset = float(0.7);
+
 
 
 
@@ -65,19 +68,36 @@ export const getMat3 = (g, hoverUV) => {
     return positionLocal;
   })();
 
-  mat.colorNode = Fn(() => {
+mat.colorNode = Fn(() => {
     const baseColor = vec3(0.0, 0.0, 0.0);
     const sampleY = positionLocal.y.sub(sampleOffset);
 
+    // Start with the absolute base color
     let colorOut = bandColor(0);
+    let cumulativeHeight = float(0.0);
+    
+    // A tiny epsilon prevents floating-point step(0,0) glitches
+    const EPSILON = float(0.001);
 
-    // This loop runs during shader compilation, effectively "hardcoding" 
-    // the attribute access into the GLSL
     for (let i = 0; i < numTimelines; i++) {
-      const bandVal = getBandAttribute(i);
-      const mask = step(bandVal, sampleY);
-      const nextColor = i + 1 < numTimelines ? bandColor(i + 1) : bandColor(i);
-      colorOut = mix(colorOut, nextColor, mask);
+      const bandThickness = getBandAttribute(i);
+      const bandStart = cumulativeHeight;
+      
+      // 1. Are we vertically higher than the start of this specific layer?
+      const isAboveStart = step(bandStart.add(EPSILON), sampleY);
+      
+      // 2. CRITICAL: Does this layer actually have volume?
+      // This prevents the empty buffer slots (thickness = 0) from overriding the top
+      const hasThickness = step(EPSILON, bandThickness);
+      
+      // 3. Only apply this band's color if we are above it AND it exists
+      const applyColor = isAboveStart.mul(hasThickness);
+      
+      // Mix the color in. If applyColor is 1.0, it overwrites the layer beneath it.
+      colorOut = mix(colorOut, bandColor(i), applyColor);
+      
+      // Stack the height for the next loop iteration
+      cumulativeHeight = cumulativeHeight.add(bandThickness);
     }
 
     // Height-based shading intensity
@@ -100,9 +120,8 @@ export const getMat3 = (g, hoverUV) => {
       dotIntensity.mul(step(0.0, hoverUVUniform.x))
     );
 
-    const heightMask = step(0.01, positionLocal.y);
+    const heightMask = step(0.25, positionLocal.y);
     return mix(baseColor, finalColorWithDot, heightMask);
   })();
-
   return mat;
 };

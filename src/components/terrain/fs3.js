@@ -13,7 +13,7 @@ function bandColor(i) {
   return bandUniforms[i % bandUniforms.length];
 }
 
-export const getMat3 = (g, hoverUV) => {
+export const getMat4 = (g, hoverUV) => {
   const mat = new MeshStandardNodeMaterial({
     roughness: 0.4,
     metalness: 0.3,
@@ -65,19 +65,31 @@ export const getMat3 = (g, hoverUV) => {
     return positionLocal;
   })();
 
+// Inside your getMat3 or getUrushi function
   mat.colorNode = Fn(() => {
     const baseColor = vec3(0.0, 0.0, 0.0);
-    const sampleY = positionLocal.y.sub(sampleOffset);
+    
+    // I am assuming you want it 1:1 mapped to the mesh now, 
+    // so no sampleOffset subtraction.
+    const sampleY = positionLocal.y; 
 
     let colorOut = bandColor(0);
+    let prevBoundary = float(0.0); 
 
-    // This loop runs during shader compilation, effectively "hardcoding" 
-    // the attribute access into the GLSL
     for (let i = 0; i < numTimelines; i++) {
-      const bandVal = getBandAttribute(i);
-      const mask = step(bandVal, sampleY);
-      const nextColor = i + 1 < numTimelines ? bandColor(i + 1) : bandColor(i);
-      colorOut = mix(colorOut, nextColor, mask);
+      const currentBoundary = getBandAttribute(i);
+      
+      // We are in this layer if we are above the previous ceiling AND below the current ceiling
+      const isAboveBottom = step(prevBoundary, sampleY);
+      const isBelowTop = step(sampleY, currentBoundary);
+      
+      // Multiply them to create an exact slice mask
+      const inLayer = isAboveBottom.mul(isBelowTop);
+      
+      colorOut = mix(colorOut, bandColor(i), inLayer);
+      
+      // Update floor for next loop
+      prevBoundary = currentBoundary;
     }
 
     // Height-based shading intensity
@@ -100,9 +112,10 @@ export const getMat3 = (g, hoverUV) => {
       dotIntensity.mul(step(0.0, hoverUVUniform.x))
     );
 
-    const heightMask = step(0.01, positionLocal.y);
+    const heightMask = step(0.25, positionLocal.y);
     return mix(baseColor, finalColorWithDot, heightMask);
   })();
 
   return mat;
 };
+

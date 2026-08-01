@@ -23,6 +23,34 @@ export const COLLECTION_COLORS_GOYA_WITCHES_16 = [
 ];
 
 
+// BEAUTIFUL — Goya Witches in the Air 16
+export const URUSHI_16 = [
+  '#923479',  // Dirty flake white
+  '#6a6455',  // Donkey hide grey-brown
+  '#cac0ac',  // Night earth
+  '#d365ca',  // Warm brownish grey
+  '#8a7359',  // Earth shadow
+  '#0d4af0',  // Warm sooty black
+  '#ddd235',  // Yellow ochre light
+  '#747373',  // Absolute black
+  '#5fb3c2',  // Smoke-stained plaster
+ 
+ 
+
+  
+  '#a67b45',  // Brown ochre
+  '#814f33',  // Light red / burnt sienna
+  '#5e3927',  // Deep burnt umber
+
+  '#bf6a4a',  // Vermilion flesh accent
+  '#95503b',  // Warm blood-brown
+  '#6b3a2f',  // Dried blood shadow
+
+  '#9b8f78',  // Dusty cloak grey
+ 
+];
+
+
 // BEAUTIFUL — Velázquez 16
 export const COLLECTION_COLORS_VELAZQUEZ_16 = [
   '#f2f0ea',  // Cool lead white
@@ -192,18 +220,13 @@ export const COLLECTION_COLORS_T6 = [
   '#dac69e',  // Luminous cloud white
   '#d06040',  // Strong Venetian rose
   '#7ab060',  // Punchy sage green
-  'rgba(76, 149, 231, 1.0)',  // Bold cerulean
   '#a8c8a0',  // Pale celadon mist
   '#b94839',  // Venetian crimson
   '#5183e0',  // Deep sky blue
-  
-
   '#5757a5',  // Dark shadow vault
   '#ede0c4',  // Warm fresco cream
   '#e8c060',  // Vivid Naples yellow
   '#4e8050',  // Deep Venetian verdure
-  
-  
   '#2060a0',  // Mantle blue
   '#162840',  // Twilight indigo
 ];

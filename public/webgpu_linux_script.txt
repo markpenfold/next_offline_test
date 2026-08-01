@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+# ==============================================================================
+# WebGPU / Vulkan Automatic Setup Script for Chrome / Chromium (Linux)
+# ==============================================================================
+
+set -e
+
+echo "🚀 Setting up WebGPU & Vulkan acceleration for Google Chrome..."
+
+DESKTOP_DIR="$HOME/.local/share/applications"
+CHROME_SYSTEM_DESKTOP="/usr/share/applications/google-chrome.desktop"
+CHROME_LOCAL_DESKTOP="$DESKTOP_DIR/google-chrome.desktop"
+
+# Step 1: Ensure user desktop applications folder exists
+mkdir -p "$DESKTOP_DIR"
+
+# Step 2: Copy system desktop entry to user level if it doesn't exist
+if [ ! -f "$CHROME_LOCAL_DESKTOP" ]; then
+    if [ -f "$CHROME_SYSTEM_DESKTOP" ]; then
+        cp "$CHROME_SYSTEM_DESKTOP" "$CHROME_LOCAL_DESKTOP"
+        echo "📁 Created local Chrome application shortcut."
+    else
+        echo "⚠️ Google Chrome system entry not found at $CHROME_SYSTEM_DESKTOP."
+        echo "Please ensure Google Chrome is installed."
+        exit 1
+    fi
+fi
+
+# Step 3: Append WebGPU/Vulkan flags to Exec lines if not already present
+FLAGS="--enable-features=Vulkan,WebGPU --ignore-gpu-blocklist"
+
+if grep -q "enable-features=Vulkan" "$CHROME_LOCAL_DESKTOP"; then
+    echo "✅ Chrome launcher already contains Vulkan & WebGPU flags."
+else
+    # Update Exec line in .desktop shortcut
+    sed -i "s|Exec=/usr/bin/google-chrome-stable|Exec=/usr/bin/google-chrome-stable $FLAGS|g" "$CHROME_LOCAL_DESKTOP"
+    echo "🎉 Successfully added WebGPU flags to Chrome application launcher!"
+fi
+
+# Step 4: Optional terminal alias for users who launch Chrome via terminal
+BASHRC="$HOME/.bashrc"
+ALIAS_CMD="alias chrome='google-chrome-stable $FLAGS'"
+
+if ! grep -q "alias chrome=" "$BASHRC" 2>/dev/null; then
+    echo "" >> "$BASHRC"
+    echo "# WebGPU Chrome Alias" >> "$BASHRC"
+    echo "$ALIAS_CMD" >> "$BASHRC"
+    echo "💻 Added 'chrome' terminal alias to ~/.bashrc"
+fi
+
+# Step 5: Refresh desktop database
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$DESKTOP_DIR"
+fi
+
+echo ""
+echo "=============================================================================="
+echo "✨ SETUP COMPLETE!"
+echo "Please CLOSE all running Google Chrome windows and re-open Chrome."
+echo "Your app will now natively run on WebGPU."
+echo "=============================================================================="

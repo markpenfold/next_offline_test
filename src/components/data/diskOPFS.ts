@@ -200,7 +200,6 @@ function resolveProjectFileName(projectName?: string | null): string {
   return projectName.endsWith(".json") ? projectName : `${projectName}.json`;
 }
 
-// JUST RETURN THE JSON CONFIG /////////////////////////////////
 export async function loadProject(
   accountId: string, 
   projectName?: string | null
@@ -227,7 +226,7 @@ export async function saveProject(
 ): Promise<boolean> {
   const fileName = resolveProjectFileName(projectName);
   const dirPath = `savedProjects/${accountId}`;
-  console.log("SAVING PROJECTP:", projectName, patch);
+  console.log("SAVING PROJECT:", projectName, patch);
 
   try {
     const existing = (await loadProject(accountId, projectName)) || {};
@@ -254,11 +253,73 @@ export async function getSavedProjects(
     const dirPath = `savedProjects/${accountId}`;
     const entries = await getOPFSEntries(dirPath);
 
+    // 💡 Filter out system json files (session.json & webGPUStatus.json)
     return entries.filter(
-      ({ name }) => name.endsWith(".json") && name !== "session.json"
+      ({ name }) => name.endsWith(".json") && name !== "session.json" && name !== "webGPUStatus.json"
     );
   } catch (err) {
     console.error(`Failed to scan OPFS savedProjects for account ${accountId}:`, err);
     return [];
+  }
+}
+
+// ============================================================================
+// 4. GPU STATUS PERSISTENCE
+// ============================================================================
+
+export interface OPFSGpuSettings {
+  gpuPreference: 'unset' | 'webgpu' | 'webgl';
+  updatedAt: string;
+}
+
+const GPU_FILE_NAME = 'webGPUStatus.json';
+
+/**
+ * Saves webGPUStatus.json inside savedProjects/${accountId} using OPFS primitives.
+ */
+export async function saveGpuSettingsToOPFS(
+  accountId: string,
+  settings: OPFSGpuSettings
+): Promise<boolean> {
+  if (!accountId || typeof window === 'undefined') return false;
+
+  const dirPath = `savedProjects/${accountId}`;
+  const serializedData = JSON.stringify(settings, null, 2);
+
+  try {
+    await saveToOPFSFolder(dirPath, GPU_FILE_NAME, serializedData);
+    return true;
+  } catch (err) {
+    console.error(`❌ Failed to write ${GPU_FILE_NAME} for account [${accountId}]:`, err);
+    return false;
+  }
+}
+
+/**
+ * Loads webGPUStatus.json from savedProjects/${accountId} using OPFS primitives.
+ */
+export async function loadGpuSettingsFromOPFS(
+  accountId: string
+): Promise<OPFSGpuSettings | null> {
+  if (!accountId || typeof window === 'undefined') return null;
+
+  const dirPath = `savedProjects/${accountId}`;
+
+  try {
+    // 💡 Prevent console noise by checking if the file exists before attempting to read
+    const exists = await checkFileExists(dirPath, GPU_FILE_NAME);
+    if (!exists) return null;
+
+    const rawData = await readFromOPFSFolder(dirPath, GPU_FILE_NAME, "text");
+    if (!rawData) return null;
+
+    const jsonString =
+      typeof rawData === 'string'
+        ? rawData
+        : new TextDecoder().decode(rawData);
+
+    return JSON.parse(jsonString) as OPFSGpuSettings;
+  } catch (err) {
+    return null;
   }
 }

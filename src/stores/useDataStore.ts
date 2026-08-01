@@ -14,6 +14,14 @@ import {
 } from '@/components/data/diskOPFS';
 import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
 
+import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
+import { showWebGPUToast } from '@/lib/utils/webgpuToast';
+
+import {
+  loadGpuSettingsFromOPFS,
+  saveGpuSettingsToOPFS,
+  OPFSGpuSettings,
+} from '@/components/data/diskOPFS';
 
 
 // ============================================================================
@@ -72,7 +80,7 @@ export interface DATAStore {
   activeDataViewIndexes: ActiveDataViewIndex[];
   slots: Slot[];
   lastChangedSlot: ChangedSlotEvent | null;
-  accountId:string  | null;
+  accountId:string | null;
  
 
   // Global Time & Display Config
@@ -84,10 +92,24 @@ export interface DATAStore {
   // Project Session
   activeProjectName: string | null;
   localProjects: OPFSFile[];
+  finderIsOpen: boolean;
 
   // Locks
   isInitialized: boolean;
   isInitializing: boolean;
+
+  // 🚀 WebGPU / WebGL State
+  gpuPreference: 'unset' | 'webgpu' | 'webgl';
+  gpuStatus: WebGPUStatus | null;
+  useWebGL: boolean;
+  
+
+  // Actions
+  initWebGPUSupport: (accountId?: string | null) => Promise<void>;
+  setGpuPreference: (pref: 'webgpu' | 'webgl' | 'unset') => void;
+  resetGpuPreference: () => void;
+
+ 
 
   // --- ACTIONS ---
 
@@ -111,6 +133,7 @@ export interface DATAStore {
   saveCurrentProjectAs: (projectName: string, accountId: string) => Promise<void>;
   loadNamedProject: (projectName: string, accountId: string) => Promise<void>;
   refreshLocalProjects: (accountId: string) => Promise<void>;
+  setFinderOpen: (openORclosed:boolean) => void;
 
   // Bootloader
   initializeOmenland: (accountId: string) => Promise<void>;
@@ -242,9 +265,98 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   activeProjectName: null,
   localProjects: [],
+  finderIsOpen: false,
 
   isInitialized: false,
   isInitializing: false,
+
+  // Initial WebGPU state
+  gpuPreference: 'unset',
+  gpuStatus: null,
+  useWebGL: false,
+
+  setGpuPreference: async (pref) => {
+    const { accountId, gpuStatus } = get();
+    
+    // Safeguard: Force WebGL if hardware lacks support
+    const shouldFallback = pref === 'webgl' || !gpuStatus?.supported;
+
+    set({
+      gpuPreference: pref,
+      useWebGL: shouldFallback,
+    });
+
+    if (accountId) {
+      await saveGpuSettingsToOPFS(accountId, {
+        gpuPreference: pref,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  },
+
+  resetGpuPreference: async () => {
+    const { accountId } = get();
+    set({ gpuPreference: 'unset', useWebGL: false });
+
+    if (accountId) {
+      await saveGpuSettingsToOPFS(accountId, {
+        gpuPreference: 'unset',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    // Re-run detection flow
+    await get().initWebGPUSupport(accountId);
+  },
+
+  initWebGPUSupport: async (accountId?: string | null) => {
+    // Resolve provided accountId or fallback to current store state
+    const targetAccountId = accountId ?? get().accountId ?? null;
+    
+    set({ accountId: targetAccountId });
+
+    // 1. Check hardware support
+    const status = await checkWebGPUSupport();
+    set({ gpuStatus: status });
+
+    // 2. Try loading existing OPFS settings for this account
+    let opfsSettings: OPFSGpuSettings | null = null;
+    if (targetAccountId) {
+      opfsSettings = await loadGpuSettingsFromOPFS(targetAccountId);
+    }
+
+    // 3. Evaluate Preference logic
+    if (opfsSettings && opfsSettings.gpuPreference !== 'unset') {
+      const pref = opfsSettings.gpuPreference;
+      set({
+        gpuPreference: pref,
+        useWebGL: pref === 'webgl' || !status.supported,
+      });
+    } else {
+      // Unset: First initialization for this account
+      if (!status.supported) {
+        set({ gpuPreference: 'webgl', useWebGL: true });
+
+        if (targetAccountId) {
+          await saveGpuSettingsToOPFS(targetAccountId, {
+            gpuPreference: 'webgl',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        showWebGPUToast(status);
+      } else {
+        set({ gpuPreference: 'webgpu', useWebGL: false });
+
+        if (targetAccountId) {
+          await saveGpuSettingsToOPFS(targetAccountId, {
+            gpuPreference: 'webgpu',
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+  },
 
   // update active view indexes
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => {
@@ -323,6 +435,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     if (alreadyExists) return;
 
     const freeSlotIndex = currentSlots.findIndex((s) => !s.isActive);
+    console.log("adding to this sloooooooooooooooooooooooooooooooOt:", freeSlotIndex);
     if (freeSlotIndex === -1) {
       console.warn('All 12 terrain slots are full!');
       return;
@@ -493,6 +606,10 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     } catch (error) {
       console.error(`Failed to refresh local projects:`, error);
     }
+  },
+
+  setFinderOpen: function(openORclosed){
+    set({finderIsOpen: openORclosed});
   },
 
   // --- BOOTLOADER --- //////////
