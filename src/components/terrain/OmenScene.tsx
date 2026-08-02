@@ -9,6 +9,7 @@ import { useMemo, useRef } from 'react';
 import { StorageBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three/webgpu';
 import { TerrainOrchestrator } from './tO';
+import { TerrainGrid } from './TerrainGrid';
 
 interface SceneProps {
   resolution?: number;
@@ -65,6 +66,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
         position={[0, 0, 0]}
       />
 
+      <TerrainGrid />
       <TerrainOrchestrator 
         geometry={geometry} 
         resolution={resolution} 
