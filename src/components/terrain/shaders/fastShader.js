@@ -1,17 +1,12 @@
-// threedee.js
 import {
   attribute, varying, Fn, uv,
   float, vec3, color, clamp, step, mix, vec2,
-  positionWorld, uniform, positionLocal, distance
+  positionLocal, uniform, distance
 } from 'three/tsl';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
-import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
 
-const bandUniforms = COLLECTION_COLORS_T6.map(hex => uniform(color(hex)));
-
-function bandColor(i) {
-  return bandUniforms[i % bandUniforms.length];
-}
+// 💡 Import dynamic slot color uniforms
+import { colorUniforms } from '../terrainColorUniforms';
 
 export const getMat3 = (g, hoverUV) => {
   const mat = new MeshStandardNodeMaterial({
@@ -36,8 +31,6 @@ export const getMat3 = (g, hoverUV) => {
   );
   const sampleOffset = normalizedY.mul(avH).mul(float(0.111));
 
-
-
   // Hover uniform
   const hoverUVUniform = uniform(vec2(
     hoverUV?.x ?? -1.0,
@@ -45,21 +38,18 @@ export const getMat3 = (g, hoverUV) => {
   ));
   mat.userData.hoverUVUniform = hoverUVUniform;
 
-
-
-
   // 1. Declare the packed attributes
   const bands0 = attribute('bands0', 'vec4');
   const bands1 = attribute('bands1', 'vec4');
   const bands2 = attribute('bands2', 'vec4');
 
-
- // 2. Helper to extract the right component from the right attribute
+  // 2. Helper to extract the right component from the right attribute
   const getBandAttribute = (i) => {
     if (i < 4) return bands0[['x', 'y', 'z', 'w'][i]];
     if (i < 8) return bands1[['x', 'y', 'z', 'w'][i - 4]];
     return bands2[['x', 'y', 'z', 'w'][i - 8]];
   };
+
   mat.positionNode = Fn(() => {
     vUV.assign(uv());
     return positionLocal;
@@ -69,14 +59,15 @@ export const getMat3 = (g, hoverUV) => {
     const baseColor = vec3(0.0, 0.0, 0.0);
     const sampleY = positionLocal.y.sub(sampleOffset);
 
-    let colorOut = bandColor(0);
+    // 💡 Start with dynamic colorUniforms[0]
+    let colorOut = colorUniforms[0];
 
-    // This loop runs during shader compilation, effectively "hardcoding" 
-    // the attribute access into the GLSL
     for (let i = 0; i < numTimelines; i++) {
       const bandVal = getBandAttribute(i);
       const mask = step(bandVal, sampleY);
-      const nextColor = i + 1 < numTimelines ? bandColor(i + 1) : bandColor(i);
+      
+      // 💡 Pull next layer color dynamically from colorUniforms
+      const nextColor = i + 1 < numTimelines ? colorUniforms[i + 1] : colorUniforms[i];
       colorOut = mix(colorOut, nextColor, mask);
     }
 

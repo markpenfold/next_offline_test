@@ -1,6 +1,15 @@
 import { Slot } from '@/stores/useDataStore';
 import { AvailableIndex } from '@/components/data/dataTypes';
-import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
+import { 
+COLLECTION_COLORS_T6_GREYSCALE,
+COLLECTION_COLORS_T6,
+COLLECTION_COLORS_P1,
+COLLECTION_COLORS_PONTORMO_FRESCO,
+COLLECTION_COLORS_BAROCCI_16,
+COLLECTION_COLORS_MICHELANGELO_16,
+COLLECTION_COLORS_VELAZQUEZ_16,
+URUSHI_16,
+COLLECTION_COLORS_GOYA_WITCHES_16, } from '@/lib/utils/col_constants';
 import { getSharedDuckDBEngine, loadShardIntoEngine } from "./duckDATA";
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
 import { getOPFSFileHandle } from '@/components/data/diskOPFS';

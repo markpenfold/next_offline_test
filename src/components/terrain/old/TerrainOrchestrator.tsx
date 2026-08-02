@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
 import { useDATAStore } from '@/stores/useDataStore';
 import { createTerrainCompute } from './terrainComputeB';
-import { cpuTerrainFallback } from './cpuTerrainFallback';
+import { cpuTerrainFallback } from '../cpuTerrainFallback';
 
 interface OrchestratorProps {
   geometry: THREE.BufferGeometry;

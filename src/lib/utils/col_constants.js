@@ -215,7 +215,7 @@ export const ORIGINAL_COLORS = [
 
 
 // BEAUTIFUL — Tiepolo 16
-export const COLLECTION_COLORS_T6 = [
+export const FUCK_ME = [
   '#a0c0d8',  // Aerial sky powder
   '#dac69e',  // Luminous cloud white
   '#d06040',  // Strong Venetian rose
@@ -230,6 +230,31 @@ export const COLLECTION_COLORS_T6 = [
   '#2060a0',  // Mantle blue
   '#162840',  // Twilight indigo
 ];
+
+
+
+// BEAUTIFUL — Tiepolo 16
+export const COLLECTION_COLORS_T6 = [
+  '#5a5aa1',  // Dark shadow vault
+  '#f2ede4',  // Luminous cloud white
+  '#e8c060',  // Vivid Naples yellow
+  '#d06040',  // Strong Venetian rose
+  '#7ab060',  // Punchy sage green
+  '#3a80b0',  // Bold cerulean
+  '#1e4060',  // Deep sky blue
+  '#ede0c4',  // Warm fresco cream
+  '#d4a040',  // Deep gilt ochre
+  '#b84030',  // Venetian crimson
+  '#c88060',  // Warm terra cotta
+  '#4e8050',  // Deep Venetian verdure
+  '#a8c8a0',  // Pale celadon mist
+  '#a0c0d8',  // Aerial sky powder
+  '#2060a0',  // Mantle blue
+  '#162840',  // Twilight indigo
+];
+
+
+
 
 
 // BEAUTIFUL — Tiepolo 16 (Greyscale)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus, X, Loader2 } from "lucide-react";
 import { getMasterIndex } from "./cloudR2";
 import { checkFileExists } from "./diskOPFS";
 import { AvailableIndex } from "@/components/data/dataTypes";
@@ -8,7 +9,6 @@ import { useAppStore } from "@/providers/AppStoreProvider";
 import { useDATAStore } from "@/stores/useDataStore";
 
 const white = "rgb(245,245,245)";
-const red = "rgb(162, 5, 5)";
 const blue = "rgb(65,105,225)";
 
 // Helper: Formats category and version into clean title (e.g., "Music Albums V1")
@@ -48,16 +48,16 @@ export function IndexLoader() {
   const setIsGeologicalTime = useDATAStore((s) => s.setIsGeologicalTime);
   const addToSlot = useDATAStore((s) => s.addToSlot);
   const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
-  
+  const slots = useDATAStore((s) => s.slots);
+  const setSlotColor = useDATAStore((s) => (s as any).setSlotColor); // Slot color updater
+
   /**
    * Toggles an index shard: Checks local slot state -> OPFS disk cache -> Remote R2 download -> Slot Hydration
    */
   const handleToggleDataView = async (item: AvailableIndex) => {
     const fileName = item.fileName;
-    
     // Resolve active account ID (supports object or raw string ID)
     const accountId = typeof activeAccount === "object" ? activeAccount?.id : activeAccount;
-
     if (!accountId) {
       addLog("❌ Action aborted: Active account context is missing.");
       return;
@@ -70,17 +70,16 @@ export function IndexLoader() {
 
     try {
       setKeyLoading(fileName, true);
-
       // ========================================================================
       // 1. REMOVAL PATH: Index is already active in a hardware slot
       // ========================================================================
       if (isActive) {
-        await removeFromSlot(fileName);
+        removeFromSlot(fileName);
         return;
       }
 
       // ========================================================================
-      // 2. CAPACITY GUARD: Prevent exceeding maximum hardware slots (e.g. 8)
+      // 2. CAPACITY GUARD: Prevent exceeding maximum hardware slots (e.g. 12)
       // ========================================================================
       const MAX_SLOTS = 12;
       if (activeDataViewIndexes.length >= MAX_SLOTS) {
@@ -118,7 +117,9 @@ export function IndexLoader() {
       // ========================================================================
       console.log(`Loading ${fileName} into execution slot...`);
       await addToSlot(item);
-      console.log(`Successfully activated ${fileName}!`);
+ 
+      console.log(`Successfully activated ${fileName}`);
+     
 
     } catch (err: any) {
       console.error(`❌ Failed to toggle ${fileName}:`, err);
@@ -163,6 +164,11 @@ export function IndexLoader() {
               const isLoading = loadingKeys.includes(item.fileName);
               const displayName = formatIndexDisplayName(item.category, item.version);
 
+              // Find matching hardware slot and its index position
+              const matchingSlotIndex = slots.findIndex((s) => s.isActive && s.fileName === item.fileName);
+              const matchingSlot = matchingSlotIndex !== -1 ? slots[matchingSlotIndex] : null;
+              const slotColor = matchingSlot?.color;
+
               return (
                 <div 
                   key={item.fileName} 
@@ -172,7 +178,7 @@ export function IndexLoader() {
                     gap: "1px",
                     alignItems: "center",
                     background: isActive ? "rgba(181, 218, 195, 0.3)" : "rgba(0,0,0,0.2)",
-                    padding: "0px",
+                    padding: "2px 4px",
                     fontSize: "0.6rem",
                   }}
                 >
@@ -192,26 +198,89 @@ export function IndexLoader() {
                     </span>
                   </div>
 
-                  {/* RIGHT: Action Button */}
+                  {/* RIGHT: Split Control Container */}
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button
-                      disabled={isLoading}
-                      onClick={() => handleToggleDataView(item)}
+                    <div
                       style={{
-                        border: "none",
-                        background: isActive ? "rgba(222,222,222,0.7)" : "rgba(239, 166, 237, 0.1)",
-                        color: isActive ? red : white,
-                        fontSize: "0.6rem",
-                        cursor: isLoading ? "not-allowed" : "pointer",
-                        opacity: isLoading ? 0.5 : 1,
-                        padding: "4px 8px",
+                        display: "flex",
+                        alignItems: "center",
                         marginLeft: "8px",
-                        fontWeight: "400",
-                        transition: "all 0.2s"
+                        borderRadius: "2px",
+                        overflow: "hidden",
+                        opacity: isLoading ? 0.6 : 1,
                       }}
                     >
-                      {isLoading ? "Working..." : isActive ? "Remove" : "Add"}
-                    </button>
+                      {/* LEFT BOX: Color Swatch & Native Color Picker Overlay */}
+                      <div
+                        style={{
+                          position: "relative",
+                          width: "20px",
+                          height: "20px",
+                          backgroundColor: isActive && slotColor ? slotColor : "rgba(255, 255, 255, 0.05)",
+                          border: isActive ? "none" : "1px dashed rgba(255, 255, 255, 0.2)",
+                          boxSizing: "border-box",
+                          transition: "background-color 0.2s ease",
+                          cursor: isActive ? "pointer" : "default",
+                        }}
+                        title={isActive ? "Click to change timeline color" : undefined}
+                      >
+                        {/* Invisible native color input over active swatch */}
+                        {isActive && matchingSlot && (
+                          <input
+                            type="color"
+                            value={slotColor || "#000000"}
+                            onChange={(e) => {
+                              if (setSlotColor && matchingSlotIndex !== -1) {
+                                setSlotColor(matchingSlotIndex, e.target.value);
+                              }
+                            }}
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              width: "100%",
+                              height: "100%",
+                              opacity: 0,
+                              cursor: "pointer",
+                              border: "none",
+                              padding: 0,
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* RIGHT BOX: Add/Remove Action Trigger */}
+                      <button
+                        disabled={isLoading}
+                        onClick={() => handleToggleDataView(item)}
+                        title={isActive ? "Remove dataset" : "Add dataset"}
+                        style={{
+                          width: "20px",
+                          height: "20px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "none",
+                          backgroundColor: isLoading
+                            ? "rgba(255, 255, 255, 0.2)"
+                            : isActive
+                            ? "rgb(180, 35, 35)"  // Red box
+                            : "rgb(34, 139, 34)", // Green box
+                          color: white,
+                          cursor: isLoading ? "not-allowed" : "pointer",
+                          transition: "background-color 0.2s ease",
+                          padding: 0,
+                        }}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="animate-spin" size={11} />
+                        ) : isActive ? (
+                          <X size={11} />
+                        ) : (
+                          <Plus size={11} />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -219,13 +288,6 @@ export function IndexLoader() {
           </div>
         )}
       </div>
-
-      {/* WINDOW 2: DEBUG LOGS (Uncomment when debugging) */}
-      {/* 
-      <div style={{ background: "#111", color: "#0f0", padding: "12px", borderRadius: "8px", height: "150px", overflowY: "auto", fontSize: "0.75rem", fontFamily: "monospace", marginTop: "12px" }}>
-        {logs.map((log, i) => <div key={i}>{log}</div>)}
-      </div> 
-      */}
     </div>
   );
 }

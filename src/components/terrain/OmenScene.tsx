@@ -1,15 +1,20 @@
-import { getMat3 } from './fastShader';
-import { getMat4 } from './fs3';
-import {getUrushi } from './urushi'
-import {getUrushiB } from './urushiB'
+import { getMat3 } from './shaders/fastShader';
+import { getMat4 } from './shaders/fs3';
+import {getUrushi } from './shaders/urushi'
+import {getUrushiB } from './shaders/urushiB'
+import {getUrushiC } from './shaders/urushiC'
+import {getUrushiD } from './shaders/urushiD'
+import {getUrushiChan } from './shaders/urushiChan'
 import { useMemo, useRef } from 'react';
 import { StorageBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three/webgpu';
-import { TerrainOrchestrator } from './TerrainOrchestrator';
+import { TerrainOrchestrator } from './tO';
 
 interface SceneProps {
   resolution?: number;
 }
+
+
 
 export function Scene({ resolution = 512 }: SceneProps) {
     const meshRef = useRef<THREE.Mesh>(null);
@@ -48,7 +53,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
   }, [resolution]);
 
   const material = useMemo(() => {
-    return getUrushi(geometry, null);
+    return getUrushiC(geometry, null);
   }, [geometry]);
 
   return (

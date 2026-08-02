@@ -12,7 +12,15 @@ import {
   loadProject,
   getSavedProjects,
 } from '@/components/data/diskOPFS';
-import { COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
+import { 
+COLLECTION_COLORS_T6_GREYSCALE,
+COLLECTION_COLORS_P1,
+COLLECTION_COLORS_PONTORMO_FRESCO,
+COLLECTION_COLORS_BAROCCI_16,
+COLLECTION_COLORS_MICHELANGELO_16,
+COLLECTION_COLORS_VELAZQUEZ_16,
+URUSHI_16,
+COLLECTION_COLORS_GOYA_WITCHES_16, } from '@/lib/utils/col_constants';
 
 import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
@@ -23,7 +31,7 @@ import {
   OPFSGpuSettings,
 } from '@/components/data/diskOPFS';
 
-
+const TERRAIN_COLORS = COLLECTION_COLORS_T6_GREYSCALE;
 // ============================================================================
 // 1. HARDWARE SLOT DEFINITION
 // ============================================================================
@@ -35,13 +43,13 @@ export type ChangedSlotEvent = {
   nonce: number;
 };
 
-
 export interface Slot {
   id: number; // 0 to 11 (Maps 1:1 to GPU attribute slots)
   fileName: string | null;
   category: string | null;
   isActive: boolean;
   color: string;
+  baseline: number; // 💡 Noise gate baseline threshold (0.0 to 0.5)
   terrainIndexData: Map<number, { count: number; uuids: string[] }> | null;
   buffer: Float32Array; // 1024-element float array sent to GPU attribute
   uuidMap: Map<number, string[]>;
@@ -56,14 +64,14 @@ export const createInitialSlots = (): Slot[] => {
       fileName: null,
       category: null,
       isActive: false,
-      color: COLLECTION_COLORS_T6[i],
+      color: COLLECTION_COLORS_T6_GREYSCALE[i],
+      baseline: 0.0, // 💡 Initial baseline noise gate threshold
       terrainIndexData: null,
       buffer: new Float32Array(1024).fill(0),
       uuidMap: new Map(),
     };
   });
 };
-
 
 // ============================================================================
 // 2. STORE INTERFACE
@@ -75,19 +83,17 @@ export interface DATAStore {
   downloadedIndexes: string[];
   loadingKeys: string[];
 
-
   // Active Session State
   activeDataViewIndexes: ActiveDataViewIndex[];
   slots: Slot[];
   lastChangedSlot: ChangedSlotEvent | null;
-  accountId:string | null;
- 
+  accountId: string | null;
 
   // Global Time & Display Config
   totalYearSpan: [number, number];
   windowStartYear: number | null;
   isGeologicalTime: boolean;
-  stepsize:number;
+  stepsize: number;
 
   // Project Session
   activeProjectName: string | null;
@@ -102,17 +108,13 @@ export interface DATAStore {
   gpuPreference: 'unset' | 'webgpu' | 'webgl';
   gpuStatus: WebGPUStatus | null;
   useWebGL: boolean;
-  
 
   // Actions
   initWebGPUSupport: (accountId?: string | null) => Promise<void>;
   setGpuPreference: (pref: 'webgpu' | 'webgl' | 'unset') => void;
   resetGpuPreference: () => void;
 
- 
-
   // --- ACTIONS ---
-
   /** Atomic action to push a new ActiveDataViewIndex object into session state */
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => void;
 
@@ -124,16 +126,19 @@ export interface DATAStore {
 
   // Slot Actions
   addToSlot: (item: AvailableIndex, accountId?: string) => Promise<void>;
-  clearSlot: (slotIndex: number, accountId?: string) => void;  clearAllSlots: (accountId?: string) => void;
+  clearSlot: (slotIndex: number, accountId?: string) => void;
+  clearAllSlots: (accountId?: string) => void;
   clearFileFromSlots: (target: string | AvailableIndex, accountId?: string) => void;
   getUUIDsForEvent: (slotIndex: number, year: number) => string[];
+  setSlotColor: (slotIndex: number, newColor: string) => void;
+  setSlotBaseline: (slotIndex: number, newBaseline: number) => void; // 💡 Baseline Threshold Setter
 
   // Project Lifecycle
   createNewProject: (accountId: string) => Promise<void>;
   saveCurrentProjectAs: (projectName: string, accountId: string) => Promise<void>;
   loadNamedProject: (projectName: string, accountId: string) => Promise<void>;
   refreshLocalProjects: (accountId: string) => Promise<void>;
-  setFinderOpen: (openORclosed:boolean) => void;
+  setFinderOpen: (openORclosed: boolean) => void;
 
   // Bootloader
   initializeOmenland: (accountId: string) => Promise<void>;
@@ -190,7 +195,10 @@ export async function populateSlots({
         item.category
       );
 
-      updatedSlots[targetSlotIndex] = slot;
+      updatedSlots[targetSlotIndex] = {
+        ...slot,
+        baseline: currentSlots[targetSlotIndex]?.baseline ?? 0.0,
+      };
       verifiedActiveIndexes.push(item);
 
       // Bootstrap start year if window was null (e.g. first boot)
@@ -218,13 +226,12 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function triggerAutoSave(getStore: () => DATAStore) {
   const state = getStore();
-
   const accountId = state.accountId;
 
   // Prevent auto-saving while store is uninitialized or booting
   if (!accountId || !state.isInitialized || state.isInitializing) return;
 
-  console.log("AUTO SAVING: ")
+  console.log("AUTO SAVING: ");
   if (autoSaveTimer) {
     clearTimeout(autoSaveTimer);
   }
@@ -239,7 +246,7 @@ function triggerAutoSave(getStore: () => DATAStore) {
       isGeologicalTime: state.isGeologicalTime,
     });
 
-    console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes }]`);
+    console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes}]`);
   }, 400);
 }
 
@@ -256,9 +263,9 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   activeDataViewIndexes: [],
   slots: createInitialSlots(),
   lastChangedSlot: null,
-  accountId:null,
+  accountId: null,
 
-  totalYearSpan: [0,0],
+  totalYearSpan: [0, 0],
   windowStartYear: null,
   isGeologicalTime: false,
   stepsize: 1,
@@ -310,7 +317,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   },
 
   initWebGPUSupport: async (accountId?: string | null) => {
-    // Resolve provided accountId or fallback to current store state
     const targetAccountId = accountId ?? get().accountId ?? null;
     
     set({ accountId: targetAccountId });
@@ -333,7 +339,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         useWebGL: pref === 'webgl' || !status.supported,
       });
     } else {
-      // Unset: First initialization for this account
       if (!status.supported) {
         set({ gpuPreference: 'webgl', useWebGL: true });
 
@@ -360,22 +365,21 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   // update active view indexes
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => {
-  const current = get().activeDataViewIndexes;
-  // Prevent duplicates
-  if (current.some((x) => x.fileName === item.fileName)) return;
+    const current = get().activeDataViewIndexes;
+    if (current.some((x) => x.fileName === item.fileName)) return;
 
-  set({
-    activeDataViewIndexes: [...current, item],
-  });
-},
+    set({
+      activeDataViewIndexes: [...current, item],
+    });
+  },
 
   removeActiveDataViewIndex: (fileName: string) => {
-  set({
-    activeDataViewIndexes: get().activeDataViewIndexes.filter(
-      (item) => item.fileName !== fileName
-    ),
-  });
-},
+    set({
+      activeDataViewIndexes: get().activeDataViewIndexes.filter(
+        (item) => item.fileName !== fileName
+      ),
+    });
+  },
 
   // --- CONFIG SETTERS ---
   setIsGeologicalTime: function (val, accountId) {
@@ -435,7 +439,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     if (alreadyExists) return;
 
     const freeSlotIndex = currentSlots.findIndex((s) => !s.isActive);
-    console.log("adding to this sloooooooooooooooooooooooooooooooOt:", freeSlotIndex);
+    console.log("adding to this slot:", freeSlotIndex);
     if (freeSlotIndex === -1) {
       console.warn('All 12 terrain slots are full!');
       return;
@@ -445,14 +449,16 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     const { slot: hydratedSlot, resolvedWindowStartYear } = await hydrateSingleSlot(
       item.fileName,
       freeSlotIndex,
-      currentYear, // Might be null on first load
+      currentYear,
       item.category
     );
 
     const updatedSlots = [...currentSlots];
-    updatedSlots[freeSlotIndex] = hydratedSlot;
+    updatedSlots[freeSlotIndex] = {
+      ...hydratedSlot,
+      baseline: currentSlots[freeSlotIndex].baseline ?? 0.0,
+    };
 
-    // If windowStartYear was null, commit the resolved year to global store
     const nextWindowYear = currentYear ?? resolvedWindowStartYear;
 
     set({
@@ -460,7 +466,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       windowStartYear: nextWindowYear,
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: freeSlotIndex, nonce: Date.now() },
-      
     });
 
     get().addActiveDataViewIndex({
@@ -469,8 +474,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       tier: item.tier,
     });
 
-  triggerAutoSave(get);
-},
+    triggerAutoSave(get);
+  },
 
   clearSlot: function (slotIndex, accountId) {
     if (slotIndex < 0 || slotIndex >= 12) return;
@@ -479,7 +484,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     let slotty = currentSlots[slotIndex];
     const indexKiller = slotty?.fileName;
 
-    // Only remove from active indexes if a file was actually loaded
     if (indexKiller) {
       get().removeActiveDataViewIndex(indexKiller);
     }
@@ -490,12 +494,12 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       fileName: null,
       category: null,
       isActive: false,
-      color: COLLECTION_COLORS_T6[slotIndex],
+      color: COLLECTION_COLORS_T6_GREYSCALE[slotIndex],
+      baseline: 0.0, // 💡 Reset baseline threshold
       terrainIndexData: null,
       buffer: new Float32Array(1024).fill(0),
       uuidMap: new Map(),
     };
-    
 
     set({
       slots: updatedSlots,
@@ -507,14 +511,14 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   },
 
   clearFileFromSlots: function (target: string | AvailableIndex, accountId?: string) {
-  const fileName = typeof target === 'string' ? target : target.fileName;
-  const slots = get().slots;
+    const fileName = typeof target === 'string' ? target : target.fileName;
+    const slots = get().slots;
 
-  const slotIndex = slots.findIndex((slot) => slot.fileName === fileName);
-  if (slotIndex !== -1) {
-    get().clearSlot(slotIndex, accountId);
-  }
-},
+    const slotIndex = slots.findIndex((slot) => slot.fileName === fileName);
+    if (slotIndex !== -1) {
+      get().clearSlot(slotIndex, accountId);
+    }
+  },
 
   clearAllSlots: function (accountId) {
     set({
@@ -526,6 +530,24 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
+  setSlotColor: (slotIndex: number, newColor: string) => {
+    const slots = [...get().slots];
+    if (slots[slotIndex]) {
+      slots[slotIndex] = { ...slots[slotIndex], color: newColor };
+      set({ slots });
+      triggerAutoSave(get);
+    }
+  },
+
+  // 💡 Baseline Threshold Action
+  setSlotBaseline: (slotIndex: number, newBaseline: number) => {
+    const slots = [...get().slots];
+    if (slots[slotIndex]) {
+      slots[slotIndex] = { ...slots[slotIndex], baseline: newBaseline };
+      set({ slots });
+      triggerAutoSave(get);
+    }
+  },
 
   getUUIDsForEvent: function (slotIndex, year) {
     const slot = get().slots[slotIndex];
@@ -534,7 +556,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   },
 
   // --- PROJECT LIFECYCLE ---
-
   createNewProject: async function (accountId) {
     set({
       slots: createInitialSlots(),
@@ -608,11 +629,11 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-  setFinderOpen: function(openORclosed){
-    set({finderIsOpen: openORclosed});
+  setFinderOpen: function (openORclosed) {
+    set({ finderIsOpen: openORclosed });
   },
 
-  // --- BOOTLOADER --- //////////
+  // --- BOOTLOADER ---
   initializeOmenland: async function (accountId?: string) {
     if (get().isInitializing || !accountId || get().isInitialized) return;
 
@@ -641,7 +662,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         isInitializing: false,
       });
 
-      console.log("ERE BE DEM SLOTS YOU ASKED FOR MASSA:", get().slots)
+      console.log("ERE BE DEM SLOTS YOU ASKED FOR MASSA:", get().slots);
     } catch (error) {
       console.error('Critical failure during initialization:', error);
       set({ isInitializing: false });
