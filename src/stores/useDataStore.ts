@@ -24,7 +24,7 @@ COLLECTION_COLORS_GOYA_WITCHES_16, } from '@/lib/utils/col_constants';
 
 import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
-
+import { Vector3 } from 'three';
 import {
   loadGpuSettingsFromOPFS,
   saveGpuSettingsToOPFS,
@@ -49,7 +49,6 @@ export interface Slot {
   category: string | null;
   isActive: boolean;
   color: string;
-  baseline: number; // 💡 Noise gate baseline threshold (0.0 to 0.5)
   terrainIndexData: Map<number, { count: number; uuids: string[] }> | null;
   buffer: Float32Array; // 1024-element float array sent to GPU attribute
   uuidMap: Map<number, string[]>;
@@ -65,7 +64,6 @@ export const createInitialSlots = (): Slot[] => {
       category: null,
       isActive: false,
       color: COLLECTION_COLORS_T6_GREYSCALE[i],
-      baseline: 0.0, // 💡 Initial baseline noise gate threshold
       terrainIndexData: null,
       buffer: new Float32Array(1024).fill(0),
       uuidMap: new Map(),
@@ -88,6 +86,9 @@ export interface DATAStore {
   slots: Slot[];
   lastChangedSlot: ChangedSlotEvent | null;
   accountId: string | null;
+  hoverCoord: Vector3 | null;
+
+
 
   // Global Time & Display Config
   totalYearSpan: [number, number];
@@ -131,7 +132,11 @@ export interface DATAStore {
   clearFileFromSlots: (target: string | AvailableIndex, accountId?: string) => void;
   getUUIDsForEvent: (slotIndex: number, year: number) => string[];
   setSlotColor: (slotIndex: number, newColor: string) => void;
-  setSlotBaseline: (slotIndex: number, newBaseline: number) => void; // 💡 Baseline Threshold Setter
+
+  // UI stuff
+  setHoverCoord: (coord: Vector3 | null) => void;
+
+
 
   // Project Lifecycle
   createNewProject: (accountId: string) => Promise<void>;
@@ -197,7 +202,6 @@ export async function populateSlots({
 
       updatedSlots[targetSlotIndex] = {
         ...slot,
-        baseline: currentSlots[targetSlotIndex]?.baseline ?? 0.0,
       };
       verifiedActiveIndexes.push(item);
 
@@ -264,6 +268,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   slots: createInitialSlots(),
   lastChangedSlot: null,
   accountId: null,
+
+  hoverCoord: null,
 
   totalYearSpan: [0, 0],
   windowStartYear: null,
@@ -411,6 +417,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
+  setHoverCoord: (coord) => set({ hoverCoord: coord }),
+
   setKeyLoading: function (key, isLoading) {
     const currentKeys = get().loadingKeys;
     let nextKeys: string[] = [];
@@ -456,7 +464,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     const updatedSlots = [...currentSlots];
     updatedSlots[freeSlotIndex] = {
       ...hydratedSlot,
-      baseline: currentSlots[freeSlotIndex].baseline ?? 0.0,
     };
 
     const nextWindowYear = currentYear ?? resolvedWindowStartYear;
@@ -495,7 +502,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       category: null,
       isActive: false,
       color: COLLECTION_COLORS_T6_GREYSCALE[slotIndex],
-      baseline: 0.0, // 💡 Reset baseline threshold
       terrainIndexData: null,
       buffer: new Float32Array(1024).fill(0),
       uuidMap: new Map(),
@@ -539,15 +545,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-  // 💡 Baseline Threshold Action
-  setSlotBaseline: (slotIndex: number, newBaseline: number) => {
-    const slots = [...get().slots];
-    if (slots[slotIndex]) {
-      slots[slotIndex] = { ...slots[slotIndex], baseline: newBaseline };
-      set({ slots });
-      triggerAutoSave(get);
-    }
-  },
+
 
   getUUIDsForEvent: function (slotIndex, year) {
     const slot = get().slots[slotIndex];

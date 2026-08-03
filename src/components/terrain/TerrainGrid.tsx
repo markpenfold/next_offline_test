@@ -64,7 +64,7 @@ export function TerrainGrid({ size = 400, divisions = 32 }: TerrainGridProps) {
 
     return corners.map((corner, i) => {
       const topX = corner.x + corner.leanX;
-      const topY = 90;
+      const topY = 120;
       const topZ = corner.z + corner.leanZ;
       const baseY = -10;
 
