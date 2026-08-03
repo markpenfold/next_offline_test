@@ -37,19 +37,17 @@ export function IndexLoader() {
 
   // Zustand State (Single Source of Truth)
   const availableIndexes = useDATAStore((s) => s.availableIndexes);
-  const downloadedIndexes = useDATAStore((s) => s.downloadedIndexes);
   const loadingKeys = useDATAStore((s) => s.loadingKeys);
   const isInitializing = useDATAStore((s) => s.isInitializing);
-  const activeDataViewIndexes = useDATAStore((s) => s.activeDataViewIndexes);
   const isGeologicalTime = useDATAStore((s) => s.isGeologicalTime);
+  const slots = useDATAStore((s) => s.slots);
 
   // Zustand Store Actions
   const setKeyLoading = useDATAStore((s) => s.setKeyLoading);
   const setIsGeologicalTime = useDATAStore((s) => s.setIsGeologicalTime);
   const addToSlot = useDATAStore((s) => s.addToSlot);
   const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
-  const slots = useDATAStore((s) => s.slots);
-  const setSlotColor = useDATAStore((s) => (s as any).setSlotColor); // Slot color updater
+  const setSlotColor = useDATAStore((s) => s.setSlotColor);
 
   /**
    * Toggles an index shard: Checks local slot state -> OPFS disk cache -> Remote R2 download -> Slot Hydration
@@ -66,7 +64,7 @@ export function IndexLoader() {
     // Guard 1: Prevent duplicate concurrent requests
     if (loadingKeys.includes(fileName)) return;
 
-    const isActive = activeDataViewIndexes.some((active) => active.fileName === fileName);
+    const isActive = slots.some((s) => s.fileName === fileName);
 
     try {
       setKeyLoading(fileName, true);
@@ -79,10 +77,10 @@ export function IndexLoader() {
       }
 
       // ========================================================================
-      // 2. CAPACITY GUARD: Prevent exceeding maximum hardware slots (e.g. 12)
+      // 2. CAPACITY GUARD: Max 12 dynamic stack slots
       // ========================================================================
       const MAX_SLOTS = 12;
-      if (activeDataViewIndexes.length >= MAX_SLOTS) {
+      if (slots.length >= MAX_SLOTS) {
         console.log(`⚠️ Maximum slot capacity reached (${MAX_SLOTS}). Remove a dataset first.`);
         return;
       }
@@ -119,7 +117,6 @@ export function IndexLoader() {
       await addToSlot(item);
  
       console.log(`Successfully activated ${fileName}`);
-     
 
     } catch (err: any) {
       console.error(`❌ Failed to toggle ${fileName}:`, err);
@@ -160,13 +157,13 @@ export function IndexLoader() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
             {availableIndexes.map((item) => {
-              const isActive = activeDataViewIndexes.some((active) => active.fileName === item.fileName);
               const isLoading = loadingKeys.includes(item.fileName);
               const displayName = formatIndexDisplayName(item.category, item.version);
 
-              // Find matching hardware slot and its index position
-              const matchingSlotIndex = slots.findIndex((s) => s.isActive && s.fileName === item.fileName);
-              const matchingSlot = matchingSlotIndex !== -1 ? slots[matchingSlotIndex] : null;
+              // 💡 ACTIVE STACK LOOKUP: Find position in dynamic stack directly
+              const matchingSlotIndex = slots.findIndex((s) => s.fileName === item.fileName);
+              const isActive = matchingSlotIndex !== -1;
+              const matchingSlot = isActive ? slots[matchingSlotIndex] : null;
               const slotColor = matchingSlot?.color;
 
               return (

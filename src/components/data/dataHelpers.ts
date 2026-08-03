@@ -125,6 +125,11 @@ export async function runQuery(sql: string) {
     };
   }
 }
+export interface HydrationResult {
+  slot: Omit<Slot, 'id' | 'color'> & { color?: string };
+  resolvedWindowStartYear: number;
+}
+
 /**
  * Reads a single index Parquet file from DuckDB VFS 
  * and compiles it directly into a slot's terrainIndexData Map.
@@ -132,7 +137,6 @@ export async function runQuery(sql: string) {
 export async function loadSlotIndexData(
   fileName: string
 ): Promise<Map<number, { count: number; uuids: string[] }>> {
-  
   // 1. Fetch file handle from OPFS on demand
   const fileHandle = await getOPFSFileHandle('indexes', fileName);
   
@@ -166,16 +170,11 @@ export async function loadSlotIndexData(
   return indexMap;
 }
 
-export interface HydrationResult {
-  slot: Slot;
-  resolvedWindowStartYear: number;
-}
-
 export async function hydrateSingleSlot(
   fileName: string,
   slotIndex: number,
   windowStartYear: number | null,
-  category: string
+  category?: string | null
 ): Promise<HydrationResult> {
   // Guard 1: Metadata integrity check
   if (!category) {
@@ -205,37 +204,33 @@ export async function hydrateSingleSlot(
   // 4. Generate the 1024-year Float32Array buffer and uuidMap
   const windowSlice = sliceWindow(terrainIndexData, resolvedYear);
 
-  // 5. Build and return explicit Slot object + resolved window year
-  const slot: Slot = {
-    id: slotIndex,
-    fileName,
-    category,
-    isActive: true,
-    color: COLLECTION_COLORS_T6[slotIndex] || '#ffffff',
-    terrainIndexData,
-    buffer: windowSlice.buffer,
-    uuidMap: windowSlice.uuidMap,
-    minYear,
-    maxYear,
+  // 5. Build hydrated data object (No dead 'isActive' field)
+  return {
+    slot: {
+      fileName,
+      category,
+      terrainIndexData,
+      buffer: windowSlice.buffer,
+      uuidMap: windowSlice.uuidMap,
+      minYear,
+      maxYear,
+    },
+    resolvedWindowStartYear: resolvedYear,
   };
-
-  return { slot, resolvedWindowStartYear: resolvedYear };
 }
-
-
 export function deriveTotalYearSpan(
   slots: Slot[],
   defaultSpan: [number, number] = [1000, 2024]
 ): [number, number] {
-  // Filter for active slots that have valid min/max year bounds
-  const activeSlots = slots.filter(
-    (s) => s.isActive && s.minYear !== undefined && s.maxYear !== undefined
+  // All slots in the stack are active — filter strictly for valid year bounds
+  const slotsWithBounds = slots.filter(
+    (s) => s.minYear !== undefined && s.maxYear !== undefined
   );
 
-  if (activeSlots.length === 0) return defaultSpan;
+  if (slotsWithBounds.length === 0) return defaultSpan;
 
-  const min = Math.min(...activeSlots.map((s) => s.minYear!));
-  const max = Math.max(...activeSlots.map((s) => s.maxYear!));
+  const min = Math.min(...slotsWithBounds.map((s) => s.minYear!));
+  const max = Math.max(...slotsWithBounds.map((s) => s.maxYear!));
 
   return [min, max];
 }

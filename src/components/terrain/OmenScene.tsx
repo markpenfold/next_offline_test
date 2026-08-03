@@ -1,4 +1,8 @@
 import { getUrushiC } from './shaders/urushiC';
+import { getUrushi } from './shaders/urushi';
+import { getUrushiB } from './shaders/urushiB';
+import { getUrushiD } from './shaders/urushiD';
+import { getUrushiChan } from './shaders/urushiChan';
 import { useMemo, useRef } from 'react';
 import { StorageBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three/webgpu';
@@ -14,19 +18,20 @@ interface SceneProps {
 
 export function Scene({ resolution = 512 }: SceneProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const tempVec = useRef(new Vector3());
   const invalidate = useThree((state) => state.invalidate);
   const setHoverCoord = useDATAStore((state) => state.setHoverCoord);
 
   ///////////////////////////////////////////////////////////
-  // 1. BASE GEOMETRY
+  // 1. BASE GEOMETRY (Allocated once with Storage Buffers)
   ///////////////////////////////////////////////////////////
   const geometry = useMemo(() => {
     const geo = new THREE.PlaneGeometry(400, 400, resolution - 1, resolution - 1);
     geo.rotateX(-Math.PI / 2);
 
     const vertexCount = geo.attributes.position.count;
-
     const originalPositions = geo.attributes.position.array;
+
     geo.setAttribute('position', new StorageBufferAttribute(originalPositions, 3));
     geo.setAttribute('normal', new StorageBufferAttribute(geo.attributes.normal.array, 3));
     geo.setAttribute('heightBuffer', new StorageBufferAttribute(new Float32Array(vertexCount), 1));
@@ -43,12 +48,12 @@ export function Scene({ resolution = 512 }: SceneProps) {
   }, [resolution]);
 
   const material = useMemo(() => {
-    return getUrushiC(geometry, null);
+    return getUrushi(geometry, null);
   }, [geometry]);
 
   return (
     <>
-      {/* 1. High-Res Visual Mesh — Raycasting disabled for 0ms overhead */}
+      {/* 1. High-Res Visual Mesh — Excluded from CPU raycasting */}
       <mesh
         ref={meshRef}
         geometry={geometry}
@@ -59,33 +64,33 @@ export function Scene({ resolution = 512 }: SceneProps) {
 
       {/* 2. Ultra-fast 2-Triangle Raycast Proxy Plane */}
       <mesh
-        position={[0, 0, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        onPointerMove={(e) => {
-          e.stopPropagation();
+          position={[0, 0, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          onPointerMove={(e) => {
+            e.stopPropagation();
 
-          // Direct GPU uniform update + wake up demand render loop
-          if (material?.userData?.hoverUVUniform?.value && e.uv) {
-            material.userData.hoverUVUniform.value.set(e.uv.x, e.uv.y);
-            invalidate(); // 👈 Keeps R3F awake when cursor moves
-          }
+            // 1. Direct GPU uniform update for TSL shader ring
+            if (material?.userData?.hoverUVUniform?.value && e.uv) {
+              material.userData.hoverUVUniform.value.set(e.uv.x, e.uv.y);
+              invalidate();
+            }
 
-          // Update store for DOM HUD
-          setHoverCoord(new Vector3(e.point.x, e.point.y, e.point.z));
-        }}
-        onPointerLeave={(e) => {
-          e.stopPropagation();
-          setHoverCoord(null);
+            // 2. Set hover coord in Zustand (store converts to fresh object reference)
+            setHoverCoord(e.point);
+          }}
+          onPointerLeave={(e) => {
+            e.stopPropagation();
+            setHoverCoord(null);
 
-          if (material?.userData?.hoverUVUniform?.value) {
-            material.userData.hoverUVUniform.value.set(-1.0, -1.0);
-            invalidate();
-          }
-        }}
-      >
-        <planeGeometry args={[400, 400]} />
-        <meshBasicMaterial visible={false} />
-      </mesh>
+            if (material?.userData?.hoverUVUniform?.value) {
+              material.userData.hoverUVUniform.value.set(-1.0, -1.0);
+              invalidate();
+            }
+          }}
+        >
+          <planeGeometry args={[400, 400]} />
+          <meshBasicMaterial visible={false} />
+        </mesh>
 
       <TerrainGrid />
       <TerrainOrchestrator 

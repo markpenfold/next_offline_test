@@ -7,7 +7,7 @@ import MyCanvas from '@/components/terrain/MyCanvas'
 import { TimelineSlider } from '@/components/terrain/Slider';
 import { IndexLoader } from '@/components/data/IndexLoader';
 import styles from '@/app/styles/styles.module.css';
-
+import { MasterBufferHUD } from "../terrain/terrainHUD";
 
 
 export function DataView() {
@@ -27,6 +27,7 @@ export function DataView() {
         {/* IndexLoader is ALWAYS mounted so the user can interact with it */}
         <IndexLoader />
         {/* Canvas holds the TerrainShaderTest */}
+              <MasterBufferHUD />
         <MyCanvas />
       </div>
          <TimelineSlider />

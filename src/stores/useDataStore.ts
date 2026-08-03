@@ -12,16 +12,7 @@ import {
   loadProject,
   getSavedProjects,
 } from '@/components/data/diskOPFS';
-import { 
-COLLECTION_COLORS_T6_GREYSCALE,
-COLLECTION_COLORS_P1,
-COLLECTION_COLORS_PONTORMO_FRESCO,
-COLLECTION_COLORS_BAROCCI_16,
-COLLECTION_COLORS_MICHELANGELO_16,
-COLLECTION_COLORS_VELAZQUEZ_16,
-URUSHI_16,
-COLLECTION_COLORS_GOYA_WITCHES_16, } from '@/lib/utils/col_constants';
-
+import { COLLECTION_COLORS_T6_GREYSCALE } from '@/lib/utils/col_constants';
 import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
 import { Vector3 } from 'three';
@@ -31,23 +22,31 @@ import {
   OPFSGpuSettings,
 } from '@/components/data/diskOPFS';
 
-const TERRAIN_COLORS = COLLECTION_COLORS_T6_GREYSCALE;
 // ============================================================================
-// 1. HARDWARE SLOT DEFINITION
+// 1. TYPES & INTERFACES
 // ============================================================================
+
 export type ChangedSlotEvent = {
-  // number    -> single slot update (e.g. toggle slot 3)
-  // number[]  -> multi-slot update (e.g. re-order slots [1, 2, 3])
-  // 'ALL'     -> project load, reset, or bulk import
   indices: number | number[] | 'ALL';
   nonce: number;
 };
 
+export interface ActiveSlotMeta {
+  id: number;
+  name: string;
+  color: string;
+}
+
+export interface HoverCoord {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface Slot {
-  id: number; // 0 to 11 (Maps 1:1 to GPU attribute slots)
-  fileName: string | null;
+  id: number; // Array stack position (0 to 11)
+  fileName: string;
   category: string | null;
-  isActive: boolean;
   color: string;
   terrainIndexData: Map<number, { count: number; uuids: string[] }> | null;
   buffer: Float32Array; // 1024-element float array sent to GPU attribute
@@ -55,21 +54,6 @@ export interface Slot {
   minYear?: number;  
   maxYear?: number; 
 }
-
-export const createInitialSlots = (): Slot[] => {
-  return Array.from({ length: 12 }, function (_, i) {
-    return {
-      id: i,
-      fileName: null,
-      category: null,
-      isActive: false,
-      color: COLLECTION_COLORS_T6_GREYSCALE[i],
-      terrainIndexData: null,
-      buffer: new Float32Array(1024).fill(0),
-      uuidMap: new Map(),
-    };
-  });
-};
 
 // ============================================================================
 // 2. STORE INTERFACE
@@ -81,20 +65,20 @@ export interface DATAStore {
   downloadedIndexes: string[];
   loadingKeys: string[];
 
-  // Active Session State
+  // Active Session State (Active Stack)
   activeDataViewIndexes: ActiveDataViewIndex[];
-  slots: Slot[];
+  slots: Slot[]; // Dynamic Active Stack: Length 0 to 12
   lastChangedSlot: ChangedSlotEvent | null;
   accountId: string | null;
-  hoverCoord: Vector3 | null;
-
-
+  hoverCoord: HoverCoord | null;
 
   // Global Time & Display Config
   totalYearSpan: [number, number];
   windowStartYear: number | null;
   isGeologicalTime: boolean;
   stepsize: number;
+  masterBuffer: Float32Array | null;
+  activeSlotsMetadata: ActiveSlotMeta[];
 
   // Project Session
   activeProjectName: string | null;
@@ -105,27 +89,24 @@ export interface DATAStore {
   isInitialized: boolean;
   isInitializing: boolean;
 
-  // 🚀 WebGPU / WebGL State
+  // WebGPU / WebGL State
   gpuPreference: 'unset' | 'webgpu' | 'webgl';
   gpuStatus: WebGPUStatus | null;
   useWebGL: boolean;
 
-  // Actions
+  // WebGPU Actions
   initWebGPUSupport: (accountId?: string | null) => Promise<void>;
   setGpuPreference: (pref: 'webgpu' | 'webgl' | 'unset') => void;
   resetGpuPreference: () => void;
 
-  // --- ACTIONS ---
-  /** Atomic action to push a new ActiveDataViewIndex object into session state */
+  // State / Config Setters
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => void;
-
-  /** Atomic action to filter out an ActiveDataViewIndex object by fileName */
   removeActiveDataViewIndex: (fileName: string) => void;
   setWindowStartYear: (year: number, accountId?: string) => void;
   setIsGeologicalTime: (val: boolean, accountId?: string) => void;
   setKeyLoading: (key: string, isLoading: boolean) => void;
 
-  // Slot Actions
+  // Slot Actions (Stack Logic)
   addToSlot: (item: AvailableIndex, accountId?: string) => Promise<void>;
   clearSlot: (slotIndex: number, accountId?: string) => void;
   clearAllSlots: (accountId?: string) => void;
@@ -133,10 +114,9 @@ export interface DATAStore {
   getUUIDsForEvent: (slotIndex: number, year: number) => string[];
   setSlotColor: (slotIndex: number, newColor: string) => void;
 
-  // UI stuff
-  setHoverCoord: (coord: Vector3 | null) => void;
-
-
+  // UI / GPU Sync
+  setHoverCoord: (coord: Vector3 | HoverCoord | null) => void;
+  setMasterBufferData: (buffer: Float32Array, metadata: ActiveSlotMeta[]) => void;
 
   // Project Lifecycle
   createNewProject: (accountId: string) => Promise<void>;
@@ -174,54 +154,63 @@ export async function populateSlots({
   windowStartYear,
   mode,
 }: PopulateSlotsOptions): Promise<PopulateSlotsResult> {
-  const updatedSlots = mode === 'replace' ? createInitialSlots() : [...currentSlots];
+  const updatedSlots: Slot[] = mode === 'replace' ? [] : [...currentSlots];
   let activeWindowYear = windowStartYear;
   const verifiedActiveIndexes: ActiveDataViewIndex[] = [];
 
   for (const item of items) {
-    // 1. Skip if appending an already active index
-    if (mode === 'append' && updatedSlots.some((s) => s.isActive && s.fileName === item.fileName)) {
-      continue;
-    }
-
-    // 2. Find next free slot
-    const targetSlotIndex = updatedSlots.findIndex((s) => !s.isActive);
-    if (targetSlotIndex === -1) {
-      console.warn('[populateSlots] All 12 terrain slots are full!');
+    if (updatedSlots.length >= 12) {
+      console.warn('[populateSlots] Max 12 terrain slots reached!');
       break;
     }
 
-    // 3. Hydrate slot cleanly using guaranteed metadata
+    // Skip duplicates
+    if (updatedSlots.some((s) => s.fileName === item.fileName)) {
+      continue;
+    }
+
+    const nextStackIndex = updatedSlots.length;
+
     try {
       const { slot, resolvedWindowStartYear } = await hydrateSingleSlot(
         item.fileName,
-        targetSlotIndex,
+        nextStackIndex,
         activeWindowYear,
         item.category
       );
 
-      updatedSlots[targetSlotIndex] = {
-        ...slot,
-      };
+      const color = COLLECTION_COLORS_T6_GREYSCALE[nextStackIndex % 12];
+
+      updatedSlots.push({
+        id: nextStackIndex,
+        fileName: item.fileName,
+        category: item.category || null,
+        color: slot.color || color,
+        terrainIndexData: slot.terrainIndexData,
+        buffer: slot.buffer,
+        uuidMap: slot.uuidMap,
+        minYear: slot.minYear,
+        maxYear: slot.maxYear,
+      });
+
       verifiedActiveIndexes.push(item);
 
-      // Bootstrap start year if window was null (e.g. first boot)
       if (activeWindowYear === null) {
         activeWindowYear = resolvedWindowStartYear;
       }
     } catch (slotError) {
-      console.error(
-        `[populateSlots] Parquet read failed for '${item.fileName}':`,
-        slotError
-      );
+      console.error(`[populateSlots] Parquet read failed for '${item.fileName}':`, slotError);
     }
   }
 
+  // Re-index slots so IDs strictly equal 0..N-1
+  const reindexed = updatedSlots.map((s, idx) => ({ ...s, id: idx }));
+
   return {
-    slots: updatedSlots,
+    slots: reindexed,
     verifiedActiveIndexes,
     resolvedWindowStartYear: activeWindowYear,
-    totalYearSpan: deriveTotalYearSpan(updatedSlots),
+    totalYearSpan: deriveTotalYearSpan(reindexed),
     lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
   };
 }
@@ -232,13 +221,9 @@ function triggerAutoSave(getStore: () => DATAStore) {
   const state = getStore();
   const accountId = state.accountId;
 
-  // Prevent auto-saving while store is uninitialized or booting
   if (!accountId || !state.isInitialized || state.isInitializing) return;
 
-  console.log("AUTO SAVING: ");
-  if (autoSaveTimer) {
-    clearTimeout(autoSaveTimer);
-  }
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
 
   autoSaveTimer = setTimeout(async function () {
     const state = getStore();
@@ -250,7 +235,7 @@ function triggerAutoSave(getStore: () => DATAStore) {
       isGeologicalTime: state.isGeologicalTime,
     });
 
-    console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes}]`);
+    console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes.length} active slots]`);
   }, 400);
 }
 
@@ -259,17 +244,19 @@ function triggerAutoSave(getStore: () => DATAStore) {
 // ============================================================================
 
 export const useDATAStore = create<DATAStore>((set, get) => ({
-  // --- INITIAL STATES ---
+  // Initial State
   availableIndexes: [],
   downloadedIndexes: [],
   loadingKeys: [],
 
   activeDataViewIndexes: [],
-  slots: createInitialSlots(),
+  slots: [], // Empty stack by default
   lastChangedSlot: null,
   accountId: null,
 
   hoverCoord: null,
+  masterBuffer: null,
+  activeSlotsMetadata: [],
 
   totalYearSpan: [0, 0],
   windowStartYear: null,
@@ -283,21 +270,15 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   isInitialized: false,
   isInitializing: false,
 
-  // Initial WebGPU state
   gpuPreference: 'unset',
   gpuStatus: null,
   useWebGL: false,
 
   setGpuPreference: async (pref) => {
     const { accountId, gpuStatus } = get();
-    
-    // Safeguard: Force WebGL if hardware lacks support
     const shouldFallback = pref === 'webgl' || !gpuStatus?.supported;
 
-    set({
-      gpuPreference: pref,
-      useWebGL: shouldFallback,
-    });
+    set({ gpuPreference: pref, useWebGL: shouldFallback });
 
     if (accountId) {
       await saveGpuSettingsToOPFS(accountId, {
@@ -318,47 +299,36 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       });
     }
 
-    // Re-run detection flow
     await get().initWebGPUSupport(accountId);
   },
 
   initWebGPUSupport: async (accountId?: string | null) => {
     const targetAccountId = accountId ?? get().accountId ?? null;
-    
     set({ accountId: targetAccountId });
 
-    // 1. Check hardware support
     const status = await checkWebGPUSupport();
     set({ gpuStatus: status });
 
-    // 2. Try loading existing OPFS settings for this account
     let opfsSettings: OPFSGpuSettings | null = null;
     if (targetAccountId) {
       opfsSettings = await loadGpuSettingsFromOPFS(targetAccountId);
     }
 
-    // 3. Evaluate Preference logic
     if (opfsSettings && opfsSettings.gpuPreference !== 'unset') {
       const pref = opfsSettings.gpuPreference;
-      set({
-        gpuPreference: pref,
-        useWebGL: pref === 'webgl' || !status.supported,
-      });
+      set({ gpuPreference: pref, useWebGL: pref === 'webgl' || !status.supported });
     } else {
       if (!status.supported) {
         set({ gpuPreference: 'webgl', useWebGL: true });
-
         if (targetAccountId) {
           await saveGpuSettingsToOPFS(targetAccountId, {
             gpuPreference: 'webgl',
             updatedAt: new Date().toISOString(),
           });
         }
-
         showWebGPUToast(status);
       } else {
         set({ gpuPreference: 'webgpu', useWebGL: false });
-
         if (targetAccountId) {
           await saveGpuSettingsToOPFS(targetAccountId, {
             gpuPreference: 'webgpu',
@@ -369,110 +339,103 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-  // update active view indexes
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => {
     const current = get().activeDataViewIndexes;
     if (current.some((x) => x.fileName === item.fileName)) return;
-
-    set({
-      activeDataViewIndexes: [...current, item],
-    });
+    set({ activeDataViewIndexes: [...current, item] });
   },
 
   removeActiveDataViewIndex: (fileName: string) => {
     set({
-      activeDataViewIndexes: get().activeDataViewIndexes.filter(
-        (item) => item.fileName !== fileName
-      ),
+      activeDataViewIndexes: get().activeDataViewIndexes.filter((item) => item.fileName !== fileName),
     });
   },
 
-  // --- CONFIG SETTERS ---
-  setIsGeologicalTime: function (val, accountId) {
+  setIsGeologicalTime: function (val) {
     set({ isGeologicalTime: val });
     triggerAutoSave(get);
   },
 
-  setWindowStartYear: function (year, accountId) {
+  // 💡 RESLICE WINDOW: Simple map over active slots array
+  setWindowStartYear: function (year) {
     const currentSlots = get().slots;
-    const reSlicedSlots = [...currentSlots];
 
-    for (let i = 0; i < reSlicedSlots.length; i = i + 1) {
-      const slot = reSlicedSlots[i];
-      if (slot.isActive && slot.terrainIndexData) {
-        const slice = sliceWindow(slot.terrainIndexData, year, get().stepsize, slot.minYear, slot.maxYear);
-        reSlicedSlots[i] = {
-          ...slot,
-          buffer: slice.buffer,
-          uuidMap: slice.uuidMap,
-        };
-      }
-    }
-
-    set({
-      windowStartYear: year,
-      slots: reSlicedSlots,
+    const reSlicedSlots = currentSlots.map((slot) => {
+      if (!slot.terrainIndexData) return slot;
+      const slice = sliceWindow(slot.terrainIndexData, year, get().stepsize, slot.minYear, slot.maxYear);
+      return {
+        ...slot,
+        buffer: slice.buffer,
+        uuidMap: slice.uuidMap,
+      };
     });
 
+    set({ windowStartYear: year, slots: reSlicedSlots });
     triggerAutoSave(get);
   },
 
-  setHoverCoord: (coord) => set({ hoverCoord: coord }),
+  setHoverCoord: (coord) =>
+    set({
+      hoverCoord: coord ? { x: coord.x, y: coord.y, z: coord.z } : null,
+    }),
+
+  setMasterBufferData: (buffer, metadata) =>
+    set({ masterBuffer: buffer, activeSlotsMetadata: metadata }),
 
   setKeyLoading: function (key, isLoading) {
     const currentKeys = get().loadingKeys;
-    let nextKeys: string[] = [];
-
-    if (isLoading) {
-      if (currentKeys.includes(key)) {
-        nextKeys = currentKeys;
-      } else {
-        nextKeys = [...currentKeys, key];
-      }
-    } else {
-      nextKeys = currentKeys.filter(function (k) {
-        return k !== key;
-      });
-    }
+    const nextKeys = isLoading
+      ? currentKeys.includes(key) ? currentKeys : [...currentKeys, key]
+      : currentKeys.filter((k) => k !== key);
 
     set({ loadingKeys: nextKeys });
   },
 
-  // --- SLOT ACTIONS ---
-  addToSlot: async function (item: AvailableIndex, accountId?: string) {
+  // 💡 ADD TO SLOT: Pushes to TOP of stack
+  addToSlot: async function (item: AvailableIndex) {
     const currentSlots = get().slots;
     const currentYear = get().windowStartYear;
 
-    const alreadyExists = currentSlots.some((s) => s.isActive && s.fileName === item.fileName);
-    if (alreadyExists) return;
-
-    const freeSlotIndex = currentSlots.findIndex((s) => !s.isActive);
-    console.log("adding to this slot:", freeSlotIndex);
-    if (freeSlotIndex === -1) {
+    if (currentSlots.length >= 12) {
       console.warn('All 12 terrain slots are full!');
       return;
     }
 
-    // Hydrate slot
+    if (currentSlots.some((s) => s.fileName === item.fileName)) return;
+
+    const newStackIndex = currentSlots.length;
+
+    // Hydrate slot data
     const { slot: hydratedSlot, resolvedWindowStartYear } = await hydrateSingleSlot(
       item.fileName,
-      freeSlotIndex,
+      newStackIndex,
       currentYear,
       item.category
     );
 
-    const updatedSlots = [...currentSlots];
-    updatedSlots[freeSlotIndex] = {
-      ...hydratedSlot,
+    const defaultColor = COLLECTION_COLORS_T6_GREYSCALE[newStackIndex % 12];
+
+    const newSlot: Slot = {
+      id: newStackIndex,
+      fileName: item.fileName,
+      category: item.category || null,
+      color: hydratedSlot.color || defaultColor,
+      terrainIndexData: hydratedSlot.terrainIndexData,
+      buffer: hydratedSlot.buffer,
+      uuidMap: hydratedSlot.uuidMap,
+      minYear: hydratedSlot.minYear,
+      maxYear: hydratedSlot.maxYear,
     };
 
+    // PUSH TO TOP OF STACK
+    const updatedSlots = [...currentSlots, newSlot];
     const nextWindowYear = currentYear ?? resolvedWindowStartYear;
 
     set({
       slots: updatedSlots,
       windowStartYear: nextWindowYear,
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
-      lastChangedSlot: { indices: freeSlotIndex, nonce: Date.now() },
+      lastChangedSlot: { indices: newStackIndex, nonce: Date.now() },
     });
 
     get().addActiveDataViewIndex({
@@ -484,28 +447,20 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
-  clearSlot: function (slotIndex, accountId) {
-    if (slotIndex < 0 || slotIndex >= 12) return;
-
+  // 💡 CLEAR SLOT: Splices out item and collapses higher layers down cleanly
+  clearSlot: function (slotIndex) {
     const currentSlots = get().slots;
-    let slotty = currentSlots[slotIndex];
-    const indexKiller = slotty?.fileName;
+    if (slotIndex < 0 || slotIndex >= currentSlots.length) return;
 
-    if (indexKiller) {
-      get().removeActiveDataViewIndex(indexKiller);
+    const targetSlot = currentSlots[slotIndex];
+    if (targetSlot?.fileName) {
+      get().removeActiveDataViewIndex(targetSlot.fileName);
     }
-    const updatedSlots = [...currentSlots];
 
-    updatedSlots[slotIndex] = {
-      id: slotIndex,
-      fileName: null,
-      category: null,
-      isActive: false,
-      color: COLLECTION_COLORS_T6_GREYSCALE[slotIndex],
-      terrainIndexData: null,
-      buffer: new Float32Array(1024).fill(0),
-      uuidMap: new Map(),
-    };
+    // Filter out target index & re-index IDs to maintain contiguous 0..N-1 array
+    const updatedSlots = currentSlots
+      .filter((_, idx) => idx !== slotIndex)
+      .map((slot, newIdx) => ({ ...slot, id: newIdx }));
 
     set({
       slots: updatedSlots,
@@ -516,19 +471,17 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
-  clearFileFromSlots: function (target: string | AvailableIndex, accountId?: string) {
+  clearFileFromSlots: function (target: string | AvailableIndex) {
     const fileName = typeof target === 'string' ? target : target.fileName;
-    const slots = get().slots;
-
-    const slotIndex = slots.findIndex((slot) => slot.fileName === fileName);
+    const slotIndex = get().slots.findIndex((slot) => slot.fileName === fileName);
     if (slotIndex !== -1) {
-      get().clearSlot(slotIndex, accountId);
+      get().clearSlot(slotIndex);
     }
   },
 
-  clearAllSlots: function (accountId) {
+  clearAllSlots: function () {
     set({
-      slots: createInitialSlots(),
+      slots: [],
       activeDataViewIndexes: [],
       lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
     });
@@ -545,18 +498,16 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-
-
   getUUIDsForEvent: function (slotIndex, year) {
     const slot = get().slots[slotIndex];
-    if (!slot || !slot.isActive) return [];
+    if (!slot) return [];
     return slot.uuidMap.get(year) || [];
   },
 
-  // --- PROJECT LIFECYCLE ---
+  // Project Lifecycle
   createNewProject: async function (accountId) {
     set({
-      slots: createInitialSlots(),
+      slots: [],
       activeDataViewIndexes: [],
       activeProjectName: null,
       windowStartYear: 1000,
@@ -575,7 +526,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     if (!accountId || !projectName.trim()) return;
 
     const state = get();
-
     const projectPayload = {
       activeProjectName: projectName,
       activeDataViewIndexes: state.activeDataViewIndexes,
@@ -598,7 +548,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
     const result = await populateSlots({
       items: targetConfig.activeDataViewIndexes || [],
-      currentSlots: createInitialSlots(),
+      currentSlots: [],
       windowStartYear: targetConfig.windowStartYear ?? null,
       mode: 'replace',
     });
@@ -618,10 +568,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     if (!accountId) return;
     try {
       const entries = await getSavedProjects(accountId);
-      const updatedProjects: OPFSFile[] = entries.map(function (entry) {
-        return { name: entry.name, handle: entry.handle };
-      });
-      set({ localProjects: updatedProjects });
+      set({ localProjects: entries.map((entry) => ({ name: entry.name, handle: entry.handle })) });
     } catch (error) {
       console.error(`Failed to refresh local projects:`, error);
     }
@@ -631,7 +578,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     set({ finderIsOpen: openORclosed });
   },
 
-  // --- BOOTLOADER ---
+  // Bootloader
   initializeOmenland: async function (accountId?: string) {
     if (get().isInitializing || !accountId || get().isInitialized) return;
 
@@ -641,7 +588,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       const setUpData: OmenlandInitPayload = await startOmenland(accountId);
       const result = await populateSlots({
         items: setUpData.activeDataViewIndexes || [],
-        currentSlots: createInitialSlots(),
+        currentSlots: [],
         windowStartYear: setUpData.windowStartYear ?? null,
         mode: 'replace',
       });
@@ -659,8 +606,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         isInitialized: true,
         isInitializing: false,
       });
-
-      console.log("ERE BE DEM SLOTS YOU ASKED FOR MASSA:", get().slots);
     } catch (error) {
       console.error('Critical failure during initialization:', error);
       set({ isInitializing: false });

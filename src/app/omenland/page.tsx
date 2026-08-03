@@ -6,8 +6,6 @@ import {ShardSelector} from '@/components/data/ShardSelector';
 import { DataView } from '@/components/data/DataView';
 import { OmenMenu } from '@/components/OmenlandMenu';
 
-
-
 export default async function OmenPage() {
 
 const supabase = await createClient();
@@ -23,6 +21,8 @@ const supabase = await createClient();
     <OmenWrap >
       <OmenMenu />
       <DataView />
+      {/* 2. DOM HUD Overlay — Reads straight from Zustand */}
+
     </OmenWrap>
    
     );

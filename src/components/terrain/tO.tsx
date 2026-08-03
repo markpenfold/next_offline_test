@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
-import { useDATAStore } from '@/stores/useDataStore';
+import { useDATAStore, ActiveSlotMeta } from '@/stores/useDataStore';
 import { createTerrainCompute } from './terrainComputeC';
 import { cpuTerrainFallback } from './cpuTerrainFallback';
 import { activeCountUniform, colorUniforms } from './terrainColorUniforms';
@@ -23,6 +23,7 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
 
   const slots = useDATAStore((state) => state.slots);
   const useWebGL = useDATAStore((state) => state.useWebGL);
+  const setMasterBufferData = useDATAStore((state) => state.setMasterBufferData);
 
   const MASTER_BUFFER = useMemo(() => new Float32Array(12288), []);
 
@@ -36,38 +37,51 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
   useEffect(() => {
     if (!geometry) return;
 
-    // 1. Filter ONLY active slots (Stream Compaction)
-    const activeSlots = slots.filter((slot) => slot.isActive && slot.buffer instanceof Float32Array);
-    const activeCount = activeSlots.length;
+    // 💡 1. ACTIVE COUNT IS JUST STACK LENGTH
+    // Every item in slots IS active, and already in geological stack order (0 = base, N = top)
+    const activeCount = slots.length;
 
     // 2. Clear master buffer fully to prevent stale data in higher slots
     MASTER_BUFFER.fill(0);
 
     // 3. Tightly pack active buffers from index 0 to activeCount - 1
     const activeColors: THREE.Color[] = [];
+    const activeSlotsMetadata: ActiveSlotMeta[] = [];
 
-    activeSlots.forEach((slot, packedIndex) => {
+    slots.forEach((slot, arrayIndex) => {
+      const packedIndex = activeCount - 1 - arrayIndex;
       const offset = packedIndex * 1024;
-      MASTER_BUFFER.set(slot.buffer, offset);
-      
-      // Store synced color in matching order
-      if (slot.color) {
-        activeColors.push(new THREE.Color(slot.color));
+      if (slot.buffer) {
+        MASTER_BUFFER.set(slot.buffer, offset);
       }
+      
+      const color = new THREE.Color(slot.color);
+      activeColors.push(color);
+
+      activeSlotsMetadata.push({
+        id: slot.id,
+        name: slot.category || slot.fileName || `Slot ${slot.id}`,
+        color: slot.color,
+      });
     });
 
-    // 4. Expose active metadata on geometry userData for materials
+    // 4. Sync directly to Zustand store for prop-less DOM HUD overlay
+    setMasterBufferData(MASTER_BUFFER, activeSlotsMetadata);
+
+    // 5. Expose active metadata on geometry userData for material/fallback access
+    geometry.userData.masterBuffer = MASTER_BUFFER;
     geometry.userData.activeCount = activeCount;
     geometry.userData.activeColors = activeColors;
+    geometry.userData.activeSlotsMetadata = activeSlotsMetadata;
 
-    // 💡 3. SYNC DIRECTLY TO TSL SHADER UNIFORMS
+    // 6. SYNC DIRECTLY TO TSL SHADER UNIFORMS
     activeCountUniform.value = activeCount;
 
     for (let i = 0; i < 12; i++) {
       if (i < activeCount) {
         colorUniforms[i].value.copy(activeColors[i]);
       } else {
-        colorUniforms[i].value.setRGB(0, 0, 0); // Reset inactive slots
+        colorUniforms[i].value.setRGB(0, 0, 0); // Reset inactive uniform slots
       }
     }
 
@@ -75,7 +89,7 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
       onActiveColorsChange(activeColors, activeCount);
     }
 
-    // 5. Dispatch GPU Compute
+    // 7. Dispatch GPU Compute
     if (!useWebGL && renderer && computeNode && rawStorageAttr) {
       rawStorageAttr.array.set(MASTER_BUFFER);
       rawStorageAttr.needsUpdate = true;
@@ -87,7 +101,19 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
       cpuTerrainFallback(geometry, resolution, MASTER_BUFFER);
       invalidate();
     }
-  }, [slots, renderer, computeNode, rawStorageAttr, MASTER_BUFFER, geometry, resolution, useWebGL, invalidate, onActiveColorsChange]);
+  }, [
+    slots,
+    renderer,
+    computeNode,
+    rawStorageAttr,
+    MASTER_BUFFER,
+    geometry,
+    resolution,
+    useWebGL,
+    invalidate,
+    onActiveColorsChange,
+    setMasterBufferData,
+  ]);
 
   return null;
 };
