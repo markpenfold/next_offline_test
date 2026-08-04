@@ -42,8 +42,8 @@ export function MasterBufferHUD() {
       
       const bufferOffset = slotIndex * 1024 + gridIndex;
       const count = Math.round(masterBuffer[bufferOffset] || 0);
-      console.log("fetching data for ", activeSlotsMetadata[i].name, "offset i: ", i, 'offset slotIndex:', meta.id, "COUNT: ", count)
-      console.log("ACTIVE MOTHERFUCKING METADATA ON DEM SLOTS:", activeSlotsMetadata);
+     // console.log("fetching data for ", activeSlotsMetadata[i].name, "offset i: ", i, 'offset slotIndex:', meta.id, "COUNT: ", count)
+      //console.log("ACTIVE MOTHERFUCKING METADATA ON DEM SLOTS:", activeSlotsMetadata);
 
       if (count > 0) {
         totalDensity += count;

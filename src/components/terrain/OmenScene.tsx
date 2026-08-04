@@ -49,7 +49,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
   }, [resolution]);
 
   const material = useMemo(() => {
-    return getUrushiC(geometry, null);
+    return getUrushiE(geometry, null);
   }, [geometry]);
 
   return (

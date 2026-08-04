@@ -10,8 +10,10 @@ import { Vector2 } from 'three';
 export const getUrushiC = (g, hoverUV) => {
   const mat = new MeshPhysicalNodeMaterial({
     wireframe: false,
+    opacity:0.98,
+    transparent: true,
+    transmission: 0.1,
   });
-
 
   const numTimelines = g.userData.numTimelines || 0;
   const minH = uniform(g.userData.minHeight || 0.0);
@@ -69,7 +71,7 @@ export const getUrushiC = (g, hoverUV) => {
 
     const normalizedY = clamp(positionLocal.y.sub(minH).div(heightRange), float(0.0), float(1.0));
     const EXPONENT = float(3.0); 
-    const altitudePenalty = pow(normalizedY, EXPONENT).mul(float(5.5));
+    const altitudePenalty = pow(normalizedY, EXPONENT).mul(float(20.5));
 
     for (let i = 0; i < 12; i++) {
       const boundary = getBandAttribute(i);
@@ -112,6 +114,12 @@ export const getUrushiC = (g, hoverUV) => {
 
     return mix(terrainBase, dotColor, dotMask);
   })();
+
+  // -------------------------------------------------------------
+  // EMISSIVE SURFACE GLOW
+  // -------------------------------------------------------------
+  const glowFactor = float(0.15); // Adjust from 0.2 (very subtle) to 0.5 (rich soft glow)
+  mat.emissiveNode = mat.colorNode.mul(glowFactor);
 
   // Material properties
   mat.roughnessNode = Fn(() => float(0.33))();

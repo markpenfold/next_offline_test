@@ -190,23 +190,41 @@ export async function hydrateSingleSlot(
     );
   }
 
-// 1. Load full timeline Map + precomputed total events from OPFS Parquet
+  // 1. Load full timeline Map + precomputed total events from OPFS Parquet
   const { indexMap: terrainIndexData, totalEvents } = await loadSlotIndexData(fileName);
-  // Guard 2: Dataset integrity check
   
+  // Guard 2: Dataset integrity check
   if (!terrainIndexData || terrainIndexData.size === 0) {
     throw new Error(
       `[hydrateSingleSlot] Failed slot ${slotIndex}: Parquet dataset '${fileName}' contains no temporal data.`
     );
   }
 
+  // Cut off data at year = 2026 by deleting any entries strictly greater than 2026
+  for (const year of terrainIndexData.keys()) {
+    if (year > 2026) {
+      terrainIndexData.delete(year);
+    }
+  }
+
+  // Guard 3: Check if dataset is empty after the 2026 cutoff
+  if (terrainIndexData.size === 0) {
+    throw new Error(
+      `[hydrateSingleSlot] Failed slot ${slotIndex}: Parquet dataset '${fileName}' contains no temporal data up to year 2026.`
+    );
+  }
+
   // 2. Extract min/max directly from pre-sorted Map keys
   const years = Array.from(terrainIndexData.keys());
-  const minYear = years[0];
+  const rawMinYear = years[0];
   const maxYear = years[years.length - 1];
 
-  // 3. Resolve start year (bootstraps to minYear on first run when store year is null)
-  const resolvedYear = windowStartYear ?? minYear;
+  // Ensure the slot's minYear value is not higher than 1000
+  const minYear = Math.min(rawMinYear, 1000);
+
+  // 3. Resolve start year (bootstraps to minYear on first run when store year is null, capped at 2026)
+  const rawResolvedYear = windowStartYear ?? minYear;
+  const resolvedYear = Math.min(Math.max(rawResolvedYear, minYear), 2026);
 
   // 4. Generate the 1024-year Float32Array buffer and uuidMap
   const windowSlice = sliceWindow(terrainIndexData, resolvedYear);
@@ -226,6 +244,8 @@ export async function hydrateSingleSlot(
     resolvedWindowStartYear: resolvedYear,
   };
 }
+
+
 export function deriveTotalYearSpan(
   slots: Slot[],
   defaultSpan: [number, number] = [1000, 2024]

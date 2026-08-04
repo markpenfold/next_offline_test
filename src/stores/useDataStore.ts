@@ -445,7 +445,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: newStackIndex, nonce: Date.now() },
     });
-     console.log("====================we have ADD slots===================\n ", updatedSlots)
+     //console.log("====================we have ADD slots===================\n ", updatedSlots)
     
 
     get().addActiveDataViewIndex({
@@ -478,7 +478,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: slotIndex, nonce: Date.now() },
     });
-    console.log("====================we have CLEAR slots===================\n ", updatedSlots)
+   // console.log("====================we have CLEAR slots===================\n ", updatedSlots)
     triggerAutoSave(get);
   },
 
