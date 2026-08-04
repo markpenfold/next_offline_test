@@ -15,44 +15,52 @@ export function MasterBufferHUD() {
   const breakdown = useMemo(() => {
     if (!hoverCoord || !masterBuffer || !activeSlotsMetadata) return null;
 
-        // 1. Map World Pos [-200, 200] -> UV [0, 1]
-        const u = Math.max(0, Math.min(1, (hoverCoord.x + 200) / 400));
-        const v = Math.max(0, Math.min(1, (hoverCoord.z + 200) / 400));
+    // 1. Map World Pos [-200, 200] -> UV [0, 1]
+    const u = Math.max(0, Math.min(1, (hoverCoord.x + 200) / 400));
+    const v = Math.max(0, Math.min(1, (hoverCoord.z + 200) / 400));
 
-        // 2. 32x32 Cell Coordinates
-        const col = Math.min(31, Math.floor(u * 32));
-        const row = Math.min(31, Math.floor(v * 32));
+    // 2. 32x32 Cell Coordinates
+    const col = Math.min(31, Math.floor(u * 32));
+    const row = Math.min(31, Math.floor(v * 32));
 
-        // 3. Buffer Lookup Index (for sampling masterBuffer)
-        const gridIndex = row * 32 + col;
+    // 3. Buffer Lookup Index
+    const gridIndex = row * 32 + col;
 
-        // 💡 4. Corner-Aligned Year Offset Math
-        // Adds 1 year offset to bottom rows so [0,31] matches 3865 BC and [31,31] matches 3834 BC
-        const yearOffset = gridIndex + Math.floor(row / 31);
-        const hoverYear = windowStartYear !== null ? windowStartYear + yearOffset * stepsize : null;
-        
-    // 5. Stride through Master Buffer
+    // 4. Year Offset Math
+    const yearOffset = gridIndex + Math.floor(row / 31);
+    const hoverYear = windowStartYear !== null ? windowStartYear + yearOffset * stepsize : null;
+    
+    // 5. Stride through Master Buffer using true GPU slotIndex (Order of Addition)
     let totalDensity = 0;
     const layers = [];
 
-    for (let packedIdx = 0; packedIdx < activeSlotsMetadata.length; packedIdx++) {
-      const bufferOffset = packedIdx * 1024 + gridIndex;
+    for (let i = 0; i < activeSlotsMetadata.length; i++) {
+      const meta = activeSlotsMetadata[i];
+      
+      // Use explicit GPU slot index (defaults to index if unassigned)
+      const slotIndex = (meta as any).id ?? i;
+      
+      const bufferOffset = slotIndex * 1024 + gridIndex;
       const count = Math.round(masterBuffer[bufferOffset] || 0);
+      console.log("fetching data for ", activeSlotsMetadata[i].name, "offset i: ", i, 'offset slotIndex:', meta.id, "COUNT: ", count)
+      console.log("ACTIVE MOTHERFUCKING METADATA ON DEM SLOTS:", activeSlotsMetadata);
 
       if (count > 0) {
         totalDensity += count;
-        const meta = activeSlotsMetadata[packedIdx];
         layers.push({
           id: meta.id,
           name: meta.name,
           color: meta.color,
           count,
-          scaledWeight: Math.log2(count + 1) * 10,
+          scaledWeight: Math.log2(count + 1),
+          slotIndex,
         });
       }
     }
 
-    layers.sort((a, b) => b.count - a.count);
+    // Sort layers strictly by GPU slotIndex to match the 3D terrain vertical stack
+    layers.sort((a, b) => a.slotIndex - b.slotIndex);
+
     const totalScaledWeight = layers.reduce((sum, l) => sum + l.scaledWeight, 0);
 
     return {
@@ -99,8 +107,8 @@ export function MasterBufferHUD() {
 
       {/* Composition Breakdown or Empty State */}
       {breakdown && breakdown.layers.length > 0 ? (
-        <div className="my-2 flex items-stretch gap-3">
-          {/* Stack Bar */}
+        <div className="my-2 flex items-stretch gap-3 max-h-64 overflow-y-auto pr-0.5">
+          {/* Stack Bar: flex-col-reverse places Slot 0 (Base) at bottom, Slot N (Peak) at top */}
           <div className="flex w-2.5 flex-col-reverse overflow-hidden rounded bg-zinc-900 border border-zinc-800 shrink-0">
             {breakdown.layers.map((layer) => {
               const heightPct = breakdown.totalScaledWeight > 0
@@ -118,15 +126,12 @@ export function MasterBufferHUD() {
             })}
           </div>
 
-          {/* Category Items */}
+          {/* Category Items: Replaced slice with scrollable list; reversed so Peak layer is listed first at top */}
           <div className="flex flex-1 flex-col gap-1.5 min-w-0">
-            {breakdown.layers.map((layer) => (
+            {[...breakdown.layers].reverse().map((layer) => (
               <div key={layer.id} className="flex items-center justify-between gap-2 text-[11px]">
                 <div className="flex items-center gap-1.5 truncate">
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: layer.color }}
-                  />
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: layer.color }} />
                   <span className="truncate text-zinc-300 font-medium">{layer.name}</span>
                 </div>
                 <span className="font-bold text-zinc-100">{layer.count}</span>

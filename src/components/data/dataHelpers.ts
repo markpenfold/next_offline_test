@@ -136,7 +136,10 @@ export interface HydrationResult {
  */
 export async function loadSlotIndexData(
   fileName: string
-): Promise<Map<number, { count: number; uuids: string[] }>> {
+): Promise<{
+  indexMap: Map<number, { count: number; uuids: string[] }>;
+  totalEvents: number;
+}> {
   // 1. Fetch file handle from OPFS on demand
   const fileHandle = await getOPFSFileHandle('indexes', fileName);
   
@@ -157,9 +160,13 @@ export async function loadSlotIndexData(
 
   const result = await runQuery(sql);
   const indexMap = new Map<number, { count: number; uuids: string[] }>();
+  let totalEvents = 0;
 
   if (result.data) {
     for (const row of result.data) {
+      const count = Number(row.count);
+      totalEvents += count;
+
       indexMap.set(Number(row.year), {
         count: Number(row.count),
         uuids: row.uuids || [],
@@ -167,7 +174,7 @@ export async function loadSlotIndexData(
     }
   }
 
-  return indexMap;
+  return { indexMap, totalEvents };
 }
 
 export async function hydrateSingleSlot(
@@ -183,10 +190,10 @@ export async function hydrateSingleSlot(
     );
   }
 
-  // 1. Load the full timeline Map directly from the OPFS Parquet file via DuckDB
-  const terrainIndexData = await loadSlotIndexData(fileName);
-
+// 1. Load full timeline Map + precomputed total events from OPFS Parquet
+  const { indexMap: terrainIndexData, totalEvents } = await loadSlotIndexData(fileName);
   // Guard 2: Dataset integrity check
+  
   if (!terrainIndexData || terrainIndexData.size === 0) {
     throw new Error(
       `[hydrateSingleSlot] Failed slot ${slotIndex}: Parquet dataset '${fileName}' contains no temporal data.`
@@ -214,6 +221,7 @@ export async function hydrateSingleSlot(
       uuidMap: windowSlice.uuidMap,
       minYear,
       maxYear,
+      totalEvents,
     },
     resolvedWindowStartYear: resolvedYear,
   };

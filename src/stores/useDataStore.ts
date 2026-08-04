@@ -12,7 +12,7 @@ import {
   loadProject,
   getSavedProjects,
 } from '@/components/data/diskOPFS';
-import { COLLECTION_COLORS_T6_GREYSCALE } from '@/lib/utils/col_constants';
+import { COLLECTION_COLORS_T6_GREYSCALE, COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
 import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
 import { Vector3 } from 'three';
@@ -52,7 +52,8 @@ export interface Slot {
   buffer: Float32Array; // 1024-element float array sent to GPU attribute
   uuidMap: Map<number, string[]>;
   minYear?: number;  
-  maxYear?: number; 
+  maxYear?: number;
+  totalEvents: number; 
 }
 
 // ============================================================================
@@ -154,6 +155,7 @@ export async function populateSlots({
   windowStartYear,
   mode,
 }: PopulateSlotsOptions): Promise<PopulateSlotsResult> {
+  console.log("Populate those slots, boys")
   const updatedSlots: Slot[] = mode === 'replace' ? [] : [...currentSlots];
   let activeWindowYear = windowStartYear;
   const verifiedActiveIndexes: ActiveDataViewIndex[] = [];
@@ -179,7 +181,7 @@ export async function populateSlots({
         item.category
       );
 
-      const color = COLLECTION_COLORS_T6_GREYSCALE[nextStackIndex % 12];
+      const color = COLLECTION_COLORS_T6[nextStackIndex % 12];
 
       updatedSlots.push({
         id: nextStackIndex,
@@ -191,6 +193,7 @@ export async function populateSlots({
         uuidMap: slot.uuidMap,
         minYear: slot.minYear,
         maxYear: slot.maxYear,
+        totalEvents: slot.totalEvents, 
       });
 
       verifiedActiveIndexes.push(item);
@@ -394,6 +397,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   // 💡 ADD TO SLOT: Pushes to TOP of stack
   addToSlot: async function (item: AvailableIndex) {
     const currentSlots = get().slots;
+   
+    
     const currentYear = get().windowStartYear;
 
     if (currentSlots.length >= 12) {
@@ -413,7 +418,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       item.category
     );
 
-    const defaultColor = COLLECTION_COLORS_T6_GREYSCALE[newStackIndex % 12];
+    const defaultColor = COLLECTION_COLORS_T6[newStackIndex % 12];
 
     const newSlot: Slot = {
       id: newStackIndex,
@@ -425,7 +430,10 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       uuidMap: hydratedSlot.uuidMap,
       minYear: hydratedSlot.minYear,
       maxYear: hydratedSlot.maxYear,
+      totalEvents: hydratedSlot.totalEvents,
     };
+
+   
 
     // PUSH TO TOP OF STACK
     const updatedSlots = [...currentSlots, newSlot];
@@ -437,6 +445,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: newStackIndex, nonce: Date.now() },
     });
+     console.log("====================we have ADD slots===================\n ", updatedSlots)
+    
 
     get().addActiveDataViewIndex({
       fileName: item.fileName,
@@ -450,6 +460,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   // 💡 CLEAR SLOT: Splices out item and collapses higher layers down cleanly
   clearSlot: function (slotIndex) {
     const currentSlots = get().slots;
+    
     if (slotIndex < 0 || slotIndex >= currentSlots.length) return;
 
     const targetSlot = currentSlots[slotIndex];
@@ -467,7 +478,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: slotIndex, nonce: Date.now() },
     });
-
+    console.log("====================we have CLEAR slots===================\n ", updatedSlots)
     triggerAutoSave(get);
   },
 

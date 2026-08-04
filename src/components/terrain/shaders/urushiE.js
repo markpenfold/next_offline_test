@@ -7,7 +7,7 @@ import { MeshPhysicalNodeMaterial } from 'three/webgpu';
 import { activeCountUniform, getActiveBandColor } from '../terrainColorUniforms';
 import { Vector2 } from 'three';
 
-export const getUrushiC = (g, hoverUV) => {
+export const getUrushiE = (g, hoverUV) => {
   const mat = new MeshPhysicalNodeMaterial({
     wireframe: false,
   });
@@ -60,29 +60,26 @@ export const getUrushiC = (g, hoverUV) => {
     return positionLocal;
   })();
 
-  mat.colorNode = Fn(() => {
+mat.colorNode = Fn(() => {
     const baseColor = vec3(0.0, 0.0, 0.0);
 
-    // Start with the base timeline
     let finalColor = getActiveBandColor(0);
     let prevBoundary = float(0.0);
-
-    const normalizedY = clamp(positionLocal.y.sub(minH).div(heightRange), float(0.0), float(1.0));
-    const EXPONENT = float(3.0); 
-    const altitudePenalty = pow(normalizedY, EXPONENT).mul(float(5.5));
 
     for (let i = 0; i < 12; i++) {
       const boundary = getBandAttribute(i);
       const isActive = float(i).lessThan(activeCountUniform);
 
-      const rawThickness = boundary.sub(prevBoundary);
+      const rawThickness = max(float(0.0), boundary.sub(prevBoundary));
       const baseline = getBandBaseline(i);
       const effectiveThickness = max(float(0.0), rawThickness.sub(baseline));
 
-      const threshold = float(0.001).add(altitudePenalty).add(effectiveThickness.div(5));
-      const canPaint = step(threshold, effectiveThickness);
+      const hasThickness = step(float(0.001), effectiveThickness);
+      // Band i paints over lower bands when positionLocal.y reaches prevBoundary elevation
+      const hasReachedBand = step(prevBoundary, positionLocal.y);
 
-      const mask = canPaint.mul(isActive);
+      const mask = hasReachedBand.mul(isActive).mul(hasThickness);
+
       finalColor = mix(finalColor, getActiveBandColor(i), mask);
 
       prevBoundary = boundary;
@@ -106,9 +103,8 @@ export const getUrushiC = (g, hoverUV) => {
     // --- SIMPLE CRISP COLOR DOT ---
     const hoverDist = distance(vUV, hoverUVUniform);
     const dotRadius = float(0.015);
-    // Mask = 1.0 inside radius, 0.0 outside (active only when hoverUVUniform.x >= 0)
     const dotMask = step(hoverDist, dotRadius).mul(step(0.0, hoverUVUniform.x));
-    const dotColor = vec3(1.0, 0.2, 0.1); // Bright vibrant coral-red
+    const dotColor = vec3(1.0, 0.2, 0.1); 
 
     return mix(terrainBase, dotColor, dotMask);
   })();
