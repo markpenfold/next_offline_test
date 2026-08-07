@@ -1,6 +1,6 @@
 'use client'
 
-import classes from '@/app/styles/other.module.css'
+import classes from '@/app/styles/pricing.module.css'
 import Link from 'next/link'
 import { CheckoutButton } from '@/components/CheckoutButton'
 import { useSearchParams } from 'next/navigation'
@@ -39,7 +39,10 @@ export default function PricingPage() {
         </Suspense>
 
         <div className={classes.pageSection}>
-          <h1>Choose your plan</h1>
+          <div className={classes.wideCentralHeader}>
+            <h1>Discover the Omenland</h1>
+            <br/><br/>
+          </div>
         </div>
        
         <div className={classes.priceContainer}>

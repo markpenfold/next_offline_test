@@ -3,6 +3,7 @@ import { getUrushi } from './shaders/urushi';
 import { getUrushiB } from './shaders/urushiB';
 import { getUrushiD } from './shaders/urushiD';
 import { getUrushiE } from './shaders/urushiE';
+import { getUrushiF } from './shaders/urushiF';
 import { getUrushiChan } from './shaders/urushiChan';
 import { useMemo, useRef } from 'react';
 import { StorageBufferAttribute } from 'three/webgpu';
@@ -49,7 +50,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
   }, [resolution]);
 
   const material = useMemo(() => {
-    return getUrushiE(geometry, null);
+    return getUrushiF(geometry, null);
   }, [geometry]);
 
   return (

@@ -18,12 +18,13 @@ const PRICE_IDS: Record<string, string> = {
 
 // For users already logged into the app upgrading their plan.
 export async function POST(request: Request) {
-  console.log("checkout POST Billing modification request received ")
+  //console.log("checkout POST Billing modification request received ", request)
   
   try {
     // 1. Extract body variables securely via JSON payload //////////////////////
     const body = await request.json()
     const { plan, activeAccount, seatsRequested } = body
+    console.log("inCOMING", plan, activeAccount, seatsRequested)
 
     // Allow 'free' through even though it doesn't have a Price ID ////////////////////////////
     if (!plan || !PRICE_IDS[plan] && plan !== 'free' || !activeAccount) {

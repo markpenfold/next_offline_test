@@ -23,11 +23,12 @@ export function CheckoutButton({ plan, activeAccount, className, children }: Che
 
 
     setIsLoading(true)
+    //console.log("SENDING THIS TO POST? ", JSON.stringify({ plan, accountId: activeAccount.id }))
     try {
       const res = await fetch('/api/checkout/stripe/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, accountId: activeAccount.id }),
+        body: JSON.stringify({ plan, activeAccount: activeAccount.id }),
       })
 
       const data = await res.json()

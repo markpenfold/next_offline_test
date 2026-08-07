@@ -1,47 +1,62 @@
 /* 📄 src/app/styles/dashboard.module.css */
 
-
-.leftPageHeader {
-  width: 100%;
+.pageContainer {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  padding-bottom: 20px;
-  margin-bottom: 32px;
+  flex-direction: column;
+  align-items: flex-start;     
+  justify-content: flex-start; 
+  width: 100%;
+  min-height: 80vh; 
+  box-sizing: border-box;
+  padding-left: 24px;
+  text-align: left;
 }
 
-.bigHeader {
-  font-size: 2.25rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  margin: 0;
+.loadingContainer {
+  padding: 40px;
+  text-align: center;
+  font-family: var(--font-geist-sans), sans-serif;
+  color: #666666;
 }
 
-.detailText {
-    font-size: 0.7rem;
-  font-weight: 200;
-  letter-spacing: -0.025em;
-  margin: 0;
-  color:var(--foreground)
+.dashboardGrid {
+  display: flex;
+  flex-wrap: wrap; /* Allows cards to wrap to the next line when a row fills up */
+  gap: 24px; /* Standard spacing between cards vertically and horizontally */
+  width: 100%;
+  margin-top: 16px;
+  box-sizing: border-box;
+  align-items: stretch; /* Magic line: forces all cards in a row to match height */
 }
 
-.AccountCardHeader {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  margin: 0;
-  color:var(--red)
+/* 🟢 The Reusable Component Card Base */
+.gridCard {
+  /* Flex items shrink & grow based on content width */
+  flex: 0 0 auto; 
+  /* Sets an optional minimum width so narrow content doesn't crush the card */
+  min-width: 200px; 
+  background-color: #ffffff;
+  border: 1px solid var(--background);
+  border-radius: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 16px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  
+  /* ⚠️ Note: Do NOT add 'height: 100%' or 'margin-right' here. 
+     'align-items: stretch' on the parent handles equal heights, 
+     and 'gap' on the parent handles row/column spacing cleanly. */
 }
 
-.redText {
-  color: var(--red, #ff0000);
-  padding: 0 8px;
+.gridCard:hover {
+  border-color: rgba(0, 0, 0, 0.2);
 }
 
-.lightHeaded {
-  font-weight: 200;
-}
+
 
 .switchButton {
   display: flex;
@@ -179,61 +194,6 @@
 .teamText { color: #004085; background: #cce5ff; margin: 0; padding: 10px; border-radius: 4px; }
 .loadingText { font-weight: 500; color: #666; }
 
-
-/* 📄 src/app/styles/dashboard.module.css */
-
-/* Full page alignment */
-.pageContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 40px 24px;
-  box-sizing: border-box;
-  text-align: left;
-}
-
-.loadingContainer {
-  padding: 40px;
-  text-align: center;
-  font-family: var(--font-geist-sans), sans-serif;
-  color: #666666;
-}
-
-/* 🟢 The Master Grid Layout */
-.dashboardGrid {
-  display: grid;
-  /* Automatically wraps cards when they drop below 340px width */
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 24px; /* Crisp spacing between your dashboard modules */
-  width: 100%;
-  margin-top: 16px;
-  box-sizing: border-box;
-  align-items: stretch;
-}
-
-/* 🟢 The Reusable Component Card Base */
-.gridCard {
-  background-color: #ffffff;
-  border: 1px solid var(--background);
-  border-radius: 12px;
-  padding: 24px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 16px; 
-  height: 100%;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.gridCard:hover {
-  border-color: rgba(0, 0, 0, 0.2);
-}
 
 
 /* =========================================================

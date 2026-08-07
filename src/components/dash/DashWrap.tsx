@@ -3,6 +3,7 @@
 import { useAppStore } from "@/providers/AppStoreProvider"
 import { SiteNav } from "@/components/SiteNav" // Adjust path as needed
 import styles from '@/app/styles/dashboard.module.css' 
+import classes from '@/app/styles/text.module.css' 
 
 export default function DashWrap({ children }: { children: React.ReactNode }) {
   const authStatus = useAppStore((state) => state.authStatus)
@@ -17,13 +18,13 @@ export default function DashWrap({ children }: { children: React.ReactNode }) {
       <SiteNav />
 
       <div className={styles.pageContainer}>
-        <div className={styles.leftPageHeader}>
-          <h1 className={styles.bigHeader}>
+        {/* <div className={classes.leftPageHeader}>
+          <h1 className={classes.bigHeader}>
             Dashboard  
-            <span className={styles.redText}> | </span> 
-            <span className={styles.lightHeaded}>Welcome, {profile?.name || 'explorer'}</span>
+            <span className={classes.redText}> | </span> 
+            <span className={classes.lightHeaded}>Welcome home, {profile?.name || profile?.username ||'explorer'}</span>
           </h1>
-        </div>
+        </div>*/}
 
         {/* THE RESPONSIVE GRID LAYOUT CONTAINER */}
         <div className={styles.dashboardGrid}>

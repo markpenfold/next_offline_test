@@ -17,6 +17,13 @@ import { getOPFSFileHandle } from '@/components/data/diskOPFS';
 // Types
 // ============================================================================
 
+
+
+
+
+
+
+
 export type TerrainIndexMap = Map<number, { count: number; uuids: string[] }>;
 
 export interface SliceResult {

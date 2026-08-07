@@ -1,0 +1,279 @@
+.pageContainer {
+  display: grid;
+  /* Columns collapse dynamically when they get smaller than 250px */
+  grid-template-columns: repeat(4, 1fr);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.quarter_section {
+  grid-column: span 1;
+}
+
+.half_section  {
+    grid-column: span 2;
+}
+
+.three_quarter_section  {
+    grid-column: span 3;
+}
+
+.full_width {
+    grid-column: 1 / -1;
+}
+ 
+.sliderHolder {
+    padding-left:  5%;
+    width: 100%;
+}
+
+.sliderInput {
+    margin-left:1%;
+    margin-right: 1%;
+    width: 80%;
+}
+
+
+
+/* Geological Toggle Section */
+.geoToggleContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+}
+
+.geoToggleLabel {
+  font-size: 0.875rem;
+  color: #d1d5db;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.geoToggleInput {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #22c55e;
+  background-color: #1f2937;
+  border-color: #374151;
+  border-radius: 0.25rem;
+}
+
+.geoToggleSubtext {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* Panel Window */
+.panelContainer {
+  background-color: rgb(65, 105, 225);
+  color: rgb(245, 245, 245);
+  height: auto;
+  max-height: 700px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panelHeader {
+  flex-shrink: 0;
+  margin-bottom: 0.85rem;
+  padding: 8px 8px 0px 8px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.initializingText {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  padding: 8px;
+}
+
+/* Item List */
+.itemList {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.itemRow {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.65rem;
+  min-height: 30px;
+  margin-bottom: 1px;
+}
+
+.itemRowActive {
+  background: rgba(181, 218, 195, 0.3);
+}
+
+/* Item Left Group */
+.itemLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+
+.tierBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: bold;
+  color: rgb(245, 245, 245);
+  padding: 0 8px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.tierBadgePro {
+  background-color: rgb(152, 91, 12);
+}
+
+.tierBadgeFree {
+  background-color: rgb(27, 99, 116);
+}
+
+.countBox {
+  background-color: #ec4899;
+  color: rgb(245, 245, 245);
+  font-weight: bold;
+  font-size: 0.6rem;
+  font-family: monospace;
+  padding: 2px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.displayName {
+  font-weight: 100;
+  font-size: 0.65rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* UI Download Status Indicators */
+.statusDownloading {
+  display: inline-flex;
+  align-items: center;
+  color: #fde047; /* Yellow */
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.statusReady {
+  display: inline-flex;
+  align-items: center;
+  color: #4ade80; /* Green */
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.statusError {
+  display: inline-flex;
+  align-items: center;
+  color: #f87171; /* Red */
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+/* Item Right Group */
+.itemRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-right: 6px;
+  padding-left: 4px;
+}
+
+.yearsContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.55rem;
+  line-height: 1.1;
+  opacity: 0.85;
+  font-family: monospace;
+}
+
+/* Control Controls Group */
+.controlsGroup {
+  display: flex;
+  align-items: center;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.colorSwatch {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease;
+}
+
+.colorSwatchActive {
+  border: none;
+  cursor: pointer;
+}
+
+.colorSwatchInactive {
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  cursor: default;
+}
+
+.colorInput {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* Buttons */
+.actionButton {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  color: rgb(245, 245, 245);
+  transition: background-color 0.2s ease;
+  padding: 0;
+}
+
+.buttonLoading {
+  background-color: rgba(255, 255, 255, 0.2);
+  cursor: not-allowed;
+}
+
+.buttonRemove {
+  background-color: rgb(180, 35, 35);
+  cursor: pointer;
+}
+
+.buttonAdd {
+  background-color: rgb(34, 139, 34);
+  cursor: pointer;
+}

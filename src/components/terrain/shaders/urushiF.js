@@ -1,13 +1,12 @@
 import {
   attribute, varying, Fn, uv,
   float, vec3, color, clamp, step, mix, vec2,
-  positionLocal, uniform, distance, fract, cos, dot, smoothstep, 
-  log, pow
+  positionLocal, uniform, distance, fract, cos, dot, smoothstep
 } from 'three/tsl';
 import { MeshPhysicalNodeMaterial } from 'three/webgpu';
-import { activeCountUniform, getActiveBandColor } from '../terrainColorUniforms';
 
-
+// 💡 Import active slot color uniforms synced by TerrainOrchestrator
+import { colorUniforms } from '../terrainColorUniforms';
 
 // Procedural noise for antique gold leaf texture
 const goldNoise = Fn(([p]) => {
@@ -15,12 +14,12 @@ const goldNoise = Fn(([p]) => {
   return fract(cos(dot(p, K1)).mul(12345.6789));
 });
 
-export const getUrushiB = (g, hoverUV) => {
+export const getUrushiF = (g, hoverUV) => {
   const mat = new MeshPhysicalNodeMaterial({
     wireframe: false,
   });
 
-  const numTimelines = g.userData.numTimelines || 0;
+  const numTimelines = g.userData.numTimelines || 12;
   const minH = uniform(g.userData.minHeight || 0.0);
   const maxH = uniform(g.userData.maxHeight || 1.0);
   const avH = g.userData.averageHeight || 1.0;
@@ -72,72 +71,54 @@ export const getUrushiB = (g, hoverUV) => {
   const warmGoldHighlight = color('#F3E5AB');
   const antiqueGoldColor = mix(baseAntiqueGold, warmGoldHighlight, flakeNoise.mul(0.4));
 
-
-mat.colorNode = Fn(() => {
+  // --- COLOR & BAND COMPUTATION ---
+  mat.colorNode = Fn(() => {
     const baseColor = vec3(0.0, 0.0, 0.0);
-    const sampleY = positionLocal.y;
-
-    // Start with the base timeline
-    let finalColor = getActiveBandColor(0);
-    let prevBoundary = float(0.0);
-
-    // First normalize positionLocal.y to a 0.0 -> 1.0 range so pow() behaves predictably
-    const normalizedY = clamp(positionLocal.y.sub(minH).div(heightRange), float(0.0), float(1.0));
-
-    // Quadratic (2.0), Cubic (3.0), or Quartic (4.0)
-    const EXPONENT = float(3.0); 
-    const altitudePenalty = pow(normalizedY, EXPONENT).mul(float(20.5));
-    
     
 
-    // 💡 YOUR IDEA: The Aggressive Log "Altitude Penalty"
-    // As Y increases, the threshold for a new color to stick gets exponentially stricter.
-    // You can increase '0.15' to make it even harder for new colors to overpaint tall peaks.
-    //const altitudePenalty = log(sampleY.add(float(1.0))).mul(float(6.55)); 
+    // 💡 Start layer colors from colorUniforms[0]
+    let bandColorOut = colorUniforms[0];
+    let accumulatedHeight = float(0.0); 
+    
+    // Add a tiny threshold to prevent step(0,0) from evaluating to 1.0
+    const EPSILON = float(0.001); 
 
-    for (let i = 0; i < 12; i++) {
-      const boundary = getBandAttribute(i);
-      const isActive = float(i).lessThan(activeCountUniform);
-
-      // How much height did THIS specific timeline add?
-      const thickness = boundary.sub(prevBoundary);
-
-      // Base minimum thickness (0.001) + the aggressive log penalty based on height
-      const threshold = float(0.001).add(altitudePenalty).add(thickness.div(10));
-
-      // Does this layer have enough thickness to survive the penalty and paint?
-      const canPaint = step(5, thickness.mul(3));
-
-      // Gate: Overwrite color only if it's active AND survived the threshold
-      const mask = canPaint.mul(isActive);
-      finalColor = mix(finalColor, getActiveBandColor(i), mask);
-
-      // Advance boundary for next layer calculation
-      prevBoundary = boundary;
+    for (let i = 0; i < numTimelines; i++) {
+      const bandThickness = getBandAttribute(i);
+      
+      // Stack the thickness of the bands
+   
+      const sampleY = positionLocal.y.sub(5);
+      const mask = step(bandThickness, sampleY);
+      
+      // 💡 Pull next layer color dynamically from colorUniforms
+      const nextColor = i + 1 < numTimelines ? colorUniforms[i + 1] : colorUniforms[i];
+      bandColorOut = mix(bandColorOut, nextColor, mask);
     }
 
-    // --- Lighting & Material Logic ---
+    // Height-based shading intensity
     const heightVariation = mix(
       vec3(0.35, 0.35, 0.35),
       vec3(1.1, 1.1, 1.1),
       clamp(positionLocal.y.mul(0.06), float(0.0), float(1.0))
     );
-    const lacquerBandsWithHeight = finalColor.mul(heightVariation);
+    const lacquerBandsWithHeight = bandColorOut.mul(heightVariation);
 
+    // Subtle Subsurface Warmth 
     const sssWarmth = color('#7a1a0c'); 
     const sssIntensity = clamp(positionLocal.y.mul(0.05), float(0.0), float(1.0));
     const lacquerWithSSS = mix(lacquerBandsWithHeight, sssWarmth, sssIntensity.mul(0.12));
 
+    // Mix in Antique Gold glow aura + core dot
     const withGoldGlow = mix(lacquerWithSSS, antiqueGoldColor.mul(1.2), glowMask.mul(0.35));
     const finalColorWithGold = mix(withGoldGlow, antiqueGoldColor, coreMask);
 
-    const heightMask = step(0.0125, positionLocal.y);
+    const heightMask = step(0.25, positionLocal.y);
     return mix(baseColor, finalColorWithGold, heightMask);
   })();
 
   // --- ROUGHNESS ADJUSTMENTS ---
   mat.roughnessNode = Fn(() => {
-    // 💡 Bumped from 0.08 to 0.13 for a hand-rubbed organic satin finish
     const lacquerRoughness = float(0.33); 
     const goldRoughness = mix(float(0.22), float(0.48), flakeNoise);
     return mix(lacquerRoughness, goldRoughness, coreMask);
@@ -150,23 +131,18 @@ mat.colorNode = Fn(() => {
   })();
 
   // --- SUBSURFACE SCATTERING & CLEARCOAT PROPERTIES ---
-  // Deep wet polished clearcoat layer
   mat.clearcoatNode = Fn(() => float(1.0))();
-  mat.clearcoatRoughnessNode = Fn(() => float(0.06))(); // Slightly softened from 0.03
+  mat.clearcoatRoughnessNode = Fn(() => float(0.06))();
 
-  // 💡 Subsurface Scattering (Light penetrating the translucent sap layer)
   mat.transmissionNode = Fn(() => {
-    // Allows light to penetrate the surface slightly, returning opacity at the gold dot
     return mix(float(0.56), float(0.0), coreMask);
   })();
 
   mat.thicknessNode = Fn(() => {
-    // Volume depth for internal scattering
     return float(0.35);
   })();
 
   mat.attenuationColorNode = Fn(() => {
-    // Deep crimson/amber resin tint as light scatters internally
     return color('#5a0b02');
   })();
 

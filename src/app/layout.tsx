@@ -26,7 +26,7 @@ export default function RootLayout({
   
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-full flex flex-col">
+      <body >
         <AppStoreProvider initialTier="none">
           <StoreSync/>
               {children}

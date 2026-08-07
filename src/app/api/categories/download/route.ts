@@ -37,12 +37,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userTier = accessAllowed.toLowerCase();
+    // Safe extraction & normalization of user tier string
+    const userTier = (
+      typeof accessAllowed === "object" && accessAllowed !== null
+        ? accessAllowed.tier || accessAllowed.role || "free"
+        : String(accessAllowed)
+    ).toLowerCase();
 
-    // Prevent free tier accounts from accessing pro shards
-    if (tier === "pro" && userTier !== "pro") {
+    // Pro and Founder tiers have paid access
+    const hasPaidAccess = userTier === "pro" || userTier === "founder";
+
+    // Block free-tier accounts from requesting pro shards
+    if (tier === "pro" && !hasPaidAccess) {
       return NextResponse.json(
-        { error: "Forbidden: Pro tier access required for this shard" },
+        { error: "Forbidden: Pro or Founder access required for this dataset" },
         { status: 403 }
       );
     }
@@ -50,7 +58,7 @@ export async function POST(req: NextRequest) {
     // 4. Resolve Bucket
     const targetBucket = tier === "pro"
       ? (process.env.R2_PRO_BUCKET_NAME || "history-files")
-      : (process.env.R2_FREE_BUCKET_NAME || "free-history-files");
+      : (process.env.R2_FREE_BUCKET_NAME || "history-files-free");
 
     // 5. Initialize S3 / R2 Client
     const r2 = new S3Client({

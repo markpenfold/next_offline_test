@@ -8,7 +8,7 @@ import {Scene} from './OmenScene'
 
 export default function MyCanvas() {
   return (
-    <div style={{ height: '100%', width: '100%' }}>
+   
       <Canvas
         style={{
           background: 'linear-gradient(to bottom, #111a2e 0%, #34211a 100%)',
@@ -43,6 +43,6 @@ export default function MyCanvas() {
           <Scene resolution={512}/>
           <OrbitControls />
       </Canvas>
-    </div>
+ 
   );
 }

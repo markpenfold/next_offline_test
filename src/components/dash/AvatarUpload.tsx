@@ -123,9 +123,9 @@ export function AvatarUpload({ userId }: { userId: string }) {
 
   return (
    <div className={styles.gridCard}>
-  <div className={styles.uploadBox}>
+
     <h1 className={styles.AccountCardHeader}>Upload your Avatar</h1>
-  </div>
+
  
   <label 
     className={`${styles.dropZone} ${isDragging ? styles.dragging : ''}`}

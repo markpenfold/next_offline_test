@@ -24,11 +24,8 @@ useEffect(() => {
   // If omenland has a specific Sidebar or Top Navigation that belongs 
   // on every workspace page, you wrap `children` with it here.
   return (
-    <div className="flex h-full w-full bg-slate-900 text-slate-100">
-      {/* <OmenlandSidebar /> */}
-      <main className="flex-1 h-full overflow-hidden">
-        {children}
-      </main>
-    </div>
+    <>
+     {children}
+    </>
   );
 }

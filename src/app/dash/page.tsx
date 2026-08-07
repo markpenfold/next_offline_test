@@ -1,10 +1,11 @@
 // 📄 src/app/dashboard/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import DashboardClientWrapper from '@/components/dash/DashWrap';
+import DashWrap from '@/components/dash/DashWrap';
 import { AvatarUpload } from '@/components/dash/AvatarUpload';
 import AccountDetailsCard from '@/components/dash/AccountDetailsCard';
 import { SandboxWorkspace } from "@/components/dash/SandboxWorkspace" // Adjust path as needed
+import styles from '@/app/styles/dashboard.module.css' 
 
 
 export default async function DashboardPage() {
@@ -18,10 +19,20 @@ export default async function DashboardPage() {
 
   return (
     /* We nest the Server Component inside the Client Component */
-    <DashboardClientWrapper>
+    <DashWrap>
       <AccountDetailsCard />
         <AvatarUpload userId={user.id}/>
             <SandboxWorkspace />
-    </DashboardClientWrapper>
+            
+        <div className={styles.gridCard}>
+          <h1 className={styles.AccountCardHeader}>Other Card</h1>
+        </div>
+
+        <div className={styles.gridCard}>
+          <h1 className={styles.AccountCardHeader}>Yet another Card but wider</h1>
+        </div>
+
+
+    </DashWrap>
   );
 }

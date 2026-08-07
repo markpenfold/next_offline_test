@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAppStore } from "@/providers/AppStoreProvider";
+import { usePathname } from 'next/navigation'
 import { LogoutButton } from "@/components/LogoutButton";
 import classes from '@/app/styles/sitenav.module.css'
 import { Circle, EllipsisVertical } from 'lucide-react';
 import { AVATAR_BUCKET_URL } from '@/lib/utils/constants';
+import styles from '@/app/styles/text.module.css'
 
 // =========================================================
 // 1. THE SITESHIFT BOARD (The "Test" component)
@@ -48,6 +50,7 @@ function PublicSiteNav() {
 // 3. AUTHENTICATED APP NAVBAR (Safe to use all hooks here)
 // =========================================================
 function AuthenticatedSiteNav() {
+  const pathname = usePathname()
   const isOnline = useAppStore((s) => s.isOnline);
   const tier = useAppStore((s) => s.tier);
   const profile = useAppStore((s) => s.profile);
@@ -58,6 +61,30 @@ function AuthenticatedSiteNav() {
   const [imageError, setImageError] = useState(false)
   const avatarUrl = uID ? `${AVATAR_BUCKET_URL}/${uID}/avatar.png?v=${avatarVersion}` : null
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const welcomeName = profile?.name || profile?.username || 'explorer'
+
+// ROUTE-BASED HEADER TITLE & SUBTITLE SWITCH
+  const getHeaderInfo = () => {
+    switch (pathname) {
+      case '/dash':
+        return { title: 'Dashboard', subtitle: `Welcome home, ${welcomeName}` }
+      case '/omenland':
+        return { title: 'OMENLAND', subtitle: `${welcomeName}` }
+      case '/pricing':
+        return { title: 'Pricing', subtitle: 'Choose your plan' }
+      case '/settings':
+        return { title: 'Settings', subtitle: 'Manage account preferences' }
+      default:
+        return null
+    }
+  }
+
+  const header = getHeaderInfo()
+
+
+
+
 
 
   //console.log("HAS AVATAR in sitenav?", profile?.has_avatar)
@@ -87,6 +114,17 @@ function AuthenticatedSiteNav() {
     <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
         <Link href="/" className={classes.brandLink}><Circle size={32} strokeWidth={3} /></Link>
+        
+        {/* 🎯 HEADER TITLE BADGE DISPLAY */}
+        {header && (
+          <div className={styles.leftPageHeader}>
+            <h1 className={styles.bigHeader}>
+              {header.title}
+              <span className={styles.redText}> | </span>
+              <span className={styles.lightHeaded}>{header.subtitle}</span>
+            </h1>
+          </div>
+        )}
         
       </div>
 

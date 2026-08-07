@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
-import styles from '@/app/styles/styles.module.css';
 import { redirect } from 'next/navigation'
 import OmenWrap from '@/components/data/omenWrap';
-import {ShardSelector} from '@/components/data/ShardSelector';
-import { DataView } from '@/components/data/DataView';
 import { OmenMenu } from '@/components/OmenlandMenu';
+import MyCanvas from '@/components/terrain/MyCanvas'
+import { TimelineSlider } from '@/components/terrain/Slider';
+import { IndexLoader } from '@/components/data/IndexLoader';
+import { MasterBufferHUD } from "@/components/terrain/terrainHUD";
+import styles from "@/app/styles/omenland.module.css";
 
 export default async function OmenPage() {
 
@@ -19,10 +21,17 @@ const supabase = await createClient();
   return (
 
     <OmenWrap >
-      <OmenMenu />
-      <DataView />
-      {/* 2. DOM HUD Overlay — Reads straight from Zustand */}
+      <div  className={styles.quarter_section}><IndexLoader /></div>
 
+       <div className={styles.three_quarter_section}>
+        <div style={{ width: '100%', height: '100%' }}><MyCanvas /></div>
+          <MasterBufferHUD />
+       </div>
+
+       <div className={styles.quarter_section}> </div>
+        <div  className={styles.three_quarter_section}><TimelineSlider /></div>
+      
+      <OmenMenu />
     </OmenWrap>
    
     );

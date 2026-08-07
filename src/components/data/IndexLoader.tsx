@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X, Loader2 } from "lucide-react";
+import { Plus, X, Loader2, HardDriveDownload, CheckCircle2, AlertCircle } from "lucide-react";
 import { getMasterIndex } from "./cloudR2";
 import { checkFileExists } from "./diskOPFS";
 import { AvailableIndex } from "@/components/data/dataTypes";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { useDATAStore } from "@/stores/useDataStore";
-
-const white = "rgb(245,245,245)";
-const blue = "rgb(65,105,225)";
+import styles from "@/app/styles/omenland.module.css";
 
 // Helper: Formats category and version into clean title (e.g., "Music Albums V1")
 function formatIndexDisplayName(category = "", version = "v1"): string {
@@ -24,6 +22,8 @@ function formatIndexDisplayName(category = "", version = "v1"): string {
 
   return `${formattedCategory} ${formattedVersion}`.trim();
 }
+
+
 
 // Helper: Formats min/max years into BC / AD or geological notation
 function formatYear(year?: number, isGeologicalTime?: boolean): string {
@@ -49,6 +49,7 @@ export function IndexLoader() {
   const isInitializing = useDATAStore((s) => s.isInitializing);
   const isGeologicalTime = useDATAStore((s) => s.isGeologicalTime);
   const slots = useDATAStore((s) => s.slots);
+  const downloadStatuses = useDATAStore((s) => s.downloadStatuses);
 
   // Zustand Store Actions
   const setKeyLoading = useDATAStore((s) => s.setKeyLoading);
@@ -56,6 +57,34 @@ export function IndexLoader() {
   const addToSlot = useDATAStore((s) => s.addToSlot);
   const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
   const setSlotColor = useDATAStore((s) => s.setSlotColor);
+  const syncFullDataShards = useDATAStore((s) => s.syncFullDataShards);
+
+  // DYNAMIC SORTING LOGIC
+  const sortedAvailableIndexes = [...availableIndexes].sort((a, b) => {
+    const slotIdxA = slots.findIndex((s) => s.fileName === a.fileName);
+    const slotIdxB = slots.findIndex((s) => s.fileName === b.fileName);
+
+    const isAActive = slotIdxA !== -1;
+    const isBActive = slotIdxB !== -1;
+
+    // 1. Both active: Reverse order of slots so the newest item (highest slot index) is at position 0
+    if (isAActive && isBActive) {
+      return slotIdxB - slotIdxA; // 👈 Reversed (B - A instead of A - B)
+    }
+
+    // 2. Active items always sit above inactive items
+    if (isAActive) return -1;
+    if (isBActive) return 1;
+
+    // 3. Inactive items: Free tier above Pro tier
+    const isAFree = a.tier !== "pro";
+    const isBFree = b.tier !== "pro";
+    if (isAFree && !isBFree) return -1;
+    if (!isAFree && isBFree) return 1;
+
+    // 4. Default fallback: Alphabetical sorting
+    return a.fileName.localeCompare(b.fileName);
+  });
 
   /**
    * Toggles an index shard: Checks local slot state -> OPFS disk cache -> Remote R2 download -> Slot Hydration
@@ -123,7 +152,11 @@ export function IndexLoader() {
       // ========================================================================
       console.log(`Loading ${fileName} into execution slot...`);
       await addToSlot(item);
- 
+
+      // ========================================================================
+      // 6. BACKGROUND FULL DATA SYNC
+      // ========================================================================
+      syncFullDataShards(item, accountId);
       console.log(`Successfully activated ${fileName}`);
 
     } catch (err: any) {
@@ -136,139 +169,115 @@ export function IndexLoader() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minWidth: "340px", margin: "0 auto", fontFamily: "sans-serif" }}>
+    <div className={styles.container}>
       
       {/* GEOLOGICAL TIME TOGGLE */}
-      <div className="flex items-center gap-3 p-2">
-        <label className="text-sm text-gray-300 cursor-pointer flex items-center gap-2">
+      <div className={styles.geoToggleContainer}>
+        <label className={styles.geoToggleLabel}>
           <input 
             type="checkbox" 
             checked={isGeologicalTime}
             onChange={(e) => setIsGeologicalTime(e.target.checked)}
-            className="w-4 h-4 accent-green-500 bg-gray-800 border-gray-700 rounded"
+            className={styles.geoToggleInput}
           />
           Enable Deep Geological Time
         </label>
-        <span className="text-xs text-gray-500">
+        <span className={styles.geoToggleSubtext}>
           {isGeologicalTime ? "(Full History)" : "(Limited to 50,000 years)"}
         </span>
       </div>
 
       {/* WINDOW 1: INDEX SHARD SELECTION PILLS */}
-      <div style={{ backgroundColor: blue, color: white, height: "auto", maxHeight: "700px", display: "flex", flexDirection: "column" }}>
-        <div style={{ flexShrink: 0, marginBottom: "0.85rem", padding: "8px 8px 0px 8px" }}>
-          <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Select your histories</h2>
+      <div className={styles.panelContainer}>
+        <div className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>Select your histories</h2>
         </div>
 
         {isInitializing ? (
-          <p style={{ fontSize: "0.85rem", opacity: 0.7, padding: "8px" }}>Starting Analytical Engine...</p>
+          <p className={styles.initializingText}>Loading histories</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", overflowY: "auto", flex: 1 }}>
-            {availableIndexes.map((item) => {
+          <div className={styles.itemList}>
+            {sortedAvailableIndexes.map((item) => {
               const isLoading = loadingKeys.includes(item.fileName);
               const displayName = formatIndexDisplayName(item.category, item.version);
 
-              // 💡 ACTIVE STACK LOOKUP: Find position in dynamic stack directly
+              // ACTIVE STACK LOOKUP: Find position in dynamic stack directly
               const matchingSlotIndex = slots.findIndex((s) => s.fileName === item.fileName);
               const isActive = matchingSlotIndex !== -1;
               const matchingSlot = isActive ? slots[matchingSlotIndex] : null;
               const slotColor = matchingSlot?.color;
 
+              // Full data background download status
+              const downloadStatus = downloadStatuses[item.fileName] || "idle";
+
               return (
                 <div 
                   key={item.fileName} 
-                  style={{
-                    display: "flex",
-                    alignItems: "stretch", // Stretches children (P/F block) full height
-                    justifyContent: "space-between",
-                    gap: "8px",
-                    background: isActive ? "rgba(181, 218, 195, 0.3)" : "rgba(0,0,0,0.2)",
-                    fontSize: "0.65rem",
-                    minHeight: "30px",
-                    marginBottom: "1px",
-                  }}
+                  className={`${styles.itemRow} ${isActive ? styles.itemRowActive : ""}`}
                 >
                   {/* LEFT: Full-height Tier Badge + Pink Count Box + Title */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", minWidth: 0, flex: 1 }}>
+                  <div className={styles.itemLeft}>
                     {/* FULL-HEIGHT TIER BADGE */}
-                    <span style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.65rem",
-                      fontWeight: "bold",
-                      background: item.tier === "pro" ? "rgb(152, 91, 12)" : "rgb(27, 99, 116)",
-                      color: white,
-                      padding: "0 8px",
-                      textTransform: "uppercase",
-                      flexShrink: 0,
-                      alignSelf: "stretch"
-                    }}>
+                    <span 
+                      className={`${styles.tierBadge} ${
+                        item.tier === "pro" ? styles.tierBadgePro : styles.tierBadgeFree
+                      }`}
+                    >
                       {item.tier ? item.tier.charAt(0) : "F"}
                     </span>
 
                     {/* PINK COUNT BOX */}
                     {isActive && matchingSlot && (
-                      <span style={{ 
-                        backgroundColor: "#ec4899", // Pink color
-                        color: white,
-                        fontWeight: "bold", 
-                        fontSize: "0.6rem", 
-                        fontFamily: "monospace",
-                        padding: "2px 5px",
-                        borderRadius: "3px",
-                        flexShrink: 0,
-                        lineHeight: 1
-                      }}>
+                      <span className={styles.countBox}>
                         {(matchingSlot.totalEvents ?? 0).toLocaleString()}
                       </span>
                     )}
 
                     {/* DISPLAY NAME */}
-                    <span style={{ fontWeight: "100", fontSize: "0.65rem", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                    <span className={styles.displayName}>
                       {displayName}
                     </span>
+
+                    {/* UI DOWNLOAD INDICATOR */}
+                    {downloadStatus === "downloading" && (
+                      <span className={styles.statusDownloading} title="Downloading full dataset to OPFS...">
+                        <Loader2 className="animate-spin" size={11} />
+                      </span>
+                    )}
+                    {downloadStatus === "ready" && (
+                      <span className={styles.statusReady} title="Full data cached in OPFS (Offline Ready)">
+                        <CheckCircle2 size={11} />
+                      </span>
+                    )}
+                    {downloadStatus === "error" && (
+                      <span className={styles.statusError} title="Full data download failed (Index mode only)">
+                        <AlertCircle size={11} />
+                      </span>
+                    )}
                   </div>
 
                   {/* RIGHT: Stacked Years & Controls */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, paddingRight: "6px", paddingLeft: "4px" }}>
+                  <div className={styles.itemRight}>
                     {/* STACKED YEARS */}
                     {isActive && matchingSlot && (matchingSlot.minYear !== undefined || matchingSlot.maxYear !== undefined) && (
-                      <div style={{ 
-                        display: "flex", 
-                        flexDirection: "column", 
-                        alignItems: "flex-end", 
-                        fontSize: "0.55rem", 
-                        lineHeight: "1.1", 
-                        opacity: 0.85,
-                        fontFamily: "monospace"
-                      }}>
+                      <div className={styles.yearsContainer}>
                         <span>{formatYear(matchingSlot.minYear, isGeologicalTime)}</span>
                         <span>{formatYear(matchingSlot.maxYear, isGeologicalTime)}</span>
                       </div>
                     )}
 
                     {/* CONTROL CONTAINER (Swatch + Button) */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        borderRadius: "2px",
-                        overflow: "hidden",
-                        opacity: isLoading ? 0.6 : 1,
-                      }}
+                    <div 
+                      className={styles.controlsGroup}
+                      style={{ opacity: isLoading ? 0.6 : 1 }}
                     >
                       {/* LEFT BOX: Color Swatch & Native Color Picker Overlay */}
                       <div
+                        className={`${styles.colorSwatch} ${
+                          isActive ? styles.colorSwatchActive : styles.colorSwatchInactive
+                        }`}
                         style={{
-                          position: "relative",
-                          width: "20px",
-                          height: "20px",
                           backgroundColor: isActive && slotColor ? slotColor : "rgba(255, 255, 255, 0.05)",
-                          border: isActive ? "none" : "1px dashed rgba(255, 255, 255, 0.2)",
-                          boxSizing: "border-box",
-                          transition: "background-color 0.2s ease",
-                          cursor: isActive ? "pointer" : "default",
                         }}
                         title={isActive ? "Click to change timeline color" : undefined}
                       >
@@ -282,17 +291,7 @@ export function IndexLoader() {
                                 setSlotColor(matchingSlotIndex, e.target.value);
                               }
                             }}
-                            style={{
-                              position: "absolute",
-                              top: 0,
-                              left: 0,
-                              width: "100%",
-                              height: "100%",
-                              opacity: 0,
-                              cursor: "pointer",
-                              border: "none",
-                              padding: 0,
-                            }}
+                            className={styles.colorInput}
                           />
                         )}
                       </div>
@@ -302,23 +301,13 @@ export function IndexLoader() {
                         disabled={isLoading}
                         onClick={() => handleToggleDataView(item)}
                         title={isActive ? "Remove dataset" : "Add dataset"}
-                        style={{
-                          width: "20px",
-                          height: "20px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: "none",
-                          backgroundColor: isLoading
-                            ? "rgba(255, 255, 255, 0.2)"
+                        className={`${styles.actionButton} ${
+                          isLoading
+                            ? styles.buttonLoading
                             : isActive
-                            ? "rgb(180, 35, 35)"  // Red box
-                            : "rgb(34, 139, 34)", // Green box
-                          color: white,
-                          cursor: isLoading ? "not-allowed" : "pointer",
-                          transition: "background-color 0.2s ease",
-                          padding: 0,
-                        }}
+                            ? styles.buttonRemove
+                            : styles.buttonAdd
+                        }`}
                       >
                         {isLoading ? (
                           <Loader2 className="animate-spin" size={11} />

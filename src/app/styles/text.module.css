@@ -1,0 +1,89 @@
+/* 📄 src/app/styles/dashboard.module.css */
+
+
+
+.AccountCardHeader {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color:var(--red)
+}
+
+.leftPageHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  /* Removed border-bottom so no line renders inside the nav bar */
+}
+
+.bigHeader {
+  /* Fluid font sizing: scales between 1rem on small screens up to 1.75rem on large viewports */
+  font-size: clamp(1rem, 1.6vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.redText {
+  color: var(--red, #ff0000);
+  padding: 0 6px;
+}
+
+.lightHeaded {
+  font-weight: 200;
+}
+
+/* 📱 Mobile Safety: Collapse subtitle on narrow screens (< 640px) to prevent layout overflow */
+@media (max-width: 640px) {
+  .redText,
+  .lightHeaded {
+    display: none;
+  }
+}
+
+/* Selector Grid Layout */
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+}
+
+.sectionSubtitle {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0 0 24px 0;
+}
+
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.cardInfoGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accountName {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+
+/* Badges */
+.badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: 4px;
+}

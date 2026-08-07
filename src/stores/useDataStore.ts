@@ -20,11 +20,17 @@ import {
   loadGpuSettingsFromOPFS,
   saveGpuSettingsToOPFS,
   OPFSGpuSettings,
+  checkFileExists, 
+  saveToOPFSFolder,
 } from '@/components/data/diskOPFS';
+
+import {resolveDataShardSpecs} from '@/components/data/cloudR2';
 
 // ============================================================================
 // 1. TYPES & INTERFACES
 // ============================================================================
+
+export type DownloadStatus = "idle" | "downloading" | "ready" | "error";
 
 export type ChangedSlotEvent = {
   indices: number | number[] | 'ALL';
@@ -128,6 +134,17 @@ export interface DATAStore {
 
   // Bootloader
   initializeOmenland: (accountId: string) => Promise<void>;
+
+
+  // Reactive state for UI components (spinners, badges, tab locks)
+  downloadStatuses: Record<string, DownloadStatus>;
+
+  // Internal non-reactive map to deduplicate network requests
+  inFlightDownloads: Map<string, Promise<boolean>>;
+
+  // Actions
+  getDownloadStatus: (fileName: string) => DownloadStatus;
+  syncFullDataShards: (item: AvailableIndex, accountId: string) => Promise<boolean>;
 }
 
 // ============================================================================
@@ -397,8 +414,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   // 💡 ADD TO SLOT: Pushes to TOP of stack
   addToSlot: async function (item: AvailableIndex) {
     const currentSlots = get().slots;
-   
-    
     const currentYear = get().windowStartYear;
 
     if (currentSlots.length >= 12) {
@@ -621,5 +636,88 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       console.error('Critical failure during initialization:', error);
       set({ isInitializing: false });
     }
+  },
+
+
+
+  downloadStatuses: {},
+  inFlightDownloads: new Map(),
+
+  getDownloadStatus: (fileName) => {
+    return get().downloadStatuses[fileName] || "idle";
+  },
+
+  syncFullDataShards: async (item, accountId) => {
+    const fileName = item.fileName;
+    const { inFlightDownloads, downloadStatuses } = get();
+
+    // 1. DEDUPLICATION: If already downloading, return the existing active Promise
+    if (inFlightDownloads.has(fileName)) {
+      return inFlightDownloads.get(fileName)!;
+    }
+
+    // 2. CHECK CACHE: If already marked ready, skip
+    if (downloadStatuses[fileName] === "ready") {
+      return true;
+    }
+
+    // 3. CREATE TASK: Define the background fetch execution
+    const downloadTask = (async (): Promise<boolean> => {
+      // Mark reactive state as downloading
+      set((state) => ({
+        downloadStatuses: { ...state.downloadStatuses, [fileName]: "downloading" },
+      }));
+
+      try {
+        const specs = resolveDataShardSpecs(item);
+
+        for (const spec of specs) {
+          // Check OPFS disk cache first
+          const exists = await checkFileExists("data", spec.localFileName);
+          if (!exists) {
+            const response = await fetch("/api/categories/download", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                accountId,
+                key: spec.s3Key,
+                tier: spec.tier,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status} fetching ${spec.s3Key}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            await saveToOPFSFolder("data", spec.localFileName, arrayBuffer);
+          }
+        }
+
+        // Mark reactive state as ready
+        set((state) => ({
+          downloadStatuses: { ...state.downloadStatuses, [fileName]: "ready" },
+        }));
+
+        return true;
+      } catch (err) {
+        console.error(`❌ Background download failed for ${fileName}:`, err);
+
+        set((state) => ({
+          downloadStatuses: { ...state.downloadStatuses, [fileName]: "error" },
+        }));
+
+        return false;
+      } finally {
+        // Clean up the in-flight reference after completion
+        const currentInFlight = get().inFlightDownloads;
+        currentInFlight.delete(fileName);
+      }
+    })();
+
+    // 4. REGISTER IN-FLIGHT PROMISE: Store the active promise before execution finishes
+    inFlightDownloads.set(fileName, downloadTask);
+
+    return downloadTask;
   },
 }));

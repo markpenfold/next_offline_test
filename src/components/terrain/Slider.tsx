@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { useDATAStore } from "@/stores/useDataStore";
+import styles from "@/app/styles/omenland.module.css";
 
 export function TimelineSlider() {
   const windowStartYear = useDATAStore((s) => s.windowStartYear);
@@ -46,23 +47,24 @@ export function TimelineSlider() {
   const currentEnd = currentStart + 1024;
 
   return (
-    <div className="w-full max-w-xl p-4 bg-gray-950 rounded-lg border border-gray-800 flex flex-col gap-3">
-      <div className="flex justify-between items-end text-xs font-mono">
-        <span className="text-gray-500">Min: {minYear}</span>
-        <span className="text-green-400 text-sm font-bold bg-gray-900 px-3 py-1 rounded border border-gray-800">
+    <>
+      <div className={styles.sliderHolder}>
+        
           Viewing: {currentStart} — {currentEnd}
-        </span>
-        <span className="text-gray-500">Max: {maxYear}</span>
+        
       </div>
 
+      <span className="text-gray-500">Min: {minYear}</span>
       <input
         type="range"
         min={minYear}
         max={sliderMax}
         value={currentStart}
         onChange={(e) => setWindowStartYear(Number(e.target.value))}
-        className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+        className={styles.sliderInput}
       />
-    </div>
+      <span className="text-gray-500">Max: {maxYear}</span>
+      </>
+  
   );
 }
