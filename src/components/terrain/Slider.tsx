@@ -4,6 +4,23 @@ import { useEffect, useMemo } from "react";
 import { useDATAStore } from "@/stores/useDataStore";
 import styles from "@/app/styles/omenland.module.css";
 
+// Helper: Formats dates into clean readable strings (or B/M notation for geological dates)
+function formatSliderYear(year: number, isGeologicalTime: boolean): string {
+  const rounded = Math.round(year);
+  const abs = Math.abs(rounded);
+
+  if (isGeologicalTime || abs >= 1_000_000) {
+    if (abs >= 1_000_000_000) {
+      return `${(abs / 1_000_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}B YA`;
+    }
+    if (abs >= 1_000_000) {
+      return `${(abs / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M YA`;
+    }
+  }
+
+  return rounded < 0 ? `${Math.abs(rounded).toLocaleString()} BC` : `${rounded} AD`;
+}
+
 export function TimelineSlider() {
   const windowStartYear = useDATAStore((s) => s.windowStartYear);
   const setWindowStartYear = useDATAStore((s) => s.setWindowStartYear);
@@ -14,7 +31,7 @@ export function TimelineSlider() {
 
   // 2. Calculate boundaries for full dataset
   const { minYear, maxYear, sliderMax } = useMemo(() => {
-    const [absoluteMin, max] = totalYearSpan || [1000, 2024];
+    const [absoluteMin, max] = totalYearSpan || [1000, 2026];
 
     // The 50k cutoff limit for human era
     const humanEraMin = max - 50000;
@@ -47,24 +64,36 @@ export function TimelineSlider() {
   const currentEnd = currentStart + 1024;
 
   return (
-    <>
-      <div className={styles.sliderHolder}>
-        
-          Viewing: {currentStart} — {currentEnd}
-        
+    <div className={styles.sliderContainer}>
+      {/* Active Viewing Window Text */}
+      <div className={styles.sliderHeader}>
+        <span className={styles.viewingLabel}>
+          Viewing:{" "}
+          <span className={styles.viewingValue}>
+            {formatSliderYear(currentStart, isGeologicalTime)} — {formatSliderYear(currentEnd, isGeologicalTime)}
+          </span>
+        </span>
       </div>
 
-      <span className="text-gray-500">Min: {minYear}</span>
-      <input
-        type="range"
-        min={minYear}
-        max={sliderMax}
-        value={currentStart}
-        onChange={(e) => setWindowStartYear(Number(e.target.value))}
-        className={styles.sliderInput}
-      />
-      <span className="text-gray-500">Max: {maxYear}</span>
-      </>
-  
+      {/* Full-Width Horizontal Track Row */}
+      <div className={styles.sliderTrackRow}>
+        <span className={styles.dateBoundLabel}>
+          {formatSliderYear(minYear, isGeologicalTime)}
+        </span>
+
+        <input
+          type="range"
+          min={minYear}
+          max={sliderMax}
+          value={currentStart}
+          onChange={(e) => setWindowStartYear(Number(e.target.value))}
+          className={styles.fullWidthInput}
+        />
+
+        <span className={styles.dateBoundLabel}>
+          {formatSliderYear(maxYear, isGeologicalTime)}
+        </span>
+      </div>
+    </div>
   );
 }

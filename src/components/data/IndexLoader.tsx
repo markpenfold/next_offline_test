@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X, Loader2, HardDriveDownload, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { getMasterIndex } from "./cloudR2";
 import { checkFileExists } from "./diskOPFS";
 import { AvailableIndex } from "@/components/data/dataTypes";
@@ -23,14 +23,31 @@ function formatIndexDisplayName(category = "", version = "v1"): string {
   return `${formattedCategory} ${formattedVersion}`.trim();
 }
 
-
-
 // Helper: Formats min/max years into BC / AD or geological notation
 function formatYear(year?: number, isGeologicalTime?: boolean): string {
   if (year === undefined || year === null) return "N/A";
-  if (isGeologicalTime) return `${year} Ma`;
+  
   const roundedYear = Math.round(year);
-  return roundedYear < 0 ? `${Math.abs(roundedYear)} BC` : `${roundedYear} AD`;
+
+  // If geological flag is explicitly true OR number is massive (> 1 Million years ago)
+  const absYear = Math.abs(roundedYear);
+
+  if (isGeologicalTime || absYear >= 1_000_000) {
+    if (absYear >= 1_000_000_000) {
+      const billion = (absYear / 1_000_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 });
+      return `${billion}B BC`; // e.g. "1.5B YA" (or "1.5 Ga")
+    }
+    if (absYear >= 1_000_000) {
+      const million = (absYear / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 });
+      return `${million}M BC`; // e.g. "88M YA" (or "88 Ma")
+    }
+    if (isGeologicalTime) {
+      return `${absYear.toLocaleString()} YA`;
+    }
+  }
+
+  // Standard historical BC / AD formatting
+  return roundedYear < 0 ? `${Math.abs(roundedYear).toLocaleString()} BC` : `${roundedYear} AD`;
 }
 
 export function IndexLoader() {
@@ -53,7 +70,6 @@ export function IndexLoader() {
 
   // Zustand Store Actions
   const setKeyLoading = useDATAStore((s) => s.setKeyLoading);
-  const setIsGeologicalTime = useDATAStore((s) => s.setIsGeologicalTime);
   const addToSlot = useDATAStore((s) => s.addToSlot);
   const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
   const setSlotColor = useDATAStore((s) => s.setSlotColor);
@@ -67,9 +83,9 @@ export function IndexLoader() {
     const isAActive = slotIdxA !== -1;
     const isBActive = slotIdxB !== -1;
 
-    // 1. Both active: Reverse order of slots so the newest item (highest slot index) is at position 0
+    // 1. Both active: Reverse order of slots so newest item is at position 0
     if (isAActive && isBActive) {
-      return slotIdxB - slotIdxA; // 👈 Reversed (B - A instead of A - B)
+      return slotIdxB - slotIdxA;
     }
 
     // 2. Active items always sit above inactive items
@@ -91,53 +107,35 @@ export function IndexLoader() {
    */
   const handleToggleDataView = async (item: AvailableIndex) => {
     const fileName = item.fileName;
-    // Resolve active account ID (supports object or raw string ID)
     const accountId = typeof activeAccount === "object" ? activeAccount?.id : activeAccount;
     if (!accountId) {
       addLog("❌ Action aborted: Active account context is missing.");
       return;
     }
 
-    // Guard 1: Prevent duplicate concurrent requests
     if (loadingKeys.includes(fileName)) return;
 
     const isActive = slots.some((s) => s.fileName === fileName);
 
     try {
       setKeyLoading(fileName, true);
-      // ========================================================================
-      // 1. REMOVAL PATH: Index is already active in a hardware slot
-      // ========================================================================
       if (isActive) {
         removeFromSlot(fileName);
         return;
       }
 
-      // ========================================================================
-      // 2. CAPACITY GUARD: Max 12 dynamic stack slots
-      // ========================================================================
       const MAX_SLOTS = 12;
       if (slots.length >= MAX_SLOTS) {
         console.log(`⚠️ Maximum slot capacity reached (${MAX_SLOTS}). Remove a dataset first.`);
         return;
       }
 
-      // ========================================================================
-      // 3. CHECK LOCAL DISK (OPFS)
-      // ========================================================================
       addLog(`Checking local OPFS cache for /indexes/${fileName}...`);
       const existsOnDisk = await checkFileExists("indexes", fileName);
 
       if (!existsOnDisk) {
-        // ======================================================================
-        // 4. FETCH FROM REMOTE R2 STORAGE
-        // ======================================================================
         console.log(`📡 Cache Miss. Fetching master index from remote storage...`);
-        
-        const result = await getMasterIndex({
-          item,
-          accountId,
-        });
+        const result = await getMasterIndex({ item, accountId });
 
         if (!result.success) {
           throw new Error(`Failed to download ${fileName} from remote storage.`);
@@ -147,15 +145,9 @@ export function IndexLoader() {
         addLog(`⚡ Local Cache Hit! Found /indexes/${fileName} on disk.`);
       }
 
-      // ========================================================================
-      // 5. HYDRATE INTO HARDWARE SLOT & MEMORY
-      // ========================================================================
       console.log(`Loading ${fileName} into execution slot...`);
       await addToSlot(item);
 
-      // ========================================================================
-      // 6. BACKGROUND FULL DATA SYNC
-      // ========================================================================
       syncFullDataShards(item, accountId);
       console.log(`Successfully activated ${fileName}`);
 
@@ -163,35 +155,15 @@ export function IndexLoader() {
       console.error(`❌ Failed to toggle ${fileName}:`, err);
       console.log(`❌ Error: ${err.message}`);
     } finally {
-      // Ensure loading flag is ALWAYS cleared
       setKeyLoading(fileName, false);
     }
   };
 
   return (
     <div className={styles.container}>
-      
-      {/* GEOLOGICAL TIME TOGGLE */}
-      <div className={styles.geoToggleContainer}>
-        <label className={styles.geoToggleLabel}>
-          <input 
-            type="checkbox" 
-            checked={isGeologicalTime}
-            onChange={(e) => setIsGeologicalTime(e.target.checked)}
-            className={styles.geoToggleInput}
-          />
-          Enable Deep Geological Time
-        </label>
-        <span className={styles.geoToggleSubtext}>
-          {isGeologicalTime ? "(Full History)" : "(Limited to 50,000 years)"}
-        </span>
-      </div>
-
       {/* WINDOW 1: INDEX SHARD SELECTION PILLS */}
       <div className={styles.panelContainer}>
-        <div className={styles.panelHeader}>
-          <h2 className={styles.panelTitle}>Select your histories</h2>
-        </div>
+
 
         {isInitializing ? (
           <p className={styles.initializingText}>Loading histories</p>
@@ -201,13 +173,13 @@ export function IndexLoader() {
               const isLoading = loadingKeys.includes(item.fileName);
               const displayName = formatIndexDisplayName(item.category, item.version);
 
-              // ACTIVE STACK LOOKUP: Find position in dynamic stack directly
+              // ACTIVE STACK LOOKUP
               const matchingSlotIndex = slots.findIndex((s) => s.fileName === item.fileName);
               const isActive = matchingSlotIndex !== -1;
               const matchingSlot = isActive ? slots[matchingSlotIndex] : null;
               const slotColor = matchingSlot?.color;
 
-              // Full data background download status
+              // Download status
               const downloadStatus = downloadStatuses[item.fileName] || "idle";
 
               return (
@@ -215,9 +187,9 @@ export function IndexLoader() {
                   key={item.fileName} 
                   className={`${styles.itemRow} ${isActive ? styles.itemRowActive : ""}`}
                 >
-                  {/* LEFT: Full-height Tier Badge + Pink Count Box + Title */}
+                  {/* LEFT GROUP: Tier Badge (Full Height) -> Color Swatch (Full Height) -> Name -> Download Status */}
                   <div className={styles.itemLeft}>
-                    {/* FULL-HEIGHT TIER BADGE */}
+                    {/* 1. TIER BADGE (Full Height) */}
                     <span 
                       className={`${styles.tierBadge} ${
                         item.tier === "pro" ? styles.tierBadgePro : styles.tierBadgeFree
@@ -226,19 +198,37 @@ export function IndexLoader() {
                       {item.tier ? item.tier.charAt(0) : "F"}
                     </span>
 
-                    {/* PINK COUNT BOX */}
-                    {isActive && matchingSlot && (
-                      <span className={styles.countBox}>
-                        {(matchingSlot.totalEvents ?? 0).toLocaleString()}
-                      </span>
-                    )}
+                    {/* 2. COLOR SWATCH (Full Height) */}
+                    <div
+                      className={`${styles.colorSwatch} ${
+                        isActive ? styles.colorSwatchActive : styles.colorSwatchInactive
+                      }`}
+                      style={{
+                        backgroundColor: isActive && slotColor ? slotColor : "rgba(255, 255, 255, 0.05)",
+                        opacity: isLoading ? 0.6 : 1,
+                      }}
+                      title={isActive ? "Click to change timeline color" : undefined}
+                    >
+                      {isActive && matchingSlot && (
+                        <input
+                          type="color"
+                          value={slotColor || "#000000"}
+                          onChange={(e) => {
+                            if (setSlotColor && matchingSlotIndex !== -1) {
+                              setSlotColor(matchingSlotIndex, e.target.value);
+                            }
+                          }}
+                          className={styles.colorInput}
+                        />
+                      )}
+                    </div>
 
-                    {/* DISPLAY NAME */}
+                    {/* 3. DISPLAY NAME */}
                     <span className={styles.displayName}>
                       {displayName}
                     </span>
 
-                    {/* UI DOWNLOAD INDICATOR */}
+                    {/* 4. UI DOWNLOAD INDICATOR */}
                     {downloadStatus === "downloading" && (
                       <span className={styles.statusDownloading} title="Downloading full dataset to OPFS...">
                         <Loader2 className="animate-spin" size={11} />
@@ -256,9 +246,9 @@ export function IndexLoader() {
                     )}
                   </div>
 
-                  {/* RIGHT: Stacked Years & Controls */}
+                  {/* RIGHT GROUP: Stacked Years (Full Height Dunn BG) -> Event Count Box (Full Height) -> Action Button (+ / X) */}
                   <div className={styles.itemRight}>
-                    {/* STACKED YEARS */}
+                    {/* 5. STACKED YEARS (Full Height Dunn Background) */}
                     {isActive && matchingSlot && (matchingSlot.minYear !== undefined || matchingSlot.maxYear !== undefined) && (
                       <div className={styles.yearsContainer}>
                         <span>{formatYear(matchingSlot.minYear, isGeologicalTime)}</span>
@@ -266,58 +256,34 @@ export function IndexLoader() {
                       </div>
                     )}
 
-                    {/* CONTROL CONTAINER (Swatch + Button) */}
-                    <div 
-                      className={styles.controlsGroup}
-                      style={{ opacity: isLoading ? 0.6 : 1 }}
-                    >
-                      {/* LEFT BOX: Color Swatch & Native Color Picker Overlay */}
-                      <div
-                        className={`${styles.colorSwatch} ${
-                          isActive ? styles.colorSwatchActive : styles.colorSwatchInactive
-                        }`}
-                        style={{
-                          backgroundColor: isActive && slotColor ? slotColor : "rgba(255, 255, 255, 0.05)",
-                        }}
-                        title={isActive ? "Click to change timeline color" : undefined}
-                      >
-                        {/* Invisible native color input over active swatch */}
-                        {isActive && matchingSlot && (
-                          <input
-                            type="color"
-                            value={slotColor || "#000000"}
-                            onChange={(e) => {
-                              if (setSlotColor && matchingSlotIndex !== -1) {
-                                setSlotColor(matchingSlotIndex, e.target.value);
-                              }
-                            }}
-                            className={styles.colorInput}
-                          />
-                        )}
-                      </div>
+                    {/* 6. EVENT COUNT BOX (Full Height) */}
+                    {isActive && matchingSlot && (
+                      <span className={styles.countBox}>
+                        {(matchingSlot.totalEvents ?? 0).toLocaleString()}
+                      </span>
+                    )}
 
-                      {/* RIGHT BOX: Add/Remove Action Trigger */}
-                      <button
-                        disabled={isLoading}
-                        onClick={() => handleToggleDataView(item)}
-                        title={isActive ? "Remove dataset" : "Add dataset"}
-                        className={`${styles.actionButton} ${
-                          isLoading
-                            ? styles.buttonLoading
-                            : isActive
-                            ? styles.buttonRemove
-                            : styles.buttonAdd
-                        }`}
-                      >
-                        {isLoading ? (
-                          <Loader2 className="animate-spin" size={11} />
-                        ) : isActive ? (
-                          <X size={11} />
-                        ) : (
-                          <Plus size={11} />
-                        )}
-                      </button>
-                    </div>
+                    {/* 7. ACTION BUTTON (+ or X) */}
+                    <button
+                      disabled={isLoading}
+                      onClick={() => handleToggleDataView(item)}
+                      title={isActive ? "Remove dataset" : "Add dataset"}
+                      className={`${styles.actionButton} ${
+                        isLoading
+                          ? styles.buttonLoading
+                          : isActive
+                          ? styles.buttonRemove
+                          : styles.buttonAdd
+                      }`}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="animate-spin" size={11} />
+                      ) : isActive ? (
+                        <X size={11} />
+                      ) : (
+                        <Plus size={11} />
+                      )}
+                    </button>
                   </div>
                 </div>
               );

@@ -16,9 +16,12 @@ export function OmenMenu() {
 
   // 2. Data & GPU Store State
   const activeProjectName = useDATAStore((state) => state.activeProjectName);
-  const projectConfig = useDATAStore((state) => (state as any).projectConfig); // Pull active config patch/state
+  const projectConfig = useDATAStore((state) => (state as any).projectConfig);
   const setFinderOpen = useDATAStore((state) => state.setFinderOpen);
-  const finderIsOpen = useDATAStore((state) => state.finderIsOpen);
+  
+  // Geological Time Settings
+  const isGeologicalTime = useDATAStore((state) => state.isGeologicalTime);
+  const setIsGeologicalTime = useDATAStore((state) => state.setIsGeologicalTime);
 
   const gpuStatus = useDATAStore((state) => state.gpuStatus);
   const useWebGL = useDATAStore((state) => state.useWebGL);
@@ -44,7 +47,6 @@ export function OmenMenu() {
       return;
     }
 
-    // Direct OPFS save call using projectConfig from store
     const success = await saveProject(
       accountId,
       activeProjectName,
@@ -58,7 +60,6 @@ export function OmenMenu() {
 
   const handleFindProjects = () => {
     setIsOpen(false);
-    // Toggle or open finder modal in store
     if (typeof setFinderOpen === 'function') {
       setFinderOpen(true);
     }
@@ -67,7 +68,7 @@ export function OmenMenu() {
   const handleResetGPU = async () => {
     setIsOpen(false);
     await resetGpuPreference();
-    window.location.reload(); // Reload to re-test hardware & initialize WebGPU context
+    window.location.reload();
   };
 
   const handleOpenDocs = () => {
@@ -125,7 +126,28 @@ export function OmenMenu() {
             </button>
           </div>
 
-          {/* Section 2: Graphics & Hardware Engine */}
+          {/* Section 2: Time Settings */}
+          <div className="pt-2 space-y-1">
+            <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+              Time Scale
+            </div>
+            <label className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800 text-slate-200 transition cursor-pointer select-none">
+              <span className="flex items-center gap-2">
+                <span>⏳</span> Deep Geological Time
+              </span>
+              <input
+                type="checkbox"
+                checked={isGeologicalTime}
+                onChange={(e) => setIsGeologicalTime(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              />
+            </label>
+            <div className="px-3 text-[10px] text-slate-400">
+              {isGeologicalTime ? "Full History (Geological Scale)" : "Limited to 50,000 years"}
+            </div>
+          </div>
+
+          {/* Section 3: Graphics & Hardware Engine */}
           <div className="pt-2 space-y-2">
             <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">
               <span>Graphics Engine</span>

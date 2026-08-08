@@ -1,74 +1,12 @@
 .pageContainer {
   display: grid;
-  /* Columns collapse dynamically when they get smaller than 250px */
   grid-template-columns: repeat(4, 1fr);
   width: 100%;
   box-sizing: border-box;
 }
 
-.quarter_section {
-  grid-column: span 1;
-}
-
-.half_section  {
-    grid-column: span 2;
-}
-
-.three_quarter_section  {
-    grid-column: span 3;
-}
-
-.full_width {
-    grid-column: 1 / -1;
-}
- 
-.sliderHolder {
-    padding-left:  5%;
-    width: 100%;
-}
-
-.sliderInput {
-    margin-left:1%;
-    margin-right: 1%;
-    width: 80%;
-}
-
-
-
-/* Geological Toggle Section */
-.geoToggleContainer {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
-}
-
-.geoToggleLabel {
-  font-size: 0.875rem;
-  color: #d1d5db;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.geoToggleInput {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #22c55e;
-  background-color: #1f2937;
-  border-color: #374151;
-  border-radius: 0.25rem;
-}
-
-.geoToggleSubtext {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-/* Panel Window */
 .panelContainer {
-  background-color: rgb(65, 105, 225);
+  background-color: var(--foreground);
   color: rgb(245, 245, 245);
   height: auto;
   max-height: 700px;
@@ -93,22 +31,43 @@
   padding: 8px;
 }
 
-/* Item List */
+/* Item List Container with Left Scrollbar */
 .itemList {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   flex: 1;
+  height: 100%;
+
+  /* Left Scrollbar Trick */
+  direction: rtl;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
+.itemList > * {
+  direction: ltr;
+}
+
+.itemList::-webkit-scrollbar {
+  width: 4px;
+}
+
+.itemList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+/* Individual Row Layout - Larger min-width to accommodate wider boxes */
 .itemRow {
   display: flex;
   align-items: stretch;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0;
   background: rgba(0, 0, 0, 0.2);
   font-size: 0.65rem;
-  min-height: 30px;
+  height: 34px; /* Slightly taller for extra breathing room */
+  min-width: 420px; /* Expanded minimum width for wider component layouts */
   margin-bottom: 1px;
 }
 
@@ -116,24 +75,25 @@
   background: rgba(181, 218, 195, 0.3);
 }
 
-/* Item Left Group */
+/* Left Grouping */
 .itemLeft {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   overflow: hidden;
   min-width: 0;
   flex: 1;
 }
 
+/* 1. Tier Badge */
 .tierBadge {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 26px; /* Slightly wider */
   font-size: 0.65rem;
   font-weight: bold;
   color: rgb(245, 245, 245);
-  padding: 0 8px;
   text-transform: uppercase;
   flex-shrink: 0;
   align-self: stretch;
@@ -147,84 +107,13 @@
   background-color: rgb(27, 99, 116);
 }
 
-.countBox {
-  background-color: #ec4899;
-  color: rgb(245, 245, 245);
-  font-weight: bold;
-  font-size: 0.6rem;
-  font-family: monospace;
-  padding: 2px 5px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.displayName {
-  font-weight: 100;
-  font-size: 0.65rem;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-/* UI Download Status Indicators */
-.statusDownloading {
-  display: inline-flex;
-  align-items: center;
-  color: #fde047; /* Yellow */
-  margin-left: 2px;
-  flex-shrink: 0;
-}
-
-.statusReady {
-  display: inline-flex;
-  align-items: center;
-  color: #4ade80; /* Green */
-  margin-left: 2px;
-  flex-shrink: 0;
-}
-
-.statusError {
-  display: inline-flex;
-  align-items: center;
-  color: #f87171; /* Red */
-  margin-left: 2px;
-  flex-shrink: 0;
-}
-
-/* Item Right Group */
-.itemRight {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding-right: 6px;
-  padding-left: 4px;
-}
-
-.yearsContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-size: 0.55rem;
-  line-height: 1.1;
-  opacity: 0.85;
-  font-family: monospace;
-}
-
-/* Control Controls Group */
-.controlsGroup {
-  display: flex;
-  align-items: center;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
+/* 2. Color Swatch */
 .colorSwatch {
   position: relative;
-  width: 20px;
-  height: 20px;
+  width: 16px; /* Slightly wider */
+  align-self: stretch;
   box-sizing: border-box;
+  flex-shrink: 0;
   transition: background-color 0.2s ease;
 }
 
@@ -234,7 +123,7 @@
 }
 
 .colorSwatchInactive {
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-right: 1px dashed rgba(255, 255, 255, 0.2);
   cursor: default;
 }
 
@@ -250,10 +139,103 @@
   padding: 0;
 }
 
-/* Buttons */
+.displayName {
+  font-weight: 100;
+  font-size: 0.75rem; /* Upgraded font size for wider display area */
+  text-align: left;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  padding-left: 8px;
+  padding-right: 6px;
+}
+
+/* Download Status Indicators */
+.statusDownloading {
+  display: inline-flex;
+  align-items: center;
+  color: #fde047;
+  flex-shrink: 0;
+}
+
+.statusReady {
+  display: inline-flex;
+  align-items: center;
+  color: #4ade80;
+  flex-shrink: 0;
+}
+
+.statusError {
+  display: inline-flex;
+  align-items: center;
+  color: #f87171;
+  flex-shrink: 0;
+}
+
+/* Right Grouping */
+.itemRight {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+/* 3. TICKET STUB YEARS CONTAINER (Wider Box + Left Notch + Drop Shadow) */
+.yearsContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 78px; /* Expanded box width for dates */
+  align-self: stretch;
+  flex-shrink: 0;
+
+  background-color: #D2B48C; /* Dunn */
+  color: #1c1917;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: clamp(0.55rem, 1vw, 0.62rem);
+  line-height: 1.1;
+  text-align: center;
+
+  /* TICKET STUB NOTCH MASK - LEFT SIDE ONLY */
+  mask-image: radial-gradient(circle at left center, transparent 4px, black 4.5px);
+  -webkit-mask-image: radial-gradient(circle at left center, transparent 4px, black 4.5px);
+
+  /* DROP SHADOW ALONG THE NOTCHED EDGE */
+  filter: drop-shadow(-3px 0px 3px rgba(0, 0, 0, 0.35));
+
+  border-left: 1px dashed rgba(0, 0, 0, 0.2); /* Perforated ticket edge */
+  padding: 0 6px;
+}
+
+.yearText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* 4. EVENT COUNT BOX (Expanded Width) */
+.countBox {
+  background-color: #ec4899;
+  color: rgb(245, 245, 245);
+  font-weight: bold;
+  font-size: clamp(0.55rem, 1vw, 0.65rem);
+  font-family: monospace;
+  width: 60px; /* Expanded box width */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* 5. ACTION BUTTON (+ / X) */
 .actionButton {
-  width: 20px;
-  height: 20px;
+  width: 26px; /* Expanded button width */
+  align-self: stretch;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -261,6 +243,7 @@
   color: rgb(245, 245, 245);
   transition: background-color 0.2s ease;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .buttonLoading {
@@ -275,5 +258,138 @@
 
 .buttonAdd {
   background-color: rgb(34, 139, 34);
+  cursor: pointer;
+}
+
+/* Ensure main grid items fill available height evenly */
+.quarter_section {
+  grid-column: span 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.three_quarter_section {
+  grid-column: span 3;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Ensure IndexLoader panel container expands vertically */
+.quarter_section .panelContainer {
+  height: 100%;
+  max-height: none; /* Allows panel to match right side full height */
+}
+
+/* Right-side container holding Canvas + Slider Strip */
+.stageContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 600px; /* Optional min height for desktop layout */
+  position: relative;
+  background-color: #000; /* Matches canvas backdrop */
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Canvas takes up all available vertical space */
+.canvasWrapper {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  min-height: 0; /* Critical for flex child canvas scaling */
+}
+
+/* Pinned Slider Strip Container */
+.sliderWrapper {
+  flex-shrink: 0;
+  width: 100%;
+  background: rgba(12, 12, 16, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 16px 12px 16px;
+  box-sizing: border-box;
+}
+
+.sliderContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+/* Header Text - Lighter and easily readable */
+.sliderHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.65); /* High-contrast light gray */
+}
+
+.viewingValue {
+  color: #ffffff; /* Bright white highlight */
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+/* Horizontal Track Row: [ Min Date ] === [ Slider Input ] === [ Max Date ] */
+.sliderTrackRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Date Labels on Edges */
+.dateBoundLabel {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85); /* Brightened readable type */
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Range Input - Stretches 100% of remaining horizontal space */
+.fullWidthInput {
+  flex: 1;
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Custom Thumb Styles for Smooth Dragging */
+.fullWidthInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6; /* Accent color */
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.fullWidthInput::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #60a5fa;
+}
+
+.fullWidthInput::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
   cursor: pointer;
 }
