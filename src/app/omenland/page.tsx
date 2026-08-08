@@ -1,5 +1,3 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import OmenWrap from '@/components/data/omenWrap';
 import MyCanvas from '@/components/terrain/MyCanvas';
 import { OmenMenu } from '@/components/omenland/OmenlandMenu';
@@ -8,15 +6,10 @@ import { IndexLoader } from '@/components/data/IndexLoader';
 import { MasterBufferHUD } from "@/components/terrain/terrainHUD";
 import styles from "@/app/styles/omenland.module.css";
 
-export default async function OmenPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+// Force static rendering so this page shell can be served straight from cache offline
+export const dynamic = "force-static";
 
-  // Hard block at the server level: unauthenticated traffic never sees the shell
-  if (!user) {
-    redirect('/login');
-  }
-
+export default function OmenPage() {
   return (
     <OmenWrap>
       {/* Left Column: IndexLoader takes full 100% height */}

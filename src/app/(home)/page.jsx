@@ -1,7 +1,7 @@
 import { LocateFixed, BookCheck,MountainSnow, Share2, ChartNoAxesGantt, ArrowDownToLine, Megaphone, } from 'lucide-react';
 import P5Canvas from "../(home)/home_components/P5Canvas.jsx";
 import classes from '@/app/styles/home.module.css'
-import { SiteNav } from '@/components/SiteNav'
+import { SiteNav } from '@/components/identity/SiteNav'
 
 export default async function HomePage() {
 

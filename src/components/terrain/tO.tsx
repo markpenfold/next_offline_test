@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
 import { useDATAStore, ActiveSlotMeta } from '@/stores/useDataStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { createTerrainCompute } from './terrainComputeC';
 import { cpuTerrainFallback } from './cpuTerrainFallback';
 import { activeCountUniform, colorUniforms } from './terrainColorUniforms';
@@ -22,7 +23,7 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
   const renderer = gl as unknown as THREE.WebGPURenderer;
 
   const slots = useDATAStore((state) => state.slots);
-  const useWebGL = useDATAStore((state) => state.useWebGL);
+  const useWebGL = useUIStore((state) => state.useWebGL);
   const setMasterBufferData = useDATAStore((state) => state.setMasterBufferData);
 
   const MASTER_BUFFER = useMemo(() => new Float32Array(12288), []);
