@@ -13,8 +13,7 @@ import {
   getSavedProjects,
 } from '@/components/data/diskOPFS';
 import { COLLECTION_COLORS_T6_GREYSCALE, COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
-import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
-import { showWebGPUToast } from '@/lib/utils/webgpuToast';
+
 import { Vector3 } from 'three';
 import {
   loadGpuSettingsFromOPFS,
@@ -32,10 +31,10 @@ import {resolveDataShardSpecs} from '@/components/data/cloudR2';
 
 export type DownloadStatus = "idle" | "downloading" | "ready" | "error";
 
-export type ChangedSlotEvent = {
-  indices: number | number[] | 'ALL';
+export interface ChangedSlotEvent {
+  indices: number | number[] | string;
   nonce: number;
-};
+}
 
 export interface ActiveSlotMeta {
   id: number;
@@ -67,84 +66,56 @@ export interface Slot {
 // ============================================================================
 
 export interface DATAStore {
-  // Infrastructure Registries
-  availableIndexes: AvailableIndex[];
-  downloadedIndexes: string[];
-  loadingKeys: string[];
+  availableIndexes: any[];
+  downloadedIndexes: any[];
 
-  // Active Session State (Active Stack)
   activeDataViewIndexes: ActiveDataViewIndex[];
-  slots: Slot[]; // Dynamic Active Stack: Length 0 to 12
+  slots: Slot[];
   lastChangedSlot: ChangedSlotEvent | null;
   accountId: string | null;
-  hoverCoord: HoverCoord | null;
 
-  // Global Time & Display Config
+  masterBuffer: any;
+  activeSlotsMetadata: any[];
+
   totalYearSpan: [number, number];
   windowStartYear: number | null;
   isGeologicalTime: boolean;
   stepsize: number;
-  masterBuffer: Float32Array | null;
-  activeSlotsMetadata: ActiveSlotMeta[];
 
-  // Project Session
   activeProjectName: string | null;
-  localProjects: OPFSFile[];
-  finderIsOpen: boolean;
+  localProjects: { name: string; handle: any }[];
 
-  // Locks
   isInitialized: boolean;
   isInitializing: boolean;
 
-  // WebGPU / WebGL State
-  gpuPreference: 'unset' | 'webgpu' | 'webgl';
-  gpuStatus: WebGPUStatus | null;
-  useWebGL: boolean;
-
-  // WebGPU Actions
-  initWebGPUSupport: (accountId?: string | null) => Promise<void>;
-  setGpuPreference: (pref: 'webgpu' | 'webgl' | 'unset') => void;
-  resetGpuPreference: () => void;
-
-  // State / Config Setters
+  // Actions
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => void;
   removeActiveDataViewIndex: (fileName: string) => void;
-  setWindowStartYear: (year: number, accountId?: string) => void;
-  setIsGeologicalTime: (val: boolean, accountId?: string) => void;
-  setKeyLoading: (key: string, isLoading: boolean) => void;
-
-  // Slot Actions (Stack Logic)
-  addToSlot: (item: AvailableIndex, accountId?: string) => Promise<void>;
-  clearSlot: (slotIndex: number, accountId?: string) => void;
-  clearAllSlots: (accountId?: string) => void;
-  clearFileFromSlots: (target: string | AvailableIndex, accountId?: string) => void;
-  getUUIDsForEvent: (slotIndex: number, year: number) => string[];
+  setIsGeologicalTime: (val: boolean) => void;
+  setWindowStartYear: (year: number) => void;
+  setMasterBufferData: (buffer: any, metadata: any[]) => void;
+  addToSlot: (item: AvailableIndex) => Promise<void>;
+  clearSlot: (slotIndex: number) => void;
+  clearFileFromSlots: (target: string | AvailableIndex) => void;
+  clearAllSlots: () => void;
   setSlotColor: (slotIndex: number, newColor: string) => void;
+  getUUIDsForEvent: (slotIndex: number, year: number) => string[];
+  reorderSlots: (fromIndex: number, toIndex: number) => void;
 
-  // UI / GPU Sync
-  setHoverCoord: (coord: Vector3 | HoverCoord | null) => void;
-  setMasterBufferData: (buffer: Float32Array, metadata: ActiveSlotMeta[]) => void;
-
-  // Project Lifecycle
-  createNewProject: (accountId: string) => Promise<void>;
-  saveCurrentProjectAs: (projectName: string, accountId: string) => Promise<void>;
-  loadNamedProject: (projectName: string, accountId: string) => Promise<void>;
-  refreshLocalProjects: (accountId: string) => Promise<void>;
-  setFinderOpen: (openORclosed: boolean) => void;
+  // Projects
+  createNewProject: (accountId: string | null) => Promise<void>;
+  saveCurrentProjectAs: (projectName: string, accountId: string | null) => Promise<void>;
+  loadNamedProject: (projectName: string, accountId?: string) => Promise<void>;
+  refreshLocalProjects: (accountId: string | null) => Promise<void>;
 
   // Bootloader
-  initializeOmenland: (accountId: string) => Promise<void>;
+  initializeOmenland: (accountId?: string) => Promise<void>;
 
-
-  // Reactive state for UI components (spinners, badges, tab locks)
-  downloadStatuses: Record<string, DownloadStatus>;
-
-  // Internal non-reactive map to deduplicate network requests
+  // Data Download Sync
+  downloadStatuses: Record<string, 'idle' | 'downloading' | 'ready' | 'error'>;
   inFlightDownloads: Map<string, Promise<boolean>>;
-
-  // Actions
-  getDownloadStatus: (fileName: string) => DownloadStatus;
-  syncFullDataShards: (item: AvailableIndex, accountId: string) => Promise<boolean>;
+  getDownloadStatus: (fileName: string) => string;
+  syncFullDataShards: (item: any, accountId: string) => Promise<boolean>;
 }
 
 // ============================================================================
@@ -267,14 +238,12 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   // Initial State
   availableIndexes: [],
   downloadedIndexes: [],
-  loadingKeys: [],
 
   activeDataViewIndexes: [],
-  slots: [], // Empty stack by default
+  slots: [],
   lastChangedSlot: null,
   accountId: null,
 
-  hoverCoord: null,
   masterBuffer: null,
   activeSlotsMetadata: [],
 
@@ -285,79 +254,9 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   activeProjectName: null,
   localProjects: [],
-  finderIsOpen: false,
 
   isInitialized: false,
   isInitializing: false,
-
-  gpuPreference: 'unset',
-  gpuStatus: null,
-  useWebGL: false,
-
-  setGpuPreference: async (pref) => {
-    const { accountId, gpuStatus } = get();
-    const shouldFallback = pref === 'webgl' || !gpuStatus?.supported;
-
-    set({ gpuPreference: pref, useWebGL: shouldFallback });
-
-    if (accountId) {
-      await saveGpuSettingsToOPFS(accountId, {
-        gpuPreference: pref,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-  },
-
-  resetGpuPreference: async () => {
-    const { accountId } = get();
-    set({ gpuPreference: 'unset', useWebGL: false });
-
-    if (accountId) {
-      await saveGpuSettingsToOPFS(accountId, {
-        gpuPreference: 'unset',
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    await get().initWebGPUSupport(accountId);
-  },
-
-  initWebGPUSupport: async (accountId?: string | null) => {
-    const targetAccountId = accountId ?? get().accountId ?? null;
-    set({ accountId: targetAccountId });
-
-    const status = await checkWebGPUSupport();
-    set({ gpuStatus: status });
-
-    let opfsSettings: OPFSGpuSettings | null = null;
-    if (targetAccountId) {
-      opfsSettings = await loadGpuSettingsFromOPFS(targetAccountId);
-    }
-
-    if (opfsSettings && opfsSettings.gpuPreference !== 'unset') {
-      const pref = opfsSettings.gpuPreference;
-      set({ gpuPreference: pref, useWebGL: pref === 'webgl' || !status.supported });
-    } else {
-      if (!status.supported) {
-        set({ gpuPreference: 'webgl', useWebGL: true });
-        if (targetAccountId) {
-          await saveGpuSettingsToOPFS(targetAccountId, {
-            gpuPreference: 'webgl',
-            updatedAt: new Date().toISOString(),
-          });
-        }
-        showWebGPUToast(status);
-      } else {
-        set({ gpuPreference: 'webgpu', useWebGL: false });
-        if (targetAccountId) {
-          await saveGpuSettingsToOPFS(targetAccountId, {
-            gpuPreference: 'webgpu',
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
-    }
-  },
 
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => {
     const current = get().activeDataViewIndexes;
@@ -376,7 +275,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
-  // 💡 RESLICE WINDOW: Simple map over active slots array
   setWindowStartYear: function (year) {
     const currentSlots = get().slots;
 
@@ -394,24 +292,9 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
-  setHoverCoord: (coord) =>
-    set({
-      hoverCoord: coord ? { x: coord.x, y: coord.y, z: coord.z } : null,
-    }),
-
   setMasterBufferData: (buffer, metadata) =>
     set({ masterBuffer: buffer, activeSlotsMetadata: metadata }),
 
-  setKeyLoading: function (key, isLoading) {
-    const currentKeys = get().loadingKeys;
-    const nextKeys = isLoading
-      ? currentKeys.includes(key) ? currentKeys : [...currentKeys, key]
-      : currentKeys.filter((k) => k !== key);
-
-    set({ loadingKeys: nextKeys });
-  },
-
-  // 💡 ADD TO SLOT: Pushes to TOP of stack
   addToSlot: async function (item: AvailableIndex) {
     const currentSlots = get().slots;
     const currentYear = get().windowStartYear;
@@ -425,7 +308,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
     const newStackIndex = currentSlots.length;
 
-    // Hydrate slot data
     const { slot: hydratedSlot, resolvedWindowStartYear } = await hydrateSingleSlot(
       item.fileName,
       newStackIndex,
@@ -448,9 +330,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalEvents: hydratedSlot.totalEvents,
     };
 
-   
-
-    // PUSH TO TOP OF STACK
     const updatedSlots = [...currentSlots, newSlot];
     const nextWindowYear = currentYear ?? resolvedWindowStartYear;
 
@@ -460,8 +339,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: newStackIndex, nonce: Date.now() },
     });
-     //console.log("====================we have ADD slots===================\n ", updatedSlots)
-    
 
     get().addActiveDataViewIndex({
       fileName: item.fileName,
@@ -472,10 +349,9 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     triggerAutoSave(get);
   },
 
-  // 💡 CLEAR SLOT: Splices out item and collapses higher layers down cleanly
   clearSlot: function (slotIndex) {
     const currentSlots = get().slots;
-    
+
     if (slotIndex < 0 || slotIndex >= currentSlots.length) return;
 
     const targetSlot = currentSlots[slotIndex];
@@ -483,7 +359,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       get().removeActiveDataViewIndex(targetSlot.fileName);
     }
 
-    // Filter out target index & re-index IDs to maintain contiguous 0..N-1 array
     const updatedSlots = currentSlots
       .filter((_, idx) => idx !== slotIndex)
       .map((slot, newIdx) => ({ ...slot, id: newIdx }));
@@ -493,7 +368,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: deriveTotalYearSpan(updatedSlots),
       lastChangedSlot: { indices: slotIndex, nonce: Date.now() },
     });
-   // console.log("====================we have CLEAR slots===================\n ", updatedSlots)
+
     triggerAutoSave(get);
   },
 
@@ -530,7 +405,6 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     return slot.uuidMap.get(year) || [];
   },
 
-  // Project Lifecycle
   createNewProject: async function (accountId) {
     set({
       slots: [],
@@ -546,6 +420,42 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         windowStartYear: 1000,
       });
     }
+  },
+
+  reorderSlots: (fromIndex: number, toIndex: number) => {
+    const currentSlots = [...get().slots];
+    const currentActive = [...get().activeDataViewIndexes];
+
+    if (
+      fromIndex < 0 ||
+      fromIndex >= currentSlots.length ||
+      toIndex < 0 ||
+      toIndex >= currentSlots.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const [movedSlot] = currentSlots.splice(fromIndex, 1);
+    currentSlots.splice(toIndex, 0, movedSlot);
+
+    const reindexedSlots = currentSlots.map((slot, idx) => ({
+      ...slot,
+      id: idx,
+    }));
+
+    if (currentActive[fromIndex]) {
+      const [movedActive] = currentActive.splice(fromIndex, 1);
+      currentActive.splice(toIndex, 0, movedActive);
+    }
+
+    set({
+      slots: reindexedSlots,
+      activeDataViewIndexes: currentActive,
+      lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
+    });
+
+    triggerAutoSave(get);
   },
 
   saveCurrentProjectAs: async function (projectName, accountId) {
@@ -600,15 +510,10 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-  setFinderOpen: function (openORclosed) {
-    set({ finderIsOpen: openORclosed });
-  },
-
-  // Bootloader
   initializeOmenland: async function (accountId?: string) {
     if (get().isInitializing || !accountId || get().isInitialized) return;
 
-    set({ isInitializing: true });
+    set({ isInitializing: true, accountId });
 
     try {
       const setUpData: OmenlandInitPayload = await startOmenland(accountId);
@@ -638,46 +543,39 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     }
   },
 
-
-
   downloadStatuses: {},
   inFlightDownloads: new Map(),
 
   getDownloadStatus: (fileName) => {
-    return get().downloadStatuses[fileName] || "idle";
+    return get().downloadStatuses[fileName] || 'idle';
   },
 
   syncFullDataShards: async (item, accountId) => {
     const fileName = item.fileName;
     const { inFlightDownloads, downloadStatuses } = get();
 
-    // 1. DEDUPLICATION: If already downloading, return the existing active Promise
     if (inFlightDownloads.has(fileName)) {
       return inFlightDownloads.get(fileName)!;
     }
 
-    // 2. CHECK CACHE: If already marked ready, skip
-    if (downloadStatuses[fileName] === "ready") {
+    if (downloadStatuses[fileName] === 'ready') {
       return true;
     }
 
-    // 3. CREATE TASK: Define the background fetch execution
     const downloadTask = (async (): Promise<boolean> => {
-      // Mark reactive state as downloading
       set((state) => ({
-        downloadStatuses: { ...state.downloadStatuses, [fileName]: "downloading" },
+        downloadStatuses: { ...state.downloadStatuses, [fileName]: 'downloading' },
       }));
 
       try {
         const specs = resolveDataShardSpecs(item);
 
         for (const spec of specs) {
-          // Check OPFS disk cache first
-          const exists = await checkFileExists("data", spec.localFileName);
+          const exists = await checkFileExists('data', spec.localFileName);
           if (!exists) {
-            const response = await fetch("/api/categories/download", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
+            const response = await fetch('/api/categories/download', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 accountId,
                 key: spec.s3Key,
@@ -690,13 +588,12 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
             }
 
             const arrayBuffer = await response.arrayBuffer();
-            await saveToOPFSFolder("data", spec.localFileName, arrayBuffer);
+            await saveToOPFSFolder('data', spec.localFileName, arrayBuffer);
           }
         }
 
-        // Mark reactive state as ready
         set((state) => ({
-          downloadStatuses: { ...state.downloadStatuses, [fileName]: "ready" },
+          downloadStatuses: { ...state.downloadStatuses, [fileName]: 'ready' },
         }));
 
         return true;
@@ -704,18 +601,16 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         console.error(`❌ Background download failed for ${fileName}:`, err);
 
         set((state) => ({
-          downloadStatuses: { ...state.downloadStatuses, [fileName]: "error" },
+          downloadStatuses: { ...state.downloadStatuses, [fileName]: 'error' },
         }));
 
         return false;
       } finally {
-        // Clean up the in-flight reference after completion
         const currentInFlight = get().inFlightDownloads;
         currentInFlight.delete(fileName);
       }
     })();
 
-    // 4. REGISTER IN-FLIGHT PROMISE: Store the active promise before execution finishes
     inFlightDownloads.set(fileName, downloadTask);
 
     return downloadTask;

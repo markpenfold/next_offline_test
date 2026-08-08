@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { ForgottenPasswordForm } from '@/components/ForgottenPasswordForm'
+import { ForgottenPasswordForm } from '@/components/identity/ForgottenPasswordForm'
 
 
 export default async function ForgotPasswordPage() {

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useDATAStore } from '@/stores/useDataStore';
+import { useUIStore } from '@/stores/useUIStore';
 import { useAppStore } from '@/providers/AppStoreProvider';
 import { saveProject } from '@/components/data/diskOPFS';
 
@@ -17,15 +18,15 @@ export function OmenMenu() {
   // 2. Data & GPU Store State
   const activeProjectName = useDATAStore((state) => state.activeProjectName);
   const projectConfig = useDATAStore((state) => (state as any).projectConfig);
-  const setFinderOpen = useDATAStore((state) => state.setFinderOpen);
+  const setFinderOpen = useUIStore((state) => state.setFinderOpen);
   
   // Geological Time Settings
   const isGeologicalTime = useDATAStore((state) => state.isGeologicalTime);
   const setIsGeologicalTime = useDATAStore((state) => state.setIsGeologicalTime);
 
-  const gpuStatus = useDATAStore((state) => state.gpuStatus);
-  const useWebGL = useDATAStore((state) => state.useWebGL);
-  const resetGpuPreference = useDATAStore((state) => state.resetGpuPreference);
+  const gpuStatus = useUIStore((state) => state.gpuStatus);
+  const useWebGL = useUIStore((state) => state.useWebGL);
+  const resetGpuPreference = useUIStore((state) => state.resetGpuPreference);
 
   // Close dropdown on click outside
   useEffect(() => {

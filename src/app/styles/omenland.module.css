@@ -291,7 +291,7 @@
   min-height: 600px; /* Optional min height for desktop layout */
   position: relative;
   background-color: #000; /* Matches canvas backdrop */
-  border-radius: 4px;
+
   overflow: hidden;
 }
 
@@ -392,4 +392,93 @@
   background: #3b82f6;
   border: 2px solid #ffffff;
   cursor: pointer;
+}
+
+.draggableArea {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  user-select: none;
+}
+
+.draggableArea:active {
+  cursor: grabbing;
+}
+
+.nonDraggableArea {
+  display: flex;
+  align-items: center;
+}
+
+
+
+/* Standardized Window Top Bar */
+.windowBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  background: rgba(18, 18, 24, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  user-select: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.windowBarTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.windowBarIcon {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.windowBarTitle {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.windowBarActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Uniform Action Button Style */
+.windowBarBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.windowBarBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.windowBarBtn:active {
+  background: rgba(255, 255, 255, 0.2);
 }

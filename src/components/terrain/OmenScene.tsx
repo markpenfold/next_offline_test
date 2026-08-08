@@ -13,6 +13,7 @@ import { TerrainOrchestrator } from './tO';
 import { TerrainGrid } from './TerrainGrid';
 import { useDATAStore } from '@/stores/useDataStore';
 import { Vector3 } from 'three';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface SceneProps {
   resolution?: number;
@@ -22,7 +23,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const tempVec = useRef(new Vector3());
   const invalidate = useThree((state) => state.invalidate);
-  const setHoverCoord = useDATAStore((state) => state.setHoverCoord);
+  const setHoverCoord = useUIStore((state) => state.setHoverCoord);
 
   ///////////////////////////////////////////////////////////
   // 1. BASE GEOMETRY (Allocated once with Storage Buffers)

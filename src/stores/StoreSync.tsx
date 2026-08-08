@@ -4,11 +4,13 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/providers/AppStoreProvider';
 import { useDATAStore } from '@/stores/useDataStore';
+import { useUIStore } from '@/stores/useUIStore';
+
 
 export function StoreSync() {
   const activeAccount = useAppStore((s) => s.activeAccount);
   const userId = useAppStore((s) => s.userId);
-  const initWebGPUSupport = useDATAStore((state) => state.initWebGPUSupport);
+  const initWebGPUSupport = useUIStore((state) => state.initWebGPUSupport);
 
   useEffect(() => {
     const accountId = activeAccount?.id || userId || null;

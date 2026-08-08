@@ -2,11 +2,11 @@
 
 import classes from '@/app/styles/pricing.module.css'
 import Link from 'next/link'
-import { CheckoutButton } from '@/components/CheckoutButton'
+import { CheckoutButton } from '@/components/identity/CheckoutButton'
 import { useSearchParams } from 'next/navigation'
 import { tier_details } from '@/lib/utils/constants'
 import { useAppStore } from "@/providers/AppStoreProvider";
-import { SiteNav } from '@/components/SiteNav'
+import { SiteNav } from '@/components/identity/SiteNav'
 import { Suspense } from 'react'
 
 // 1. Move the error element into its own sub-component

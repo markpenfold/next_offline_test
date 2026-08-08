@@ -19,9 +19,36 @@ import { getOPFSFileHandle } from '@/components/data/diskOPFS';
 
 
 
+export function formatIndexDisplayName(category = "", version = "v1"): string {
+  const formattedCategory = category
+    .replace(/^category=/i, "")
+    .replace(/^history_/i, "")
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
+  const formattedVersion = version.replace(/^version=/i, "").trim().toUpperCase();
+  return `${formattedCategory} ${formattedVersion}`.trim();
+}
 
 
 
+export function formatYear(year?: number, isGeologicalTime?: boolean): string {
+  if (year === undefined || year === null) return "N/A";
+  const roundedYear = Math.round(year);
+  const absYear = Math.abs(roundedYear);
+
+  if (isGeologicalTime || absYear >= 1_000_000) {
+    if (absYear >= 1_000_000_000) {
+      return `${(absYear / 1_000_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}B YA`;
+    }
+    if (absYear >= 1_000_000) {
+      return `${(absYear / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M YA`;
+    }
+  }
+
+  return roundedYear < 0 ? `${Math.abs(roundedYear).toLocaleString()} BC` : `${roundedYear} AD`;
+}
 
 
 export type TerrainIndexMap = Map<number, { count: number; uuids: string[] }>;

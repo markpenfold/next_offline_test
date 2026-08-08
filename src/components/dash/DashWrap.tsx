@@ -1,7 +1,7 @@
 'use client'
 
 import { useAppStore } from "@/providers/AppStoreProvider"
-import { SiteNav } from "@/components/SiteNav" // Adjust path as needed
+import { SiteNav } from "@/components/identity/SiteNav" // Adjust path as needed
 import styles from '@/app/styles/dashboard.module.css' 
 import classes from '@/app/styles/text.module.css' 
 

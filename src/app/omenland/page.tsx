@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import OmenWrap from '@/components/data/omenWrap';
-import { OmenMenu } from '@/components/OmenlandMenu';
 import MyCanvas from '@/components/terrain/MyCanvas';
+import { OmenMenu } from '@/components/omenland/OmenlandMenu';
 import { TimelineSlider } from '@/components/terrain/Slider';
 import { IndexLoader } from '@/components/data/IndexLoader';
 import { MasterBufferHUD } from "@/components/terrain/terrainHUD";
