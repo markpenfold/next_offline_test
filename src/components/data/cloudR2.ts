@@ -1,6 +1,7 @@
-import { checkFileExists, saveToOPFSFolder } from "./diskOPFS";
-
+import { checkFileExists, saveToOPFSFolder, getLocalOPFSIndexes, getLocalOPFSDataShards } from "./diskOPFS";
+import { useAppStore } from "@/providers/AppStoreProvider";
 import {AvailableIndex, AvailableDataShard, DownloadIndexOptions} from "@/components/data/dataTypes"
+import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
 
 export interface GetShardParams {
   item: AvailableDataShard;
@@ -15,6 +16,15 @@ export async function getShard({
   onLog,
 }: GetShardParams): Promise<{ success: boolean; fileName: string }> {
   const log = (msg: string) => onLog?.(msg);
+
+    // Fail fast if offline
+  if (typeof window !== "undefined" && !window.navigator.onLine) {
+    return {
+      success: false,
+      fileName: item.fileName, 
+    };
+  }
+
 
   if (!accountId) {
     log("❌ Action aborted: Active account context is missing or null.");
@@ -68,44 +78,35 @@ export async function getShard({
 }
 
 // Standalone fetch function for remote data shards 
+
 export async function fetchAvailableDataShards(accountId: string): Promise<AvailableDataShard[]> {
-  try {
-    const response = await fetch("/api/categories/list", { // Adjust endpoint URL to match your route path
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountId }),
-    });
+  const response = await fetch("/api/categories/list", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId }),
+  });
 
-    if (!response.ok) {
-      throw new Error("Failed to compile remote scanning manifests for data shards");
-    }
-
-    const data = await response.json();
-    const rawShards = data.dataShards || [];
-
-    return rawShards.map((item: any) => {
-      // 1. Derive standardized local OPFS filename
-      const localFileName = buildLocalDataShardFileName(
-        item.tier,
-        item.masterCategory,
-        item.version || "v1"
-      );
-
-      return {
-        fileName: localFileName,
-        s3Key: item.key || item.s3Key,
-        masterCategory: item.masterCategory,
-        era: item.era,
-        tier: item.tier,
-        version: item.version || "v1",
-        sizeBytes: item.sizeBytes || item.size || 0,
-        downloadUrl: item.downloadUrl,
-      };
-    });
-  } catch (err) {
-    console.error("Error pulling scanned remote data shards list:", err);
-    return [];
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: Failed to fetch remote data shards manifest`);
   }
+
+  const data = await response.json();
+  const rawShards = data.dataShards || [];
+
+  return rawShards.map((item: any) => ({
+    fileName: buildLocalDataShardFileName(
+      item.tier,
+      item.masterCategory,
+      item.version || "v1"
+    ),
+    s3Key: item.key || item.s3Key,
+    masterCategory: item.masterCategory,
+    era: item.era,
+    tier: item.tier,
+    version: item.version || "v1",
+    sizeBytes: item.sizeBytes || item.size || 0,
+    downloadUrl: item.downloadUrl,
+  }));
 }
 
 export function buildLocalDataShardFileName(
@@ -122,46 +123,47 @@ export function buildLocalDataShardFileName(
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///// list indexes using the API ///////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 export async function fetchAvailableIndexes(accountId: string): Promise<AvailableIndex[]> {
-  try {
-    const response = await fetch("/api/aggregates/list", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accountId }),
-    });
+  const response = await fetch("/api/aggregates/list", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accountId }),
+  });
 
-    if (!response.ok) throw new Error("Failed to compile remote scanning manifests");
-
-    const data = await response.json();
-    const rawIndexes = data.indexes || [];
-
-    return rawIndexes.map((item: any) => {
-      // Compute the standardized local OPFS name upfront
-      const localFileName = buildLocalIndexFileName(
-        item.tier,
-        item.category,
-        item.version || "v1"
-      );
-
-      return {
-        key: item.S3key || item.fileName, // R2 storage path key
-        fileName: localFileName,        // Local OPFS file name
-        version: item.version || "v1",
-        tier: item.tier,
-        category: item.category,
-        sizeBytes: item.size,
-      };
-    });
-  } catch (err) {
-    console.error("Error pulling scanned remote catalog list:", err);
-    return [];
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: Failed to fetch remote indexes manifest`);
   }
+
+  const data = await response.json();
+  const rawIndexes = data.indexes || [];
+
+  return rawIndexes.map((item: any) => ({
+    key: item.S3key || item.fileName,
+    fileName: buildLocalIndexFileName(
+      item.tier,
+      item.category,
+      item.version || "v1"
+    ),
+    version: item.version || "v1",
+    tier: item.tier,
+    category: item.category,
+    sizeBytes: item.size || 0,
+  }));
 }
 
 export async function getMasterIndex({
   item,
   accountId,
 }: DownloadIndexOptions): Promise<{ success: boolean; targetFileName: string }> {
+
+  // Fail fast if offline
+  if (typeof window !== "undefined" && !window.navigator.onLine) {
+    return {
+      success: false,
+      targetFileName: item.fileName, 
+    };
+  }
 
   console.log(`📡 Fetching master index layer from remote storage: "${item.fileName}"...`);
 

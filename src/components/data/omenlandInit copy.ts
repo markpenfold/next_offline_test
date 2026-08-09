@@ -3,7 +3,6 @@
 import { fetchAvailableIndexes, getMasterIndex } from "@/components/data/cloudR2";
 import { 
   getOPFSEntries, 
-  getLocalOPFSIndexes,
   getSavedProjects, 
   loadProject,
   saveProject 
@@ -16,44 +15,21 @@ import {
 } from "@/components/data/dataTypes";
 import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
 
-// HELPER: Offline-First Parallel Discovery (Cloud + Disk)
-async function getAllIndexes(accountId: string) {
-  const online = typeof window !== "undefined" ? await isReallyOnline() : true;
 
-  // 1. Always scan local OPFS files first (instant local access)
-  const [localCacheIndexFiles, opfsIndexes] = await Promise.all([
+// HELPER: Parallel Discovery (Cloud + Disk)
+async function getAllIndexes(accountId: string) {
+  const [scannedCloudIndexList, localCacheIndexFiles] = await Promise.all([
+    fetchAvailableIndexes(accountId).catch((err) => {
+      console.warn("☁️ Cloud fetch failed (User might be offline):", err);
+      return [] as AvailableIndex[];
+    }),
     getOPFSEntries('indexes').catch((err) => {
       console.error("💾 OPFS index scan failed:", err);
       return [] as Array<{ name: string; handle: FileSystemFileHandle }>;
-    }),
-    getLocalOPFSIndexes().catch((err) => {
-      console.error("💾 OPFS local index metadata parse failed:", err);
-      return [] as AvailableIndex[];
     })
   ]);
 
-  let availableIndexes: AvailableIndex[] = [];
-
-  // 2. If online, attempt to fetch remote Cloud R2 catalog
-  if (online) {
-    try {
-      availableIndexes = await fetchAvailableIndexes(accountId);
-      console.log(`☁️ Discovered ${availableIndexes.length} remote indexes from Cloud R2.`);
-    } catch (err) {
-      console.warn("☁️ Cloud fetch failed despite being online. Falling back to local OPFS:", err);
-      availableIndexes = opfsIndexes;
-    }
-  } else {
-    // 3. Known Offline: Catalog is strictly what exists in OPFS
-    console.log("⚡ Offline mode active: Populating index catalog exclusively from OPFS.");
-    availableIndexes = opfsIndexes;
-  }
-
-  return { 
-    availableIndexes, 
-    localCacheIndexFiles,
-    isOnline: online && availableIndexes !== opfsIndexes 
-  };
+  return { scannedCloudIndexList, localCacheIndexFiles };
 }
 
 // Self-Healing Layer: Verifies active data layers, auto-downloads missing cloud indexes
@@ -61,8 +37,7 @@ export async function loadMissingIndexes(
   projectConfig: ProjectConfig,
   localCacheIndexFiles: Array<{ name: string; handle: FileSystemFileHandle }>,
   availableCloudIndexes: AvailableIndex[],
-  accountId: string,
-  isOnline: boolean
+  accountId: string
 ): Promise<ActiveDataViewIndex[]> {
   if (!projectConfig?.activeDataViewIndexes || !accountId) {
     return [];
@@ -80,13 +55,7 @@ export async function loadMissingIndexes(
       continue;
     }
 
-    // Case B: File is missing locally and we are offline -> Skip cloud download
-    if (!isOnline) {
-      console.warn(`⚡ Offline: ${fileName} is missing locally and cannot be downloaded. Dropping from view.`);
-      continue;
-    }
-
-    // Case C: File is missing locally and online -> Attempt cloud auto-recovery download
+    // Case B: File is missing locally. Attempt cloud auto-recovery download.
     console.log(`☁️ Missing active file: ${fileName}. Attempting auto-recovery download...`);
     const cloudItemMeta = availableCloudIndexes.find((idx) => idx.fileName === fileName);
 
@@ -96,10 +65,11 @@ export async function loadMissingIndexes(
     }
 
     try {
+      // Download from R2 cloud storage to OPFS
       const { success } = await getMasterIndex({ item: cloudItemMeta, accountId });
       if (success) {
         console.log(`✅ Recovered missing index to OPFS: ${fileName}`);
-        activeIndexes.push(item);
+        activeIndexes.push(item); // 👈 Fixed: Restored active index push
       } else {
         throw new Error("Cloud download returned failure status");
       }
@@ -117,8 +87,7 @@ export async function loadMissingIndexes(
 async function loadFromSession(
   accountId: string,
   localCacheIndexFiles: Array<{ name: string; handle: FileSystemFileHandle }>,
-  availableIndexes: AvailableIndex[],
-  isOnline: boolean
+  availableCloudIndexes: AvailableIndex[]
 ): Promise<{
   activeIndexes: ActiveDataViewIndex[];
   savedProjectsList: Array<{ name: string; handle: FileSystemFileHandle }>;
@@ -126,6 +95,7 @@ async function loadFromSession(
 }> {
   const savedProjectsList = await getSavedProjects(accountId).catch(() => []);
   const sessionConfig = await loadProject(accountId, null).catch(() => null);
+  //console.log("SESSSSSSSSSSSSSSSSSSSSSSSSION: ", sessionConfig)
   const isBlankSession = !sessionConfig || !sessionConfig.activeDataViewIndexes?.length;
 
   if (isBlankSession) {
@@ -146,13 +116,12 @@ async function loadFromSession(
     };
   }
 
-  // Scratchpad session exists: recover or verify active indexes
+  // Scratchpad session exists: recover missing active indexes
   const activeIndexes = await loadMissingIndexes(
     sessionConfig,
     localCacheIndexFiles,
-    availableIndexes,
-    accountId,
-    isOnline
+    availableCloudIndexes,
+    accountId
   );
 
   return {
@@ -166,21 +135,20 @@ async function loadFromSession(
 export async function startOmenland(accountId: string): Promise<OmenlandInitPayload> {
   console.log(`🚀 Booting Omenland Workspace for Account: ${accountId}`);
 
-  // PHASE 1: Fetch Index Registries (Cloud or Local OPFS Fallback)
-  const { availableIndexes, localCacheIndexFiles, isOnline } = await getAllIndexes(accountId);
+  // PHASE 1: Fetch Index Registries (Cloud & Local OPFS)
+  const { scannedCloudIndexList, localCacheIndexFiles } = await getAllIndexes(accountId);
 
-  // PHASE 2: Load Session / Verify Active Indexes
+  // PHASE 2: Load Session / Auto-Heal Missing Shards
   const { activeIndexes, savedProjectsList, resolvedProjectName } = await loadFromSession(
     accountId,
     localCacheIndexFiles,
-    availableIndexes,
-    isOnline
+    scannedCloudIndexList
   );
 
   console.log("✅ Engine boot complete. Handing payload back to state manager.");
 
   return {
-    availableIndexes,
+    availableIndexes: scannedCloudIndexList,
     downloadedIndexes: localCacheIndexFiles.map((entry) => entry.name),
     localProjects: savedProjectsList,
     activeDataViewIndexes: activeIndexes,

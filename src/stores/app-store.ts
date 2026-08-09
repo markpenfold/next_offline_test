@@ -24,6 +24,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     activeAccount: null,
     accounts: [],
     avatarVersion: '',
+
+    setIsOnline: (truth:boolean)=> set({ isOnline: truth }),
   
     setAvatarVersion: (version) => set({ avatarVersion: version }),
     

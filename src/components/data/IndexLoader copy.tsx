@@ -48,7 +48,7 @@ export function IndexLoader() {
   const syncFullDataShards = useDATAStore((s) => s.syncFullDataShards);
   const reorderSlots = useDATAStore((s) => s.reorderSlots);
 
-  // 🟢 1. Scan OPFS on mount / when availableIndexes update
+  // 1. Scan OPFS on mount / when availableIndexes update
   useEffect(() => {
     let isMounted = true;
 
@@ -113,7 +113,7 @@ export function IndexLoader() {
 
       if (slots.length >= 12) return;
 
-      // 🟢 Check OPFS locally first
+      // Check OPFS locally first
       let existsOnDisk = opfsMap[fileName];
       if (existsOnDisk === undefined) {
         existsOnDisk = await checkFileExists("indexes", fileName);

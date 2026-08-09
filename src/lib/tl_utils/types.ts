@@ -138,6 +138,7 @@ export interface AppState {
   accounts: AccountContext[];
   avatarVersion: string; 
   
+  setIsOnline:(truth:boolean) => void; 
   setAvatarVersion: (version: string) => void; 
   canAccessWorkspace: () => boolean;
   checkNetwork: () => Promise<boolean>;
