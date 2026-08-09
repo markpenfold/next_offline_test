@@ -1,6 +1,6 @@
 // src/stores/app-store.ts
 import { createStore } from 'zustand/vanilla';
-import { isReallyOnline } from '@/lib/utils/checkOnline';
+import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
 import { decodeLeaseJwt } from '@/lib/auth/crypto';
 import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/tl_utils/types';
 import { createClient } from '@/lib/supabase/client';
@@ -67,7 +67,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     // Double checks with API ping whether we are connected
     checkNetwork: async () => {
       const online = typeof window !== 'undefined' && navigator.onLine 
-        ? await isReallyOnline() 
+        ? await isSUPAyOnline() 
         : false;
       set({ isOnline: online });
       return online;
@@ -135,7 +135,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
             activeAccount: parsed.activeAccount || parsed.accounts?.[0] || null,
             authStatus: 'authenticated'
           });
-          console.log("✅ Memory successfully loaded from valid local cache.");
+          console.log("✅ Memory successfully loaded from valid local cache.", get().authStatus);
           return true;
         }
       } catch (e) {
@@ -205,7 +205,10 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         console.log("Client workspace successfully synced with live database source-of-truth.");
       } catch (err) {
         console.error("Critical error encountered during live network sync:", err);
-        get().clearSlate();
+        set({ isOnline: false });
+        if (get().authStatus !== 'authenticated') {
+          get().clearSlate();
+        }
       }
     },
 

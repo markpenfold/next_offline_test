@@ -1,10 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isReallyOnline } from '@/lib/utils/checkOnline'
+import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline'
 
 export async function updateSession(request: NextRequest) {
 
-  const isOnline = await isReallyOnline()
+  const isOnline = await isSUPAyOnline();
   if(!isOnline){
     console.log("proxy detects offline status")
     let supabaseResponse = NextResponse.next({
@@ -17,12 +17,22 @@ export async function updateSession(request: NextRequest) {
     request,
   })
   
+  try{
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // 🟢 FIX: Fast-fail offline server fetches in 1.5s instead of hanging 10s
+        global: {
+          fetch: (url, options) => {
+            return fetch(url, {
+              ...options,
+              signal: AbortSignal.timeout(1500),
+            })
+          },
+        },
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -65,6 +75,7 @@ export async function updateSession(request: NextRequest) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    console.log("KUUUUUUUUUUUUUUUUUUUUUUNT REDURECT TO LOGIN")
     return NextResponse.redirect(url)
   }
 
@@ -75,6 +86,14 @@ export async function updateSession(request: NextRequest) {
       url.pathname = '/'
       return NextResponse.redirect(url)
     }
+  }
+  } catch(networkError){
+    // OFFLINE CATCH:
+    // If Supabase DNS fails/offline, let request pass through to the client.
+    // Client-side DashWrap will check Zustand/localStorage:
+    // - Valid lease -> Access granted
+    // - No lease -> DashWrap client-side redirects to /login
+    return supabaseResponse
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're

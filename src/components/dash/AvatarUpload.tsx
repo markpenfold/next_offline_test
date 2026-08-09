@@ -7,7 +7,7 @@ import { avatarSchema } from "@/lib/validations/primitives"
 import styles from '@/app/styles/dashboard.module.css'
 import { AVATAR_BUCKET_URL } from '@/lib/utils/constants'
 
-export function AvatarUpload({ userId }: { userId: string }) {
+export function AvatarUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -17,6 +17,7 @@ export function AvatarUpload({ userId }: { userId: string }) {
   const [loadError, setLoadError] = useState(false)
 
   // 🟢 Connect to your global store version tracking state and setter action
+  const userId = useAppStore((s) => s.userId) ?? ''
   const avatarVersion = useAppStore((s) => s.avatarVersion || '')
   const setAvatarVersion = useAppStore((s) => s.setAvatarVersion)
   const profile = useAppStore((s) => s.profile)

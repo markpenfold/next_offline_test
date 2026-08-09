@@ -9,19 +9,19 @@ import styles from '@/app/styles/dashboard.module.css'
 
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+//  const supabase = await createClient();
+//  const { data: { user } } = await supabase.auth.getUser();
 
   // Hard block at the server level: unauthenticated traffic never sees the shell
-  if (!user) {
-    redirect('/login');
-  }
+ // if (!user) {
+  //  redirect('/login');
+ // }
 
   return (
     /* We nest the Server Component inside the Client Component */
     <DashWrap>
       <AccountDetailsCard />
-        <AvatarUpload userId={user.id}/>
+        <AvatarUpload />
             <SandboxWorkspace />
             
         <div className={styles.gridCard}>
@@ -31,8 +31,6 @@ export default async function DashboardPage() {
         <div className={styles.gridCard}>
           <h1 className={styles.AccountCardHeader}>Yet another Card but wider</h1>
         </div>
-
-
     </DashWrap>
   );
 }

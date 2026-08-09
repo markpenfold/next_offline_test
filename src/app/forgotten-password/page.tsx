@@ -13,7 +13,7 @@ export default async function ForgotPasswordPage() {
   
   // Always use getUser() not getSession() — getUser() validates with Supabase server
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) redirect('/dashboard')
+  if (user) redirect('/dash')
   
   return(
   <div className={styles.container}>
