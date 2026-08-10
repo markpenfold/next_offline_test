@@ -3,15 +3,16 @@ import {
   float, vec3, color, clamp, step, mix, vec2,
   positionLocal, uniform, distance
 } from 'three/tsl';
-import { MeshPhysicalNodeMaterial, DoubleSide } from 'three/webgpu';
+import { MeshPhysicalNodeMaterial } from 'three/webgpu';
+import { DoubleSide } from 'three';
 
 // 💡 Import active slot color uniforms synced by TerrainOrchestrator
 import { colorUniforms } from '../terrainColorUniforms';
 
-export const getUrushiF = (g, hoverUV) => {
+export const getUrushiG = (g, hoverUV) => {
   const mat = new MeshPhysicalNodeMaterial({
     wireframe: false,
-    side: DoubleSide,
+    side: DoubleSide, // Render double-sided
   });
 
   const numTimelines = g.userData.numTimelines || 12;
@@ -57,31 +58,29 @@ export const getUrushiF = (g, hoverUV) => {
   const hoverDist = distance(vUV, hoverUVUniform);
   const dotRadius = float(0.016);
 
-  // Core dot mask only (no halo/glow mask)
+  // Core dot mask only (no halo/glow)
   const coreMask = step(hoverDist, dotRadius).mul(step(0.0, hoverUVUniform.x));
 
   // --- ORANGE-RED DOT COLOR ---
-  const dotColor = color('#FF4500'); // Solid Orange-Red
+  const dotColor = color('#FF4500');
+
+  // --- HEIGHT MASK FOR BASE PLANE ---
+  // heightMask = 1.0 for terrain above zero level, 0.0 for level zero base plane
+  const heightMask = step(0.25, positionLocal.y);
 
   // --- COLOR & BAND COMPUTATION ---
   mat.colorNode = Fn(() => {
-    const baseColor = vec3(0.31, 0.31, 0.31);
+    const baseColor = vec3(0.031, 0.031, 0.031);
 
-    // 💡 Start layer colors from colorUniforms[0]
+    // Start layer colors from colorUniforms[0]
     let bandColorOut = colorUniforms[0];
-    let accumulatedHeight = float(0.0); 
-    
-    // Add a tiny threshold to prevent step(0,0) from evaluating to 1.0
-    const EPSILON = float(0.001); 
 
     for (let i = 0; i < numTimelines; i++) {
       const bandThickness = getBandAttribute(i);
       
-      // Stack the thickness of the bands
       const sampleY = positionLocal.y.sub(5);
       const mask = step(bandThickness, sampleY);
       
-      // 💡 Pull next layer color dynamically from colorUniforms
       const nextColor = i + 1 < numTimelines ? colorUniforms[i + 1] : colorUniforms[i];
       bandColorOut = mix(bandColorOut, nextColor, mask);
     }
@@ -99,32 +98,45 @@ export const getUrushiF = (g, hoverUV) => {
     const sssIntensity = clamp(positionLocal.y.mul(0.05), float(0.0), float(1.0));
     const lacquerWithSSS = mix(lacquerBandsWithHeight, sssWarmth, sssIntensity.mul(0.12));
 
-    // Direct sharp mix for a solid dot without glow
+    // Solid orange-red dot blend
     const finalColorWithDot = mix(lacquerWithSSS, dotColor, coreMask);
 
-    const heightMask = step(0.25, positionLocal.y);
     return mix(baseColor, finalColorWithDot, heightMask);
   })();
 
-  // --- MATERIAL PROPERTIES ---
+  // --- MATERIAL SURFACE PROPERTIES ---
+
+  // Roughness: 1.0 (completely matte) at zero level, glossy/dot roughness above
   mat.roughnessNode = Fn(() => {
     const lacquerRoughness = float(0.33); 
     const dotRoughness = float(0.2);
-    return mix(lacquerRoughness, dotRoughness, coreMask);
+    const terrainRoughness = mix(lacquerRoughness, dotRoughness, coreMask);
+
+    return mix(float(1.0), terrainRoughness, heightMask);
   })();
 
+  // Metalness: 0.0 (non-metallic) at zero level
   mat.metalnessNode = Fn(() => {
     const lacquerMetalness = float(0.04);
     const dotMetalness = float(0.0);
-    return mix(lacquerMetalness, dotMetalness, coreMask);
+    const terrainMetalness = mix(lacquerMetalness, dotMetalness, coreMask);
+
+    return mix(float(0.0), terrainMetalness, heightMask);
   })();
 
-  // --- SUBSURFACE SCATTERING & CLEARCOAT PROPERTIES ---
-  mat.clearcoatNode = Fn(() => float(1.0))();
-  mat.clearcoatRoughnessNode = Fn(() => float(0.06))();
+  // Clearcoat: Disabled at zero level to eliminate reflections
+  mat.clearcoatNode = Fn(() => {
+    return mix(float(0.0), float(1.0), heightMask);
+  })();
 
+  mat.clearcoatRoughnessNode = Fn(() => {
+    return mix(float(1.0), float(0.06), heightMask);
+  })();
+
+  // Transmission: Translucent terrain above, solid non-translucent at zero level
   mat.transmissionNode = Fn(() => {
-    return mix(float(0.56), float(0.0), coreMask);
+    const terrainTransmission = mix(float(0.56), float(0.0), coreMask);
+    return mix(float(0.0), terrainTransmission, heightMask);
   })();
 
   mat.thicknessNode = Fn(() => {

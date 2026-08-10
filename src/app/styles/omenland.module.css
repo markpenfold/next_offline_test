@@ -180,7 +180,9 @@
   flex-shrink: 0;
 }
 
-/* 3. TICKET STUB YEARS CONTAINER (Wider Box + Left Notch + Drop Shadow) */
+
+
+/* 3. TICKET STUB YEARS CONTAINER (Left Notch Only) */
 .yearsContainer {
   display: flex;
   flex-direction: column;
@@ -205,7 +207,7 @@
   /* DROP SHADOW ALONG THE NOTCHED EDGE */
   filter: drop-shadow(-3px 0px 3px rgba(0, 0, 0, 0.35));
 
-  border-left: 1px dashed rgba(0, 0, 0, 0.2); /* Perforated ticket edge */
+  border-left: 1px dashed rgba(0, 0, 0, 0.2); /* Outer left perforated edge */
   padding: 0 6px;
 }
 
@@ -216,9 +218,9 @@
   max-width: 100%;
 }
 
-/* 4. EVENT COUNT BOX (Expanded Width) */
+/* 4. EVENT COUNT BOX (Dotted Perforation Boundary) */
 .countBox {
-  background-color: #ec4899;
+  background-color: #6a505d;
   color: rgb(245, 245, 245);
   font-weight: bold;
   font-size: clamp(0.55rem, 1vw, 0.65rem);
@@ -230,7 +232,13 @@
   align-self: stretch;
   flex-shrink: 0;
   line-height: 1;
+
+  /* PERFORATION LINE BETWEEN LIGHT BROWN AND DARK BROWN */
+  border-left: 2px dotted rgba(28, 25, 23, 0.4); 
 }
+
+
+
 
 /* 5. ACTION BUTTON (+ / X) */
 .actionButton {

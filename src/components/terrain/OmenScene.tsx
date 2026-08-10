@@ -1,17 +1,12 @@
-import { getUrushiC } from './shaders/urushiC';
-import { getUrushi } from './shaders/urushi';
-import { getUrushiB } from './shaders/urushiB';
-import { getUrushiD } from './shaders/urushiD';
-import { getUrushiE } from './shaders/urushiE';
+
 import { getUrushiF } from './shaders/urushiF';
-import { getUrushiChan } from './shaders/urushiChan';
+import { getUrushiG } from './shaders/urushiG';
 import { useMemo, useRef } from 'react';
-import { StorageBufferAttribute } from 'three/webgpu';
+import { StorageBufferAttribute, MeshBasicNodeMaterial } from 'three/webgpu';
 import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
 import { TerrainOrchestrator } from './tO';
 import { TerrainGrid } from './TerrainGrid';
-import { useDATAStore } from '@/stores/useDataStore';
 import { Vector3 } from 'three';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -51,7 +46,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
   }, [resolution]);
 
   const material = useMemo(() => {
-    return getUrushiF(geometry, null);
+    return getUrushiG(geometry, null);
   }, [geometry]);
 
   return (

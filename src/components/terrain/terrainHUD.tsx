@@ -3,9 +3,10 @@
 import React, { useMemo } from 'react';
 import { useDATAStore } from '@/stores/useDataStore';
 import { Calendar, Crosshair } from 'lucide-react';
+import { useUIStore } from '@/stores/useUIStore';
 
 export function MasterBufferHUD() {
-  const hoverCoord = useDATAStore((s) => s.hoverCoord);
+  const hoverCoord = useUIStore((s) => s.hoverCoord);
   const masterBuffer = useDATAStore((s) => s.masterBuffer);
   const activeSlotsMetadata = useDATAStore((s) => s.activeSlotsMetadata);
   const windowStartYear = useDATAStore((s) => s.windowStartYear);
@@ -91,7 +92,7 @@ export function MasterBufferHUD() {
       <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
         <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
           <Calendar className="h-3.5 w-3.5" />
-          <span>PROBE YEAR</span>
+          <span>SPOT YEAR</span>
         </div>
         <div className="flex items-center gap-2">
           {breakdown && (

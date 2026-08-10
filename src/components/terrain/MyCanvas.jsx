@@ -6,7 +6,7 @@ import { OrbitControls } from '@react-three/drei';
 import { TerrainOrchestrator } from './old/TerrainOrchestrator';
 import {Scene} from './OmenScene'
 
-export default function MyCanvas() {
+export function MyCanvas() {
   return (
    
       <Canvas
