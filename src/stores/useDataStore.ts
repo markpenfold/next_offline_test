@@ -6,24 +6,20 @@ import {
   OPFSFile,
   AvailableIndex,
   ActiveDataViewIndex,
+  AvailableDataShard,
 } from '@/components/data/dataTypes';
 import {
   saveProject,
   loadProject,
   getSavedProjects,
+  getLocalOPFSDataShards,
 } from '@/components/data/diskOPFS';
 import { COLLECTION_COLORS_T6_GREYSCALE, COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
-
-import { Vector3 } from 'three';
+import { getShardsFromIndex } from '@/components/data/cloudR2';
 import {
-  loadGpuSettingsFromOPFS,
-  saveGpuSettingsToOPFS,
-  OPFSGpuSettings,
   checkFileExists, 
   saveToOPFSFolder,
 } from '@/components/data/diskOPFS';
-
-import {resolveDataShardSpecs} from '@/components/data/cloudR2';
 
 // ============================================================================
 // 1. TYPES & INTERFACES
@@ -58,7 +54,8 @@ export interface Slot {
   uuidMap: Map<number, string[]>;
   minYear?: number;  
   maxYear?: number;
-  totalEvents: number; 
+  totalEvents: number;
+  //eventData: string[]; 
 }
 
 // ============================================================================
@@ -68,6 +65,7 @@ export interface Slot {
 export interface DATAStore {
   availableIndexes: any[];
   downloadedIndexes: any[];
+  dataShards: AvailableDataShard[];
 
   activeDataViewIndexes: ActiveDataViewIndex[];
   slots: Slot[];
@@ -91,6 +89,10 @@ export interface DATAStore {
   // Actions
   addActiveDataViewIndex: (item: ActiveDataViewIndex) => void;
   removeActiveDataViewIndex: (fileName: string) => void;
+  setDataShards: (shards: AvailableDataShard[]) => void;
+  refreshDataShards: () => Promise<AvailableDataShard[]>;
+
+
   setIsGeologicalTime: (val: boolean) => void;
   setWindowStartYear: (year: number) => void;
   setMasterBufferData: (buffer: any, metadata: any[]) => void;
@@ -238,6 +240,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   // Initial State
   availableIndexes: [],
   downloadedIndexes: [],
+  dataShards: [],
 
   activeDataViewIndexes: [],
   slots: [],
@@ -268,6 +271,19 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     set({
       activeDataViewIndexes: get().activeDataViewIndexes.filter((item) => item.fileName !== fileName),
     });
+  },
+
+  setDataShards: (shards) => set({ dataShards: shards }),
+
+  refreshDataShards: async () => {
+    try {
+      const shards = await getLocalOPFSDataShards();
+      set({ dataShards: shards });
+      return shards;
+    } catch (err) {
+      console.error("🚨 [DATAStore] Failed to refresh local OPFS data shards:", err);
+      return get().dataShards;
+    }
   },
 
   setIsGeologicalTime: function (val) {
@@ -550,7 +566,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     return get().downloadStatuses[fileName] || 'idle';
   },
 
-  syncFullDataShards: async (item, accountId) => {
+syncFullDataShards: async (item, accountId) => {
     const fileName = item.fileName;
     const { inFlightDownloads, downloadStatuses } = get();
 
@@ -568,29 +584,18 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       }));
 
       try {
-        const specs = resolveDataShardSpecs(item);
+        // 🟢 Delegate fetching, S3 key generation, and OPFS saving to getShardsFromIndex
+        const result = await getShardsFromIndex({
+          fileName,
+          accountId,
+        });
 
-        for (const spec of specs) {
-          const exists = await checkFileExists('data', spec.localFileName);
-          if (!exists) {
-            const response = await fetch('/api/categories/download', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                accountId,
-                key: spec.s3Key,
-                tier: spec.tier,
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status} fetching ${spec.s3Key}`);
-            }
-
-            const arrayBuffer = await response.arrayBuffer();
-            await saveToOPFSFolder('data', spec.localFileName, arrayBuffer);
-          }
+        if (!result.success) {
+          throw new Error(`Failed to retrieve shards for index: ${fileName}`);
         }
+
+        // 🟢 Refresh store dataShards state after saving Parquet files to disk
+        await get().refreshDataShards();
 
         set((state) => ({
           downloadStatuses: { ...state.downloadStatuses, [fileName]: 'ready' },

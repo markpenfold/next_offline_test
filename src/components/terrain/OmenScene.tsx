@@ -1,4 +1,3 @@
-
 import { getUrushiF } from './shaders/urushiF';
 import { getUrushiG } from './shaders/urushiG';
 import { useMemo, useRef } from 'react';
@@ -9,9 +8,22 @@ import { TerrainOrchestrator } from './tO';
 import { TerrainGrid } from './TerrainGrid';
 import { Vector3 } from 'three';
 import { useUIStore } from '@/stores/useUIStore';
+import { queryEventsByYearRange } from "@/components/data/duckDATA";
 
 interface SceneProps {
   resolution?: number;
+}
+
+export async function handleTerrainDoubleClick(minYear: number, maxYear: number) {
+  console.log("HIT THE DOUBLE TAP: ", minYear,  maxYear)
+  // 1. Query DuckDB currentDataView for events in range
+  const events = await queryEventsByYearRange(minYear, maxYear);
+
+  // 2. Update transient UI store state (triggers re-render in EventsList)
+  useUIStore.getState().setLatestClickedEvents(events);
+
+  // 3. Automatically activate the Events tab in MainDataPanel
+  useUIStore.getState().setActivePanelTab("events");
 }
 
 export function Scene({ resolution = 512 }: SceneProps) {
@@ -19,6 +31,8 @@ export function Scene({ resolution = 512 }: SceneProps) {
   const tempVec = useRef(new Vector3());
   const invalidate = useThree((state) => state.invalidate);
   const setHoverCoord = useUIStore((state) => state.setHoverCoord);
+  const setActivePanelTab = useUIStore((state) => state.setActivePanelTab);
+  const setLatestClickedEvents = useUIStore((state) => state.setLatestClickedEvents);
 
   ///////////////////////////////////////////////////////////
   // 1. BASE GEOMETRY (Allocated once with Storage Buffers)
@@ -62,33 +76,48 @@ export function Scene({ resolution = 512 }: SceneProps) {
 
       {/* 2. Ultra-fast 2-Triangle Raycast Proxy Plane */}
       <mesh
-          position={[0, 0, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          onPointerMove={(e) => {
-            e.stopPropagation();
+        position={[0, 0, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerMove={(e) => {
+          e.stopPropagation();
 
-            // 1. Direct GPU uniform update for TSL shader ring
-            if (material?.userData?.hoverUVUniform?.value && e.uv) {
-              material.userData.hoverUVUniform.value.set(e.uv.x, e.uv.y);
-              invalidate();
-            }
+          // 1. Direct GPU uniform update for TSL shader ring
+          if (material?.userData?.hoverUVUniform?.value && e.uv) {
+            material.userData.hoverUVUniform.value.set(e.uv.x, e.uv.y);
+            invalidate();
+          }
 
-            // 2. Set hover coord in Zustand (store converts to fresh object reference)
-            setHoverCoord(e.point);
-          }}
-          onPointerLeave={(e) => {
-            e.stopPropagation();
-            setHoverCoord(null);
+          // 2. Set hover coord in Zustand (store converts to fresh object reference)
+          setHoverCoord(e.point);
+        }}
+        onPointerLeave={(e) => {
+          e.stopPropagation();
+          setHoverCoord(null);
 
-            if (material?.userData?.hoverUVUniform?.value) {
-              material.userData.hoverUVUniform.value.set(-1.0, -1.0);
-              invalidate();
-            }
-          }}
-        >
-          <planeGeometry args={[400, 400]} />
-          <meshBasicMaterial visible={false} />
-        </mesh>
+          if (material?.userData?.hoverUVUniform?.value) {
+            material.userData.hoverUVUniform.value.set(-1.0, -1.0);
+            invalidate();
+          }
+        }}
+        onDoubleClick={async (e) => {
+          e.stopPropagation();
+          if (!e.uv) return;
+
+          // Map plane UV position (0..1 across 400x400 space) to year range
+          // Adjust year Window logic (e.g., centerYear +/- padding) to match your scene bounds
+          const hitX = e.point.x; // World X coordinate [-200 to 200]
+          
+          // Example: Map X coordinate [-200, 200] to a temporal year span
+          const targetYear = Math.round(hitX * 10); 
+          const minYear = targetYear - 5;
+          const maxYear = targetYear + 5;
+
+          await handleTerrainDoubleClick(minYear, maxYear);
+        }}
+      >
+        <planeGeometry args={[400, 400]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
 
       <TerrainGrid />
       <TerrainOrchestrator 

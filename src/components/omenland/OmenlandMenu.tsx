@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { useDATAStore } from '@/stores/useDataStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAppStore } from '@/providers/AppStoreProvider';
 import { saveProject } from '@/components/data/diskOPFS';
 
-export function OmenMenu() {
+interface OmenMenuProps {
+  trigger?: ReactNode;
+  align?: 'left' | 'right';
+}
+
+export function OmenMenu({ trigger, align = 'right' }: OmenMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -39,8 +44,7 @@ export function OmenMenu() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- Direct Menu Actions ---
-
+  // Direct Menu Actions
   const handleSaveProject = async () => {
     setIsOpen(false);
     if (!accountId) {
@@ -79,21 +83,30 @@ export function OmenMenu() {
 
   return (
     <div className="relative inline-block text-left font-sans z-50" ref={menuRef}>
-      {/* Menu Trigger Button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 shadow-md backdrop-blur-md transition cursor-pointer text-xs font-semibold"
-      >
-        <span className="text-sm">☰</span>
-        <span>Menu</span>
-        <span className="text-[10px] text-slate-400">▼</span>
-      </button>
+      {/* Dynamic Trigger or Default Button */}
+      {trigger ? (
+        <div onClick={() => setIsOpen((prev) => !prev)} className="inline-flex cursor-pointer">
+          {trigger}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 shadow-md backdrop-blur-md transition cursor-pointer text-xs font-semibold"
+        >
+          <span className="text-sm">☰</span>
+          <span>Menu</span>
+          <span className="text-[10px] text-slate-400">▼</span>
+        </button>
+      )}
 
       {/* Dropdown Popover */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-72 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md text-slate-100 p-2 space-y-3 divide-y divide-slate-800/80">
-          
+        <div
+          className={`absolute ${
+            align === 'right' ? 'right-0' : 'left-0'
+          } mt-2 w-72 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md text-slate-100 p-2 space-y-3 divide-y divide-slate-800/80`}
+        >
           {/* Section 1: Project Operations */}
           <div className="space-y-1 pt-1">
             <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">

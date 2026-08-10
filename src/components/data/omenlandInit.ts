@@ -1,5 +1,6 @@
 // @/components/data/omenlandOrchestrator.ts
 
+import { getExpectedDataShardNames } from "@/components/data/dataHelpers"; // or buildLocalDataShardFileName
 import { fetchAvailableIndexes, getMasterIndex } from "@/components/data/cloudR2";
 import { 
   getOPFSEntries, 
@@ -15,6 +16,11 @@ import {
   ActiveDataViewIndex 
 } from "@/components/data/dataTypes";
 import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
+
+import { useDATAStore } from "@/stores/useDataStore";
+
+// 🟢 Import DuckDB helpers to mount files into DuckDB VFS and build currentDataView at boot
+import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
 
 // HELPER: Offline-First Parallel Discovery (Cloud + Disk)
 async function getAllIndexes(accountId: string) {
@@ -166,6 +172,9 @@ async function loadFromSession(
 export async function startOmenland(accountId: string): Promise<OmenlandInitPayload> {
   console.log(`🚀 Booting Omenland Workspace for Account: ${accountId}`);
 
+  await useDATAStore.getState().refreshDataShards();
+
+
   // PHASE 1: Fetch Index Registries (Cloud or Local OPFS Fallback)
   const { availableIndexes, localCacheIndexFiles, isOnline } = await getAllIndexes(accountId);
 
@@ -176,6 +185,44 @@ export async function startOmenland(accountId: string): Promise<OmenlandInitPayl
     availableIndexes,
     isOnline
   );
+
+  // PHASE 3: Mount Active Data Shards into DuckDB
+if (activeIndexes && activeIndexes.length > 0) {
+  try {
+    console.log(`🦆 [DuckDB] Boot mounting active Parquet layers...`);
+    const mountedFileNames: string[] = [];
+
+    // 1. Get the actual list of local parquet data shards present in OPFS /data
+    const localShards = await useDATAStore.getState().refreshDataShards();
+    const localShardNamesSet = new Set(localShards.map((s) => s.fileName));
+
+    for (const item of activeIndexes) {
+      const indexFileName = typeof item === "string" ? item : item.fileName;
+      if (!indexFileName) continue;
+
+      // 2. Resolve expected data shard names (pre_1900 and post_1900)
+      // e.g. "index__free__accidents__v1" -> ["free_accidents_pre_1900_v1.parquet", "free_accidents_post_1900_v1.parquet"]
+      const expectedShardNames = getExpectedDataShardNames(indexFileName);
+
+      for (const shardFileName of expectedShardNames) {
+        // Only attempt to mount shards that actually exist in OPFS /data/
+        if (localShardNamesSet.has(shardFileName)) {
+          const mountedName = await loadShardIntoEngine("data", shardFileName);
+          if (mountedName) {
+            mountedFileNames.push(mountedName);
+          }
+        }
+      }
+    }
+
+    // 3. Rebuild DuckDB view with the successfully mounted shard files
+    await rebuildDataView(mountedFileNames);
+    console.log("✅ [DuckDB] Initialized currentDataView at boot with:", mountedFileNames);
+
+  } catch (err) {
+    console.error("🚨 [DuckDB] Failed to initialize DuckDB view at boot:", err);
+  }
+}
 
   console.log("✅ Engine boot complete. Handing payload back to state manager.");
 

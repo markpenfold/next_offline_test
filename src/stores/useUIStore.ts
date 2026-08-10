@@ -1,22 +1,36 @@
+// stores/useUIStore.ts
 import { create } from 'zustand';
-import { useDATAStore } from '@/stores/useDataStore'; // Adjust import path as needed
+import { useDATAStore } from '@/stores/useDataStore';
 import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
 import {
   loadGpuSettingsFromOPFS,
   saveGpuSettingsToOPFS,
   OPFSGpuSettings,
-
 } from '@/components/data/diskOPFS';
 
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
-// Extend or import these interfaces based on your types
+import { TimelineEvent } from "@/components/omenland/omenTypes";
+
 interface GPUStatus {
   supported: boolean;
   [key: string]: any;
 }
 
+export type PanelTab = 'histories' | 'events';
 
 export interface UIStore {
+  // Histories and Events Window
+  activePanelTab: PanelTab;
+  setActivePanelTab: (tab: PanelTab) => void;
+
+  // Event State (Transient UI Data)
+  latestClickedEvents: TimelineEvent[];
+  timelineBuilderEvents: TimelineEvent[];
+  setLatestClickedEvents: (events: TimelineEvent[]) => void;
+  addToTimeline: (event: TimelineEvent) => void;
+  removeFromTimeline: (eventId: string) => void;
+  clearTimelineBuilder: () => void;
+
   // Modal & Visibility
   finderIsOpen: boolean;
   setFinderOpen: (open: boolean) => void;
@@ -40,6 +54,31 @@ export interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set, get) => ({
+  // Histories and Events Window
+  activePanelTab: 'histories',
+  setActivePanelTab: (tab) => set({ activePanelTab: tab }),
+
+  // Event State
+  latestClickedEvents: [],
+  timelineBuilderEvents: [],
+
+  setLatestClickedEvents: (events) => set({ latestClickedEvents: events }),
+
+  addToTimeline: (event) =>
+    set((state) => {
+      if (state.timelineBuilderEvents.some((e) => e._id === event._id)) {
+        return state;
+      }
+      return { timelineBuilderEvents: [...state.timelineBuilderEvents, event] };
+    }),
+
+  removeFromTimeline: (eventId) =>
+    set((state) => ({
+      timelineBuilderEvents: state.timelineBuilderEvents.filter((e) => e._id !== eventId),
+    })),
+
+  clearTimelineBuilder: () => set({ timelineBuilderEvents: [] }),
+
   // Modals
   finderIsOpen: false,
   setFinderOpen: (openORclosed) => set({ finderIsOpen: openORclosed }),

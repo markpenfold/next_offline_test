@@ -14,7 +14,7 @@ import {
   HardDrive, 
   WifiOff 
 } from "lucide-react";
-import { getMasterIndex } from "./cloudR2";
+import { getMasterIndex, getShardsFromIndex, getLocalShardNamesFromIndex } from "./cloudR2";
 import { checkFileExists } from "./diskOPFS";
 import { AvailableIndex } from "@/components/data/dataTypes";
 import { useAppStore } from "@/providers/AppStoreProvider";
@@ -23,11 +23,12 @@ import { useUIStore } from '@/stores/useUIStore';
 import styles from "@/app/styles/omenland.module.css";
 import { formatIndexDisplayName, formatYear } from "@/components/data/dataHelpers";
 import { WindowBar, WindowBarIconButton } from "@/components/omenland/WindowBar";
+import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
 
 export function IndexLoader() {
   const [draggedSlotIndex, setDraggedSlotIndex] = useState<number | null>(null);
   
-  // 🟢 OPFS Cache Map: Tracks whether each file exists in local storage
+  // OPFS Cache Map for index files
   const [opfsMap, setOpfsMap] = useState<Record<string, boolean>>({});
 
   // 🟢 Online Status & Stores
@@ -41,6 +42,10 @@ export function IndexLoader() {
   const slots = useDATAStore((s) => s.slots);
   const downloadStatuses = useDATAStore((s) => s.downloadStatuses);
 
+  // 🟢 OPFS Data Shards State & Store Actions
+  const dataShards = useDATAStore((s) => s.dataShards);
+  const refreshDataShards = useDATAStore((s) => s.refreshDataShards);
+
   const setKeyLoading = useUIStore((s) => s.setKeyLoading);
   const addToSlot = useDATAStore((s) => s.addToSlot);
   const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
@@ -48,17 +53,55 @@ export function IndexLoader() {
   const syncFullDataShards = useDATAStore((s) => s.syncFullDataShards);
   const reorderSlots = useDATAStore((s) => s.reorderSlots);
 
-  // 🟢 1. Scan OPFS on mount / when availableIndexes update
+  // Helper to re-sync active slots into DuckDB and rebuild currentDataView
+const syncDuckDBView = async (activeSlots: typeof slots) => {
+  try {
+    const mountedFileNames: string[] = [];
+
+    for (const slot of activeSlots) {
+      if (!slot.fileName) continue;
+
+      // 1. Derive the expected local shard names (pre_1900 and post_1900)
+      const shardMetas = getLocalShardNamesFromIndex(slot.fileName);
+
+      for (const { localFileName } of shardMetas) {
+        // 2. Check if the Parquet file exists in OPFS /data directory
+        const exists = await checkFileExists("data", localFileName);
+        
+        if (exists) {
+          // 3. Mount existing shard into DuckDB VFS
+          const mountedName = await loadShardIntoEngine("data", localFileName);
+          if (mountedName) {
+            mountedFileNames.push(mountedName);
+          }
+        }
+      }
+    }
+
+    // 4. Rebuild the DuckDB currentDataView over all active, mounted shards
+    await rebuildDataView(mountedFileNames);
+    console.log("✅ [DuckDB] Synchronized view with active shards:", mountedFileNames);
+  } catch (err) {
+    console.error("🚨 [DuckDB] Failed to rebuild currentDataView:", err);
+  }
+};
+
+  // 🟢 Scan OPFS indexes and data shards on mount / when availableIndexes update
   useEffect(() => {
     let isMounted = true;
 
     async function scanLocalFiles() {
+      // 1. Check OPFS for index JSON/meta files
       const checks = await Promise.all(
         availableIndexes.map(async (item) => {
           const exists = await checkFileExists("indexes", item.fileName);
           return [item.fileName, exists] as const;
         })
       );
+
+      // 2. 🟢 Scan OPFS /data directory for Parquet shards and auto-update store
+      let shardsAvailable = await refreshDataShards();
+      console.log("AVAILABLE SHARDS: ", shardsAvailable)
 
       if (isMounted) {
         setOpfsMap(Object.fromEntries(checks));
@@ -72,7 +115,7 @@ export function IndexLoader() {
     return () => {
       isMounted = false;
     };
-  }, [availableIndexes]);
+  }, [availableIndexes, refreshDataShards]);
 
   // Dynamic sorting: Active slots adhere strictly to stack index order
   const sortedAvailableIndexes = [...availableIndexes].sort((a, b) => {
@@ -108,34 +151,44 @@ export function IndexLoader() {
 
       if (isActive) {
         removeFromSlot(fileName);
+        // Rebuild DuckDB view with remaining active slots
+        const nextSlots = slots.filter((s) => s.fileName !== fileName);
+        await syncDuckDBView(nextSlots);
         return;
       }
 
       if (slots.length >= 12) return;
 
-      // 🟢 Check OPFS locally first
+      // Check OPFS locally first ////////////////////////////////////////
       let existsOnDisk = opfsMap[fileName];
       if (existsOnDisk === undefined) {
         existsOnDisk = await checkFileExists("indexes", fileName);
       }
 
-      // If missing locally AND offline, abort
+      // If missing locally AND offline, abort //////////////////////////////////
       if (!existsOnDisk && !isOnline) {
         console.warn(`Cannot fetch ${fileName} - offline and not found in OPFS.`);
         return;
       }
 
-      // Fetch from R2 if not local
+      // Fetch index from R2 if not local //////////////////////////////////////////
       if (!existsOnDisk) {
         const result = await getMasterIndex({ item, accountId });
         if (!result.success) throw new Error(`Failed to download ${fileName}`);
-
-        // Update OPFS local state
+        // Update OPFS local state map
         setOpfsMap((prev) => ({ ...prev, [fileName]: true }));
       }
 
       await addToSlot(item);
-      syncFullDataShards(item, accountId);
+      await syncFullDataShards(item, accountId);
+
+      // 🟢 Auto-refresh local OPFS dataShards in store after sync
+      await refreshDataShards();
+
+      // 🟢 Rebuild DuckDB view with the newly added slot
+      const updatedSlots = useDATAStore.getState().slots;
+      await syncDuckDBView(updatedSlots);
+
     } catch (err) {
       console.error(`Failed to toggle ${fileName}:`, err);
     } finally {

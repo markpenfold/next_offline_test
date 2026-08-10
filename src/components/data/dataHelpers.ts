@@ -18,7 +18,6 @@ import { getOPFSFileHandle } from '@/components/data/diskOPFS';
 // ============================================================================
 
 
-
 export function formatIndexDisplayName(category = "", version = "v1"): string {
   const formattedCategory = category
     .replace(/^category=/i, "")
@@ -31,7 +30,23 @@ export function formatIndexDisplayName(category = "", version = "v1"): string {
   return `${formattedCategory} ${formattedVersion}`.trim();
 }
 
+export function getExpectedDataShardNames(indexFileName: string): string[] {
+  // Input examples: "index__free__accidents__v1.json" or "index__pro__conspiracy_ufo__v1"
+  const cleanBase = indexFileName
+    .replace(/^index__/, "")
+    .replace(/\.json$/, "")
+    .replace(/\.parquet$/, "");
 
+  const parts = cleanBase.split("__");
+  if (parts.length < 3) return [];
+
+  const [tier, category, version] = parts;
+
+  return [
+    `${tier}_${category}_pre_1900_${version}.parquet`,
+    `${tier}_${category}_post_1900_${version}.parquet`,
+  ];
+}
 
 export function formatYear(year?: number, isGeologicalTime?: boolean): string {
   if (year === undefined || year === null) return "N/A";
@@ -49,7 +64,6 @@ export function formatYear(year?: number, isGeologicalTime?: boolean): string {
 
   return roundedYear < 0 ? `${Math.abs(roundedYear).toLocaleString()} BC` : `${roundedYear} AD`;
 }
-
 
 export type TerrainIndexMap = Map<number, { count: number; uuids: string[] }>;
 

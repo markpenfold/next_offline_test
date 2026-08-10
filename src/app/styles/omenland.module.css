@@ -490,3 +490,146 @@
 .windowBarBtn:active {
   background: rgba(255, 255, 255, 0.2);
 }
+
+
+
+
+/* ==========================================================================
+   EVENTS & EVENT ROW STYLING
+   ========================================================================== */
+
+.eventsContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  gap: 2px;
+  padding: 4px;
+}
+
+.eventsEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* Event Row Container */
+.eventRowWrapper {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.eventRowHeader {
+  display: flex;
+  align-items: stretch;
+  min-height: 24px;
+  background-color: #2c2c2c;
+  font-family: monospace;
+}
+
+.eventColorIndicator {
+  width: 4px;
+  flex-shrink: 0;
+}
+
+.eventTitleBox {
+  flex: 1;
+  padding: 2px 6px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background-color: #2c2c2c;
+  transition: background-color 0.2s;
+}
+
+.eventTitleBoxHover:hover {
+  background-color: #3a3a3a;
+  cursor: pointer;
+}
+
+.eventTitleText {
+  font-size: 0.65rem;
+  color: #d1d5db;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventYearSpan {
+  color: #60a5fa;
+  margin-right: 6px;
+  font-weight: 700;
+}
+
+.eventActionsBox {
+  background-color: #3a3a3a;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.eventActionButton {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  transition: opacity 0.2s;
+}
+
+.eventActionButton:hover {
+  opacity: 0.8;
+}
+
+.eventChevronButton {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.eventAccordionContent {
+  background-color: #1e293b;
+  padding: 6px 8px;
+  font-size: 0.62rem;
+  color: #cbd5e0;
+  line-height: 1.35;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Sort Controls Sub-Bar */
+.eventControlsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.65rem;
+  color: #9ca3af;
+}
+
+.eventSelect {
+  background-color: #1f2937;
+  color: #d1d5db;
+  border: 1px solid #374151;
+  border-radius: 2px;
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  outline: none;
+}

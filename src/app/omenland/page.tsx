@@ -21,8 +21,6 @@ export default function OmenPage() {
     <TerrainWindow />
         
       </div>
-
-      <OmenMenu />
     </OmenWrap>
   );
 }

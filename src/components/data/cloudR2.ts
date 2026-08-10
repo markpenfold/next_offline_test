@@ -1,84 +1,177 @@
 import { checkFileExists, saveToOPFSFolder, getLocalOPFSIndexes, getLocalOPFSDataShards } from "./diskOPFS";
-import { useAppStore } from "@/providers/AppStoreProvider";
 import {AvailableIndex, AvailableDataShard, DownloadIndexOptions} from "@/components/data/dataTypes"
-import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
+
+
+
 
 export interface GetShardParams {
-  item: AvailableDataShard;
-  accountId?: string;
-  onLog?: (msg: string) => void;
+  fileName: string; // e.g. "index__pro__ancient_history__v1.json"
+  accountId: string;
 }
 
-// Get the main data parquet 
-export async function getShard({
-  item,
+
+
+
+export interface ShardMeta {
+  localFileName: string;
+  tier: string;
+  category: string;
+  era: "pre_1900" | "post_1900";
+  version: string;
+}
+
+/**
+ * 1. Generates local Parquet shard filenames and metadata from an index name
+ */
+export function getLocalShardNamesFromIndex(indexFileName: string): ShardMeta[] {
+  const cleanBase = indexFileName
+    .replace(/^index__/, "")
+    .replace(/\.json$/, "")
+    .replace(/\.parquet$/, "");
+
+  const parts = cleanBase.split("__");
+  if (parts.length < 3) {
+    console.error(`❌ Invalid index filename format: ${indexFileName}`);
+    return [];
+  }
+
+  const [tier, category, version] = parts;
+  const eras: Array<"pre_1900" | "post_1900"> = ["pre_1900", "post_1900"];
+
+  return eras.map((era) => ({
+    localFileName: buildLocalDataShardFileName(tier, category, era, version),
+    tier,
+    category: category.toLowerCase(),
+    era,
+    version: version.toLowerCase(),
+  }));
+}
+
+export interface FetchShardParams {
+  shardMeta: ShardMeta;
+  accountId: string;
+}
+
+// Fetches a single shard from R2 using its calculated S3 key and saves to OPFS
+export async function fetchAndSaveSingleShard({
+  shardMeta,
   accountId,
-  onLog,
-}: GetShardParams): Promise<{ success: boolean; fileName: string }> {
-  const log = (msg: string) => onLog?.(msg);
+}: FetchShardParams): Promise<boolean> {
+  const { localFileName, tier, category, era, version } = shardMeta;
 
-    // Fail fast if offline
-  if (typeof window !== "undefined" && !window.navigator.onLine) {
-    return {
-      success: false,
-      fileName: item.fileName, 
-    };
-  }
+  // Derive S3 key directly from shard metadata
+  const s3Key = `data/master_category=${category}/era=${era}/version=${version}/data.parquet`;
 
-
-  if (!accountId) {
-    log("❌ Action aborted: Active account context is missing or null.");
-    return { success: false, fileName: item.fileName };
-  }
-
-  log(`🔍 Checking local cache for data shard: "${item.masterCategory}"...`);
-
-  // Use the standardized local filename directly from item
-  const safeLocalFileName = item.fileName;
+  console.log(`📡 Fetching key "${s3Key}" from remote R2...`);
 
   try {
-    // 1. Check local cache first
-    const fileExists = await checkFileExists("data", safeLocalFileName);
-
-    if (fileExists) {
-      log(`⚡ Cache Hit! "/data/${safeLocalFileName}" is active.`);
-      return { success: true, fileName: safeLocalFileName };
-    }
-
-    log(`📡 Cache Miss. Fetching shard from remote R2 repository...`);
-
-    // 2. Fetch using POST endpoint
     const response = await fetch("/api/categories/download", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accountId,
-        key: item.s3Key,
-        tier: item.tier,
+        key: s3Key,
+        tier,
       }),
     });
+
+    if (response.status === 404) {
+      console.warn(`ℹ️ No shard found for era [${era}] at ${s3Key}`);
+      return false;
+    }
 
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
       throw new Error(errJson.error || `HTTP error! status: ${response.status}`);
     }
 
-    log("Streaming dataset binary content across proxy...");
+    console.log(`Streaming ${localFileName} dataset binary content...`);
     const arrayBuffer = await response.arrayBuffer();
 
-    // 3. Save to local OPFS folder
-    await saveToOPFSFolder("data", safeLocalFileName, arrayBuffer);
-    log(`🟢 Successfully downloaded and saved to: /data/${safeLocalFileName}`);
+    // Save directly to OPFS /data directory
+    await saveToOPFSFolder("data", localFileName, arrayBuffer);
+    console.log(`🟢 Successfully downloaded and saved to: /data/${localFileName}`);
 
-    return { success: true, fileName: safeLocalFileName };
+    return true;
   } catch (err: any) {
-    log(`❌ Process Error: ${err.message}`);
-    return { success: false, fileName: safeLocalFileName };
+    console.error(`❌ Single Shard Download Error (${localFileName}): ${err.message}`);
+    return false;
   }
 }
 
-// Standalone fetch function for remote data shards 
 
+/**
+ * 3. Orchestrates OPFS cache checks and missing shard downloads for an index
+ */
+export async function getShardsFromIndex({
+  fileName,
+  accountId,
+}: GetShardParams): Promise<{ success: boolean; downloadedFiles: string[] }> {
+  // Fail fast if offline
+  if (typeof window !== "undefined" && !window.navigator.onLine) {
+    console.warn("❌ Offline: Cannot download shards.");
+    return { success: false, downloadedFiles: [] };
+  }
+
+  if (!accountId) {
+    console.log("❌ Action aborted: Active account context is missing or null.");
+    return { success: false, downloadedFiles: [] };
+  }
+
+  // Step 1: Derive shard targets from index name
+  const shardTargets = getLocalShardNamesFromIndex(fileName);
+  if (shardTargets.length === 0) {
+    return { success: false, downloadedFiles: [] };
+  }
+
+  const downloadedFiles: string[] = [];
+
+  try {
+    for (const shardMeta of shardTargets) {
+      const { localFileName } = shardMeta;
+
+      // Step 2: Check local OPFS cache
+      const fileExists = await checkFileExists("data", localFileName);
+
+      if (fileExists) {
+        console.log(`⚡ Cache Hit! "/data/${localFileName}" is active.`);
+        downloadedFiles.push(localFileName);
+        continue;
+      }
+
+      // Step 3: Cache Miss -> Call smaller fetcher function
+      const downloaded = await fetchAndSaveSingleShard({
+        shardMeta,
+        accountId,
+      });
+
+      if (downloaded) {
+        downloadedFiles.push(localFileName);
+      }
+    }
+
+    return { success: downloadedFiles.length > 0, downloadedFiles };
+  } catch (err: any) {
+    console.error(`❌ Shard Sync Error for ${fileName}: ${err.message}`);
+    return { success: false, downloadedFiles };
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Standalone fetch function for remote data shards 
 export async function fetchAvailableDataShards(accountId: string): Promise<AvailableDataShard[]> {
   const response = await fetch("/api/categories/list", {
     method: "POST",
@@ -118,6 +211,41 @@ export function buildLocalDataShardFileName(
   // e.g. "pro_african_post_1900_v1.parquet"
   const cleanEra = era.replace("era=", "");
   return `${tier.toLowerCase()}_${masterCategory.toLowerCase()}_${cleanEra.toLowerCase()}_${version.toLowerCase()}.parquet`;
+}
+
+export interface ParsedShardName {
+  tier: string;
+  category: string;
+  era: string;
+  version: string;
+}
+
+export function parseLocalDataShardFileName(fileName: string): ParsedShardName | null {
+  if (!fileName.endsWith(".parquet")) return null;
+
+  const baseName = fileName.slice(0, -8); // strip .parquet
+  const parts = baseName.split("_");
+
+  if (parts.length < 4) return null;
+
+  const tier = parts[0];
+  const version = parts[parts.length - 1];
+  const masterCategory = parts[1];
+  const era = parts.slice(2, parts.length - 1).join("_");
+
+  return {
+    tier,
+    category: masterCategory,
+    era,
+    version,
+  };
+}
+
+/**
+ * Normalizes category names to guarantee safe matching across components
+ */
+export function normalizeCategory(category: string): string {
+  return category.trim().toLowerCase();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -218,96 +346,3 @@ export function buildLocalIndexFileName(
 ///// Get data from index requests /////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export async function syncFullDataShards({
-  item,
-  accountId,
-  signal,
-  onLog,
-}: {
-  item: AvailableIndex;
-  accountId: string;
-  signal?: AbortSignal;
-  onLog?: (msg: string) => void;
-}): Promise<{ success: boolean; files: string[] }> {
-  const specs = resolveDataShardSpecs(item);
-  const downloadedFiles: string[] = [];
-
-  const syncPromises = specs.map(async (spec) => {
-    if (signal?.aborted) return false;
-
-    // 1. Check OPFS local cache
-    const exists = await checkFileExists("data", spec.localFileName);
-    if (exists) {
-      onLog?.(`⚡ Full data cache hit: /data/${spec.localFileName}`);
-      downloadedFiles.push(spec.localFileName);
-      return true;
-    }
-
-    // 2. Fetch missing split from R2 via proxy API
-    onLog?.(`📡 Cache miss. Prefetching full shard: ${spec.s3Key}...`);
-    
-    const response = await fetch("/api/categories/download", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accountId,
-        key: spec.s3Key,
-        tier: spec.tier,
-      }),
-      signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed downloading shard ${spec.s3Key}: HTTP ${response.status}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-
-    // 3. Save to OPFS /data directory
-    await saveToOPFSFolder("data", spec.localFileName, arrayBuffer);
-    onLog?.(`🟢 Cached full shard to OPFS: /data/${spec.localFileName}`);
-    
-    downloadedFiles.push(spec.localFileName);
-    return true;
-  });
-
-  try {
-    const results = await Promise.all(syncPromises);
-    const allSucceeded = results.every(Boolean);
-    return { success: allSucceeded, files: downloadedFiles };
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      onLog?.(`⏹️ Background download canceled for ${item.category}`);
-    } else {
-      console.error(`❌ Error syncing full data for ${item.category}:`, err);
-    }
-    return { success: false, files: downloadedFiles };
-  }
-}
-
-
-export interface DataShardSpec {
-  localFileName: string;
-  s3Key: string;
-  tier: "free" | "pro";
-  era: "pre_1900" | "post_1900";
-}
-
-export function resolveDataShardSpecs(item: AvailableIndex): DataShardSpec[] {
-  const cat = item.category.replace(/^master_category=/i, "");
-  const ver = (item.version || "v1").replace(/^version=/i, "");
-  const tier: "free" | "pro" = item.tier === "pro" ? "pro" : "free";
-
-  const eras: Array<"pre_1900" | "post_1900"> = ["pre_1900", "post_1900"];
-
-  return eras.map((era) => ({
-    // Flat local OPFS cache name
-    localFileName: `${cat}_${ver}_${era}.parquet`,
-    
-    // Relative object key inside whichever bucket 'tier' resolves to
-    s3Key: `data/master_category=${cat}/era=${era}/version=${ver}/data.parquet`,
-    
-    tier,
-    era,
-  }));
-}
