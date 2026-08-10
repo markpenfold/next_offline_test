@@ -108,6 +108,9 @@ export async function loadShardIntoEngine(
   }
 }
 
+
+
+
 /**
  * Drops a mounted file handle from DuckDB's VFS to free up worker memory
  */
@@ -242,7 +245,7 @@ export async function queryEventsByYearRangeA(
 export async function queryEventsByYearRange(
   minYear: number,
   maxYear: number,
-  limit: number = 200
+  limit: number = 2000
 ): Promise<TimelineEvent[]> {
   try {
     console.log(`🔍 [DuckDB] Querying events between years ${minYear} and ${maxYear} (limit: ${limit})...`);
@@ -288,6 +291,101 @@ export async function queryEventsByYearRange(
         version
       FROM currentDataView
       WHERE year >= ${minYear} AND year <= ${maxYear}
+      ORDER BY year ASC
+      LIMIT ${limit};
+    `;
+
+    console.log("📜 [DuckDB] Executing SQL:\n", sql);
+
+    const result = await conn.query(sql);
+    const rows = result.toArray().map((r) => r.toJSON());
+    await conn.close();
+
+    console.log(`📊 [DuckDB] Raw rows returned from query (${rows.length}):`, rows);
+
+    const formattedEvents = rows.map((row: any) => ({
+      _id: String(row.id || `${row.master_category || 'event'}-${row.year}-${Math.random()}`),
+      subject: row.subject ?? "Unnamed event",
+      description: row.description ?? "",
+      master_category: row.master_category ?? "default",
+      version: row.version ?? "v1",
+      event_type: row.event_type ?? "general",
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      categories: Array.isArray(row.categories) ? row.categories : [],
+      text_date: row.text_date ?? undefined,
+      precision: row.precision ?? undefined,
+      era: row.era ?? undefined,
+      location: row.location ?? undefined,
+      media: row.media ?? undefined,
+      date_obj: {
+        year: Number(row.year),
+        month: row.month !== null && row.month !== undefined ? Number(row.month) : undefined,
+        day: row.day !== null && row.day !== undefined ? Number(row.day) : undefined,
+        hour: row.hour !== null && row.hour !== undefined ? Number(row.hour) : undefined,
+        minute: row.minute !== null && row.minute !== undefined ? Number(row.minute) : undefined,
+        second: row.second !== null && row.second !== undefined ? Number(row.second) : undefined,
+        millisecond: row.millisecond !== null && row.millisecond !== undefined ? Number(row.millisecond) : undefined,
+      },
+    }));
+
+    console.log("✅ [DuckDB] Formatted TimelineEvent objects:", formattedEvents);
+
+    return formattedEvents;
+  } catch (err) {
+    console.error("🚨 Error querying DuckDB currentDataView:", err);
+    return [];
+  }
+}
+
+
+export async function queryEventsByYear(
+  year: number,
+  limit: number = 2000 
+): Promise<TimelineEvent[]> {
+  try {
+    console.log(`🔍 [DuckDB] Querying events for year ${year} (limit: ${limit})...`);
+
+    const db = await getSharedDuckDBEngine();
+    const conn = await db.connect();
+
+    // Verify currentDataView existence
+    const checkView = await conn.query(`
+      SELECT count(*) as count 
+      FROM information_schema.tables 
+      WHERE table_name = 'currentDataView';
+    `);
+
+    const viewExists = checkView.toArray()[0]?.toJSON().count > 0;
+    if (!viewExists) {
+      console.warn("⚠️ [DuckDB] 'currentDataView' does not exist yet. Returning empty array.");
+      await conn.close();
+      return [];
+    }
+
+    const sql = `
+      SELECT 
+        id,
+        year,
+        subject,
+        description,
+        categories,
+        tags,
+        date AS text_date,
+        precision,
+        event_type,
+        media,
+        location,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        millisecond,
+        era,
+        master_category,
+        version
+      FROM currentDataView
+      WHERE year = ${year}
       ORDER BY year ASC
       LIMIT ${limit};
     `;

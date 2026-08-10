@@ -8,23 +8,27 @@ import { TerrainOrchestrator } from './tO';
 import { TerrainGrid } from './TerrainGrid';
 import { Vector3 } from 'three';
 import { useUIStore } from '@/stores/useUIStore';
-import { queryEventsByYearRange } from "@/components/data/duckDATA";
+import { queryEventsByYearRange, queryEventsByYear } from "@/components/data/duckDATA";
+import { useDATAStore } from '@/stores/useDataStore';
 
 interface SceneProps {
   resolution?: number;
 }
 
-export async function handleTerrainDoubleClick(minYear: number, maxYear: number) {
-  console.log("HIT THE DOUBLE TAP: ", minYear,  maxYear)
-  // 1. Query DuckDB currentDataView for events in range
-  const events = await queryEventsByYearRange(minYear, maxYear);
+export async function handleTerrainDoubleClick(targetYear: number) {
+  console.log("HIT THE DOUBLE TAP: ", targetYear);
 
-  // 2. Update transient UI store state (triggers re-render in EventsList)
+  // Query DuckDB currentDataView for events in that exact year
+  const events = await queryEventsByYear(targetYear);
+
+  // Update transient UI store state (triggers re-render in EventsList)
   useUIStore.getState().setLatestClickedEvents(events);
 
-  // 3. Automatically activate the Events tab in MainDataPanel
+  // Automatically activate the Events tab in MainDataPanel
   useUIStore.getState().setActivePanelTab("events");
 }
+
+
 
 export function Scene({ resolution = 512 }: SceneProps) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -101,18 +105,28 @@ export function Scene({ resolution = 512 }: SceneProps) {
         }}
         onDoubleClick={async (e) => {
           e.stopPropagation();
-          if (!e.uv) return;
 
-          // Map plane UV position (0..1 across 400x400 space) to year range
-          // Adjust year Window logic (e.g., centerYear +/- padding) to match your scene bounds
-          const hitX = e.point.x; // World X coordinate [-200 to 200]
-          
-          // Example: Map X coordinate [-200, 200] to a temporal year span
-          const targetYear = Math.round(hitX * 10); 
-          const minYear = targetYear - 5;
-          const maxYear = targetYear + 5;
+          // Fetch current UI and DATA store state
+          const hoverCoord = useUIStore.getState().hoverCoord;
+          const windowStartYear = useDATAStore.getState().windowStartYear;
+          const stepsize = useDATAStore.getState().stepsize;
 
-          await handleTerrainDoubleClick(minYear, maxYear);
+          if (!hoverCoord || windowStartYear === null) return;
+
+          // Map World Pos [-200, 200] -> UV [0, 1]
+          const u = Math.max(0, Math.min(1, (hoverCoord.x + 200) / 400));
+          const v = Math.max(0, Math.min(1, (hoverCoord.z + 200) / 400));
+
+          // 32x32 Cell Coordinates
+          const col = Math.min(31, Math.floor(u * 32));
+          const row = Math.min(31, Math.floor(v * 32));
+
+          // Buffer Lookup Index & Target Year Math
+          const gridIndex = row * 32 + col;
+          const yearOffset = gridIndex + Math.floor(row / 31);
+          const targetYear = Math.round(windowStartYear + yearOffset * stepsize);
+
+          await handleTerrainDoubleClick(targetYear);
         }}
       >
         <planeGeometry args={[400, 400]} />
