@@ -100,9 +100,9 @@ export async function fetchAndSaveSingleShard({
 }
 
 
-/**
- * 3. Orchestrates OPFS cache checks and missing shard downloads for an index
- */
+// Given an index name -> get related shard names
+// Check local OPFS then dl if needed. 
+
 export async function getShardsFromIndex({
   fileName,
   accountId,
@@ -158,19 +158,6 @@ export async function getShardsFromIndex({
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Standalone fetch function for remote data shards 
 export async function fetchAvailableDataShards(accountId: string): Promise<AvailableDataShard[]> {
   const response = await fetch("/api/categories/list", {
@@ -214,36 +201,39 @@ export function buildLocalDataShardFileName(
 }
 
 export interface ParsedShardName {
-  tier: string;
+  tier: "free" | "pro";
   category: string;
-  era: string;
+  era: "pre_1900" | "post_1900";
   version: string;
 }
 
 export function parseLocalDataShardFileName(fileName: string): ParsedShardName | null {
   if (!fileName.endsWith(".parquet")) return null;
 
-  const baseName = fileName.slice(0, -8); // strip .parquet
-  const parts = baseName.split("_");
+  // Pattern breakdown:
+  // ^(free|pro)_          -> Match tier at start
+  // (.+?)                 -> Lazy capture for category (handles multiple underscores)
+  // _(pre_1900|post_1900) -> Match known era options exactly
+  // _(v\d+)               -> Match version tag (e.g. v1, v2)
+  // \.parquet$            -> Match extension
+  const regex = /^(free|pro)_(.+)_(pre_1900|post_1900)_(v\d+)\.parquet$/i;
+  const match = fileName.match(regex);
 
-  if (parts.length < 4) return null;
+  if (!match) {
+    console.warn(`⚠️ [Parser] Filename did not match shard pattern: ${fileName}`);
+    return null;
+  }
 
-  const tier = parts[0];
-  const version = parts[parts.length - 1];
-  const masterCategory = parts[1];
-  const era = parts.slice(2, parts.length - 1).join("_");
+  const [, tier, category, era, version] = match;
 
   return {
-    tier,
-    category: masterCategory,
-    era,
-    version,
+    tier: tier.toLowerCase() as "free" | "pro",
+    category: category.toLowerCase(), // e.g. "conspiracy_ufo" or "architecture_design"
+    era: era.toLowerCase() as "pre_1900" | "post_1900",
+    version: version.toLowerCase(),
   };
 }
 
-/**
- * Normalizes category names to guarantee safe matching across components
- */
 export function normalizeCategory(category: string): string {
   return category.trim().toLowerCase();
 }
@@ -337,12 +327,3 @@ export function buildLocalIndexFileName(
   const cleanVersion = version || "v1";
   return `index__${tier}__${category}__${cleanVersion}.parquet`;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-///// Get data from index requests /////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-

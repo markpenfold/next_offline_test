@@ -2,15 +2,12 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
 import { useDATAStore, ActiveSlotMeta } from '@/stores/useDataStore';
-import { useUIStore } from '@/stores/useUIStore';
 import { createTerrainCompute } from './terrainComputeC';
-import { cpuTerrainFallback } from './cpuTerrainFallback';
 import { activeCountUniform, colorUniforms } from './terrainColorUniforms';
 
 interface OrchestratorProps {
   geometry: THREE.BufferGeometry;
   resolution: number;
-  // Callback or ref setter to pass active colors up/to material if needed
   onActiveColorsChange?: (colors: THREE.Color[], activeCount: number) => void;
 }
 
@@ -23,22 +20,21 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
   const renderer = gl as unknown as THREE.WebGPURenderer;
 
   const slots = useDATAStore((state) => state.slots);
-  const useWebGL = useUIStore((state) => state.useWebGL);
   const setMasterBufferData = useDATAStore((state) => state.setMasterBufferData);
 
   const MASTER_BUFFER = useMemo(() => new Float32Array(12288), []);
 
   const { computeNode, rawStorageAttr } = useMemo(() => {
-    if (!geometry?.attributes?.position || useWebGL) {
+    if (!geometry?.attributes?.position) {
       return { computeNode: null, rawStorageAttr: null };
     }
     return createTerrainCompute(geometry, resolution, MASTER_BUFFER);
-  }, [geometry, resolution, MASTER_BUFFER, useWebGL]);
+  }, [geometry, resolution, MASTER_BUFFER]);
 
   useEffect(() => {
     if (!geometry) return;
 
-    // 💡 1. ACTIVE COUNT IS JUST STACK LENGTH
+    // 1. ACTIVE COUNT IS JUST STACK LENGTH
     // Every item in slots IS active, and already in geological stack order (0 = base, N = top)
     const activeCount = slots.length;
 
@@ -50,8 +46,7 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
     const activeSlotsMetadata: ActiveSlotMeta[] = [];
 
     slots.forEach((slot, arrayIndex) => {
-      console.log("arrayIndex: ", arrayIndex)
-      const packedIndex = activeCount - 1 - arrayIndex;
+     // console.log("arrayIndex: ", arrayIndex);
       const offset = arrayIndex * 1024;
       if (slot.buffer) {
         MASTER_BUFFER.set(slot.buffer, offset);
@@ -70,7 +65,7 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
     // 4. Sync directly to Zustand store for prop-less DOM HUD overlay
     setMasterBufferData(MASTER_BUFFER, activeSlotsMetadata);
 
-    // 5. Expose active metadata on geometry userData for material/fallback access
+    // 5. Expose active metadata on geometry userData for material access
     geometry.userData.masterBuffer = MASTER_BUFFER;
     geometry.userData.activeCount = activeCount;
     geometry.userData.activeColors = activeColors;
@@ -92,16 +87,13 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
     }
 
     // 7. Dispatch GPU Compute
-    if (!useWebGL && renderer && computeNode && rawStorageAttr) {
+    if (renderer && computeNode && rawStorageAttr) {
       rawStorageAttr.array.set(MASTER_BUFFER);
       rawStorageAttr.needsUpdate = true;
 
       renderer.computeAsync(computeNode).then(() => {
         invalidate();
       });
-    } else if (useWebGL) {
-      cpuTerrainFallback(geometry, resolution, MASTER_BUFFER);
-      invalidate();
     }
   }, [
     slots,
@@ -111,7 +103,6 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
     MASTER_BUFFER,
     geometry,
     resolution,
-    useWebGL,
     invalidate,
     onActiveColorsChange,
     setMasterBufferData,

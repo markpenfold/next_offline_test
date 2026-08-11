@@ -14,8 +14,8 @@ import {
   HardDrive, 
   WifiOff 
 } from "lucide-react";
-import { getMasterIndex, getShardsFromIndex, getLocalShardNamesFromIndex } from "./cloudR2";
-import { checkFileExists } from "./diskOPFS";
+import { getMasterIndex, getShardsFromIndex, getLocalShardNamesFromIndex } from "../data/cloudR2";
+import { checkFileExists } from "../data/diskOPFS";
 import { AvailableIndex } from "@/components/data/dataTypes";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { useDATAStore } from "@/stores/useDataStore";
@@ -50,7 +50,7 @@ export function IndexLoader() {
   const addToSlot = useDATAStore((s) => s.addToSlot);
   const removeFromSlot = useDATAStore((s) => s.clearFileFromSlots);
   const setSlotColor = useDATAStore((s) => s.setSlotColor);
-  const syncFullDataShards = useDATAStore((s) => s.syncFullDataShards);
+  const getFullDataShards = useDATAStore((s) => s.getFullDataShards);
   const reorderSlots = useDATAStore((s) => s.reorderSlots);
 
   // Helper to re-sync active slots into DuckDB and rebuild currentDataView
@@ -180,7 +180,7 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
       }
 
       await addToSlot(item);
-      await syncFullDataShards(item, accountId);
+      await getFullDataShards(item, accountId);
 
       // 🟢 Auto-refresh local OPFS dataShards in store after sync
       await refreshDataShards();

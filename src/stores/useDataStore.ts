@@ -117,7 +117,7 @@ export interface DATAStore {
   downloadStatuses: Record<string, 'idle' | 'downloading' | 'ready' | 'error'>;
   inFlightDownloads: Map<string, Promise<boolean>>;
   getDownloadStatus: (fileName: string) => string;
-  syncFullDataShards: (item: any, accountId: string) => Promise<boolean>;
+  getFullDataShards: (item: any, accountId: string) => Promise<boolean>;
 }
 
 // ============================================================================
@@ -278,6 +278,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   refreshDataShards: async () => {
     try {
       const shards = await getLocalOPFSDataShards();
+      console.log("refreshDataShards GETTING SHARDS from OPFS: ", shards)
       set({ dataShards: shards });
       return shards;
     } catch (err) {
@@ -566,7 +567,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     return get().downloadStatuses[fileName] || 'idle';
   },
 
-syncFullDataShards: async (item, accountId) => {
+  getFullDataShards: async (item, accountId) => {
     const fileName = item.fileName;
     const { inFlightDownloads, downloadStatuses } = get();
 

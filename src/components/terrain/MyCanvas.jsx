@@ -3,7 +3,7 @@
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three/webgpu';
 import { OrbitControls } from '@react-three/drei';
-import { TerrainOrchestrator } from './old/TerrainOrchestrator';
+import { TerrainOrchestrator } from './tO'
 import {Scene} from './OmenScene'
 
 export function MyCanvas() {

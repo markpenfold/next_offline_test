@@ -1,4 +1,7 @@
 import { AvailableIndex, ProjectConfig, AvailableDataShard } from "@/components/data/dataTypes";
+
+import { parseLocalDataShardFileName } from "./cloudR2";
+
 // ============================================================================
 // 1. CORE DIRECTORY & FILE PRIMITIVES
 // ============================================================================
@@ -191,12 +194,12 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
 }
 
 
-export async function getLocalOPFSDataShards(): Promise<AvailableDataShard[]> {
+export async function getLocalOPFSDataShardsA(): Promise<AvailableDataShard[]> {
 
   const foundShards: AvailableDataShard[] = [];
 
   try {
-    // Scan the 'data' directory matching datastore.syncFullDataShards
+    // Scan the 'data' directory matching datastore.getFullDataShards
     const entries = await getOPFSEntries("data");
 
     for (const { name, handle } of entries) {
@@ -228,6 +231,60 @@ export async function getLocalOPFSDataShards(): Promise<AvailableDataShard[]> {
     return foundShards;
   } catch (err: any) {
     console.error(err);
+    return [];
+  }
+}
+
+export async function getLocalOPFSDataShards(): Promise<AvailableDataShard[]> {
+  const foundShards: AvailableDataShard[] = [];
+
+  try {
+    const entries = await getOPFSEntries("data");
+
+    for (const { name, handle } of entries) {
+      if (name.endsWith('.parquet')) {
+        // Parse "pro_architecture_design_pre_1900_v1.parquet"
+        const parsed = parseLocalDataShardFileName(name);
+
+        const file = await handle.getFile();
+
+        if (parsed) {
+          foundShards.push({
+            fileName: name,
+            s3Key: name,
+            masterCategory: parsed.category,
+            era: parsed.era,
+            tier: (parsed.tier === "pro" ? "pro" : "free"),
+            version: parsed.version,
+            sizeBytes: file.size,
+          });
+        } else {
+          // Fallback parsing if filename standard varies
+          const cleanName = name.replace('.parquet', '');
+          const parts = cleanName.split('_');
+
+          const tier = (parts[0] === "pro" ? "pro" : "free");
+          const version = parts[parts.length - 1] || 'v1';
+          const era = parts.slice(-3, -1).join('_'); // e.g. "pre_1900"
+          const masterCategory = parts.slice(1, -3).join('_'); // e.g. "architecture_design"
+
+          foundShards.push({
+            fileName: name,
+            s3Key: name,
+            masterCategory,
+            era,
+            tier,
+            version,
+            sizeBytes: file.size,
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Discovered ${foundShards.length} parquet shard file(s) in OPFS (/data).`);
+    return foundShards;
+  } catch (err: any) {
+    console.error("🚨 Error scanning local OPFS data shards:", err);
     return [];
   }
 }

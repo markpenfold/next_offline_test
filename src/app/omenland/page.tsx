@@ -1,7 +1,7 @@
 import OmenWrap from '@/components/data/omenWrap';
-import { OmenMenu } from '@/components/omenland/OmenlandMenu';
-import { IndexLoader } from '@/components/data/IndexLoader';
+import { IndexLoader } from '@/components/omenland/IndexLoader';
 import {TerrainWindow} from '@/components/terrain/TerrainWindow'
+import {MainDataPanel} from '@/components/omenland/MainDataPanel'
 import styles from "@/app/styles/omenland.module.css";
 
 // Force static rendering so this page shell can be served straight from cache offline
@@ -12,7 +12,7 @@ export default function OmenPage() {
     <OmenWrap>
       {/* Left Column: IndexLoader takes full 100% height */}
       <div className={styles.quarter_section}>
-        <IndexLoader />
+        <MainDataPanel />
       </div>
 
       {/* Right Column: Combined Canvas + Bottom Timeline Slider */}

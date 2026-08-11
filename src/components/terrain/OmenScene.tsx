@@ -16,7 +16,7 @@ interface SceneProps {
 }
 
 export async function handleTerrainDoubleClick(targetYear: number) {
-  console.log("HIT THE DOUBLE TAP: ", targetYear);
+  // console.log("HIT THE DOUBLE TAP: ", targetYear);
 
   // Query DuckDB currentDataView for events in that exact year
   const events = await queryEventsByYear(targetYear);
@@ -141,3 +141,5 @@ export function Scene({ resolution = 512 }: SceneProps) {
     </>
   );
 }
+
+
