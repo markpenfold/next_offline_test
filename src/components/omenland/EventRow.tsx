@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, Plus, Check } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import styles from "@/app/styles/omenland.module.css";
 import { TimelineEvent } from "@/components/omenland/omenTypes";
 
@@ -26,6 +26,7 @@ export function EventRow({
   showYear = true,
   isExpanded: externalIsExpanded,
   onToggleExpand,
+  reversed = false,
   rightButton,
 }: EventRowProps) {
   const [internalIsExpanded, setInternalIsExpanded] = useState(false);
@@ -47,14 +48,22 @@ export function EventRow({
       : `${Math.abs(item.year)} BC`
     : null;
 
+  const isRemoveState = isAdded || reversed;
+
   return (
     <div className={styles.eventRowWrapper}>
       {/* Header Bar */}
-      <div className={styles.eventRowHeader}>
-        {/* Collection Color Border */}
+      <div
+        className={styles.eventRowHeader}
+        style={{ flexDirection: reversed ? "row-reverse" : "row" }}
+      >
+        {/* Collection Color Border Indicator */}
         <div
           className={styles.eventColorIndicator}
-          style={{ backgroundColor: collectionColor || "#3b82f6" }}
+          style={{
+            backgroundColor: collectionColor || "#3b82f6",
+            borderRadius: reversed ? "0 4px 4px 0" : "4px 0 0 4px",
+          }}
         />
 
         {/* Title & Year */}
@@ -72,21 +81,25 @@ export function EventRow({
 
         {/* Actions */}
         <div className={styles.eventActionsBox}>
-          <button
-            type="button"
-            className={styles.eventActionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleAdd?.(item);
-            }}
-            title={isAdded ? "Remove from timeline builder" : "Add to timeline builder"}
-          >
-            {isAdded ? (
-              <Check size={12} color="#22c55e" />
-            ) : (
-              <Plus size={12} color="#ef4444" />
-            )}
-          </button>
+          {rightButton ? (
+            rightButton
+          ) : (
+            <button
+              type="button"
+              className={styles.eventActionButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAdd?.(item);
+              }}
+              title={isRemoveState ? "Remove from timeline" : "Add to timeline builder"}
+            >
+              {isRemoveState ? (
+                <X size={12} color="#ef4444" />
+              ) : (
+                <Plus size={12} color="#22c55e" />
+              )}
+            </button>
+          )}
 
           {hasInfo && (
             <button

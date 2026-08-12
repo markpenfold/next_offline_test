@@ -1,6 +1,6 @@
 
 /* ==========================================================================
-   1. PAGE LAYOUT CONTAINER & RESPONSIVE GRID
+   1. PAGE LAYOUT CONTAINER & RESPONSIVE FLEXBOX
    ========================================================================== */
 
 .pageContainer {
@@ -9,69 +9,70 @@
   width: 100%;
   height: 100vh;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto; /* Single master scrollbar when timeline grows downward */
 }
 
 /* Top Workspace Row: Holds 25% Sidebar + 75% Terrain View */
 .topWorkspaceRow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch; /* FORCES Data Panel and Terrain View to exact 1:1 equal height */
   width: 100%;
-  flex: 1;          /* Fills all available height above timeline */
-  min-height: 0;    /* Prevents child panels from bursting container height */
+  flex: 1;              /* Dynamically fills all vertical space above timeline */
+  min-height: 450px;    /* Locks min-height so terrain is never squished */
+  flex-shrink: 0;       /* Prevents timeline growth from compressing top workspace */
 }
 
-/* Shared Section Base */
-.quarter_section,
-.three_quarter_section {
+/* 25% / 75% Column Split */
+.quarter_section {
+  width: 25%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;    /* Prevents flex children from overflowing parent */
-}
-
-.quarter_section {
-  grid-column: span 1;
+  min-height: 0;
 }
 
 .three_quarter_section {
-  grid-column: span 3;
+  width: 75%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Force direct children (MainDataPanel & TerrainWindow) to stretch 100% height */
+.quarter_section > *,
+.three_quarter_section > * {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
 }
 
 /* Full Width Sequence Timeline Container */
 .full_width {
   width: 100%;
-  flex-shrink: 0;   /* Keeps sequence builder anchored at bottom without collapsing */
+  flex-shrink: 0;   /* Expands downward naturally without affecting top row height */
   box-sizing: border-box;
 }
 
-/* Mobile & Tablet Stacking Breakpoint */
+/* Mobile Breakpoint */
 @media (max-width: 1024px) {
   .pageContainer {
     height: auto;
-    overflow-y: auto;
   }
 
   .topWorkspaceRow {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     flex: none;
   }
 
-  /* Stacks MainDataPanel above Terrain Window */
   .quarter_section {
-    grid-column: span 1;
-    height: 380px;  /* Constrains top panel height on mobile so terrain stays visible */
-    flex-shrink: 0;
+    width: 100%;
+    height: 380px;
   }
 
   .three_quarter_section {
-    grid-column: span 1;
-    height: calc(100vh - 380px);
-    min-height: 450px;
-  }
-
-  .full_width {
-    height: auto;
+    width: 100%;
+    height: 450px;
   }
 }
 
@@ -79,16 +80,18 @@
    2. MAIN PANEL CONTAINER & LEFT SCROLLBAR TRICK
    ========================================================================== */
 
+/* 1. Force panelContainer to fill 100% of .quarter_section */
 .panelContainer {
   display: flex;
   flex-direction: column;
+  flex: 1;          /* 🟢 Fills full vertical space of .quarter_section */
   height: 100%;
+  min-height: 0;    /* 🟢 Crucial: Allows flex child to shrink/scroll instead of pushing parent */
   width: 100%;
   overflow: hidden;
   background-color: #121212;
   color: rgb(245, 245, 245);
 }
-
 .panelHeader {
   flex-shrink: 0;
   margin-bottom: 0.85rem;
@@ -105,24 +108,37 @@
   opacity: 0.7;
   padding: 8px;
 }
-
+/* 2. Force tabContentArea to fill all remaining space below WindowBar */
 .tabContentArea {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1;          /* 🟢 Takes up all space below WindowBar */
+  min-height: 0;    /* 🟢 Prevents overflow from pushing container down */
   overflow-y: auto;
   position: relative;
-  direction: rtl; /* Moves scrollbar to left side */
+  direction: rtl;   /* Scrollbar on left */
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-/* Item List Container with Left Scrollbar */
+/* 3. Force IndexLoader / EventsList root container to stretch to bottom */
+.tabContentArea > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  direction: ltr;   /* Reset text direction */
+}
+
+/* 4. Ensure inner itemList fills full height and scrolls internally */
 .itemList {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   flex: 1;
   height: 100%;
-  direction: rtl; /* Left Scrollbar Trick */
+  min-height: 0;
+  overflow-y: auto;
+  direction: rtl;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
@@ -759,7 +775,7 @@
   position: relative;
   padding: 8px 16px;
   min-height: 80px;
-  max-height: 240px;
+  max-height: 440px;
   overflow-y: auto;
   background-color: #16161e;
   direction: rtl; /* Left-side scrollbar */
@@ -805,3 +821,6 @@
   margin-bottom: 1px;
   flex-shrink: 0;
 }
+
+
+
