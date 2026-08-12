@@ -9,8 +9,6 @@ import { useUIStore } from "@/stores/useUIStore";
 import { useDATAStore } from "@/stores/useDataStore";
 
 export type SortOption =
-  | "timeline"
-  | "reverse-timeline"
   | "alphabetic"
   | "collection"
   | "random";
@@ -20,7 +18,7 @@ interface EventsListProps {
 }
 
 export function EventsList({ expandAll }: EventsListProps) {
-  const [sortBy, setSortBy] = useState<SortOption>("timeline");
+  const [sortBy, setSortBy] = useState<SortOption>("random");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   // Subscribed to useUIStore
@@ -84,10 +82,7 @@ export function EventsList({ expandAll }: EventsListProps) {
     const events = [...latestClickedEvents];
 
     switch (sortBy) {
-      case "timeline":
-        return events.sort((a, b) => (a.date_obj?.year ?? 0) - (b.date_obj?.year ?? 0));
-      case "reverse-timeline":
-        return events.sort((a, b) => (b.date_obj?.year ?? 0) - (a.date_obj?.year ?? 0));
+
       case "alphabetic":
         return events.sort((a, b) =>
           (a.subject || "").localeCompare(b.subject || "")
@@ -123,8 +118,7 @@ export function EventsList({ expandAll }: EventsListProps) {
           onChange={(e) => setSortBy(e.target.value as SortOption)}
           className={styles.eventSelect}
         >
-          <option value="timeline">Earliest First</option>
-          <option value="reverse-timeline">Latest First</option>
+          <option value="random">Random</option>
           <option value="alphabetic">Alphabetical</option>
           <option value="collection">By Collection</option>
         </select>

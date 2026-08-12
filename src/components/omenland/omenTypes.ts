@@ -60,7 +60,15 @@ export type TimelineEvent = {
   text_date?: string;                   // Mapped from 'date' (human-readable string)
   precision?: string;                   // Mapped from 'precision' (e.g. "year", "exact", "approximate")
   era?: string;                         // Mapped from 'era' (e.g. "pre_1900")
-  date_obj: DateObj;                    // Structured date object (year, month, day, hour, etc.)
+  
+  
+  year: number;
+  month?: number;
+  day?: number;
+  hour?:number;
+  minutes?:number;
+  seconds?: number;
+  miliseconds?:number;
   
   // Spatial & Media Metadata (Optional)
   location?: number;                    // Spatial index / location identifier

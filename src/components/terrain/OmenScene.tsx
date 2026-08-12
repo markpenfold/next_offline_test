@@ -8,7 +8,7 @@ import { TerrainOrchestrator } from './tO';
 import { TerrainGrid } from './TerrainGrid';
 import { Vector3 } from 'three';
 import { useUIStore } from '@/stores/useUIStore';
-import { queryEventsByYearRange, queryEventsByYear } from "@/components/data/duckDATA";
+import { queryEventsByYear } from "@/components/data/duckDATA";
 import { useDATAStore } from '@/stores/useDataStore';
 
 interface SceneProps {
@@ -123,7 +123,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
 
           // Buffer Lookup Index & Target Year Math
           const gridIndex = row * 32 + col;
-          const yearOffset = gridIndex + Math.floor(row / 31);
+          const yearOffset = gridIndex
           const targetYear = Math.round(windowStartYear + yearOffset * stepsize);
 
           await handleTerrainDoubleClick(targetYear);

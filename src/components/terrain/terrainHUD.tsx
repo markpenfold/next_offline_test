@@ -39,12 +39,16 @@ export function MasterBufferHUD() {
       const meta = activeSlotsMetadata[i];
       
       // Use explicit GPU slot index (defaults to index if unassigned)
-      const slotIndex = (meta as any).id ?? i;
+      const slotIndex = typeof meta.slotIndex === 'number' 
+        ? meta.slotIndex 
+        : typeof meta.id === 'number' 
+          ? meta.id 
+          : i;
       
       const bufferOffset = slotIndex * 1024 + gridIndex;
       const count = Math.round(masterBuffer[bufferOffset] || 0);
      // console.log("fetching data for ", activeSlotsMetadata[i].name, "offset i: ", i, 'offset slotIndex:', meta.id, "COUNT: ", count)
-      //console.log("ACTIVE MOTHERFUCKING METADATA ON DEM SLOTS:", activeSlotsMetadata);
+     //console.log("ACTIVE MOTHERFUCKING METADATA ON DEM SLOTS:", activeSlotsMetadata);
 
       if (count > 0) {
         totalDensity += count;

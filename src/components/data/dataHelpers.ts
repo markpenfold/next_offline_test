@@ -173,6 +173,8 @@ export async function runQuery(sql: string) {
     };
   }
 }
+
+
 export interface HydrationResult {
   slot: Omit<Slot, 'id' | 'color'> & { color?: string };
   resolvedWindowStartYear: number;
@@ -209,6 +211,14 @@ export async function loadSlotIndexData(
   const result = await runQuery(sql);
   const indexMap = new Map<number, { count: number; uuids: string[] }>();
   let totalEvents = 0;
+
+  if (result.data) {
+  for (const row of result.data) {
+    if (Number(row.year) === 961) {
+      console.log(`[Index Parquet Check] Year 961 raw count in index file:`, row.count);
+    }
+  }
+}
 
   if (result.data) {
     for (const row of result.data) {

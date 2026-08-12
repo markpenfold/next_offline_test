@@ -1,17 +1,92 @@
+
+/* ==========================================================================
+   1. PAGE LAYOUT CONTAINER & RESPONSIVE GRID
+   ========================================================================== */
+
 .pageContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Top Workspace Row: Holds 25% Sidebar + 75% Terrain View */
+.topWorkspaceRow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   width: 100%;
+  flex: 1;          /* Fills all available height above timeline */
+  min-height: 0;    /* Prevents child panels from bursting container height */
+}
+
+/* Shared Section Base */
+.quarter_section,
+.three_quarter_section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;    /* Prevents flex children from overflowing parent */
+}
+
+.quarter_section {
+  grid-column: span 1;
+}
+
+.three_quarter_section {
+  grid-column: span 3;
+}
+
+/* Full Width Sequence Timeline Container */
+.full_width {
+  width: 100%;
+  flex-shrink: 0;   /* Keeps sequence builder anchored at bottom without collapsing */
   box-sizing: border-box;
 }
 
+/* Mobile & Tablet Stacking Breakpoint */
+@media (max-width: 1024px) {
+  .pageContainer {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  .topWorkspaceRow {
+    grid-template-columns: 1fr;
+    flex: none;
+  }
+
+  /* Stacks MainDataPanel above Terrain Window */
+  .quarter_section {
+    grid-column: span 1;
+    height: 380px;  /* Constrains top panel height on mobile so terrain stays visible */
+    flex-shrink: 0;
+  }
+
+  .three_quarter_section {
+    grid-column: span 1;
+    height: calc(100vh - 380px);
+    min-height: 450px;
+  }
+
+  .full_width {
+    height: auto;
+  }
+}
+
+/* ==========================================================================
+   2. MAIN PANEL CONTAINER & LEFT SCROLLBAR TRICK
+   ========================================================================== */
+
 .panelContainer {
-  background-color: var(--foreground);
-  color: rgb(245, 245, 245);
-  height: auto;
-  max-height: 700px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: #121212;
+  color: rgb(245, 245, 245);
 }
 
 .panelHeader {
@@ -31,6 +106,15 @@
   padding: 8px;
 }
 
+.tabContentArea {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  direction: rtl; /* Moves scrollbar to left side */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
 /* Item List Container with Left Scrollbar */
 .itemList {
   display: flex;
@@ -38,27 +122,149 @@
   overflow-y: auto;
   flex: 1;
   height: 100%;
-
-  /* Left Scrollbar Trick */
-  direction: rtl;
+  direction: rtl; /* Left Scrollbar Trick */
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-.itemList > * {
+/* Reset inner content back to standard LTR layout */
+.itemList > *,
+.tabContentArea > * {
   direction: ltr;
 }
 
-.itemList::-webkit-scrollbar {
+.itemList::-webkit-scrollbar,
+.tabContentArea::-webkit-scrollbar {
   width: 4px;
 }
 
-.itemList::-webkit-scrollbar-thumb {
+.itemList::-webkit-scrollbar-thumb,
+.tabContentArea::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 9999px;
 }
 
-/* Individual Row Layout - Larger min-width to accommodate wider boxes */
+/* ==========================================================================
+   3. STANDARDIZED WINDOW TOP BAR & TABS
+   ========================================================================== */
+
+.windowBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  background: rgba(18, 18, 24, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  user-select: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.windowBarTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.windowBarIcon {
+  display: flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+.windowBarTitle {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.windowBarActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.windowBarBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.windowBarBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.windowBarBtn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.windowBarTabGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.windowBarTab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.45);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.windowBarTab:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.windowBarTabActive {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tabBadge {
+  background: #3b82f6;
+  color: #ffffff;
+  font-family: monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   4. INDEX LOADER ITEM ROWS
+   ========================================================================== */
+
 .itemRow {
   display: flex;
   align-items: stretch;
@@ -66,16 +272,16 @@
   gap: 0;
   background: rgba(0, 0, 0, 0.2);
   font-size: 0.65rem;
-  height: 34px; /* Slightly taller for extra breathing room */
-  min-width: 420px; /* Expanded minimum width for wider component layouts */
+  height: 34px;
+  min-width: 320px;
   margin-bottom: 1px;
+  flex-shrink: 0;
 }
 
 .itemRowActive {
   background: rgba(181, 218, 195, 0.3);
 }
 
-/* Left Grouping */
 .itemLeft {
   display: flex;
   align-items: center;
@@ -85,12 +291,11 @@
   flex: 1;
 }
 
-/* 1. Tier Badge */
 .tierBadge {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px; /* Slightly wider */
+  width: 26px;
   font-size: 0.65rem;
   font-weight: bold;
   color: rgb(245, 245, 245);
@@ -107,10 +312,9 @@
   background-color: rgb(27, 99, 116);
 }
 
-/* 2. Color Swatch */
 .colorSwatch {
   position: relative;
-  width: 16px; /* Slightly wider */
+  width: 16px;
   align-self: stretch;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -141,7 +345,7 @@
 
 .displayName {
   font-weight: 100;
-  font-size: 0.75rem; /* Upgraded font size for wider display area */
+  font-size: 0.75rem;
   text-align: left;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -150,29 +354,18 @@
   padding-right: 6px;
 }
 
-/* Download Status Indicators */
-.statusDownloading {
-  display: inline-flex;
-  align-items: center;
-  color: #fde047;
-  flex-shrink: 0;
-}
-
-.statusReady {
-  display: inline-flex;
-  align-items: center;
-  color: #4ade80;
-  flex-shrink: 0;
-}
-
+.statusDownloading,
+.statusReady,
 .statusError {
   display: inline-flex;
   align-items: center;
-  color: #f87171;
   flex-shrink: 0;
 }
 
-/* Right Grouping */
+.statusDownloading { color: #fde047; }
+.statusReady { color: #4ade80; }
+.statusError { color: #f87171; }
+
 .itemRight {
   display: flex;
   align-items: center;
@@ -180,19 +373,15 @@
   flex-shrink: 0;
 }
 
-
-
-/* 3. TICKET STUB YEARS CONTAINER (Left Notch Only) */
 .yearsContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 78px; /* Expanded box width for dates */
+  width: 78px;
   align-self: stretch;
   flex-shrink: 0;
-
-  background-color: #D2B48C; /* Dunn */
+  background-color: #D2B48C;
   color: #1c1917;
   font-family: monospace;
   font-weight: 700;
@@ -200,14 +389,10 @@
   line-height: 1.1;
   text-align: center;
 
-  /* TICKET STUB NOTCH MASK - LEFT SIDE ONLY */
   mask-image: radial-gradient(circle at left center, transparent 4px, black 4.5px);
   -webkit-mask-image: radial-gradient(circle at left center, transparent 4px, black 4.5px);
-
-  /* DROP SHADOW ALONG THE NOTCHED EDGE */
   filter: drop-shadow(-3px 0px 3px rgba(0, 0, 0, 0.35));
-
-  border-left: 1px dashed rgba(0, 0, 0, 0.2); /* Outer left perforated edge */
+  border-left: 1px dashed rgba(0, 0, 0, 0.2);
   padding: 0 6px;
 }
 
@@ -218,31 +403,24 @@
   max-width: 100%;
 }
 
-/* 4. EVENT COUNT BOX (Dotted Perforation Boundary) */
 .countBox {
   background-color: #6a505d;
   color: rgb(245, 245, 245);
   font-weight: bold;
   font-size: clamp(0.55rem, 1vw, 0.65rem);
   font-family: monospace;
-  width: 60px; /* Expanded box width */
+  width: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
   align-self: stretch;
   flex-shrink: 0;
   line-height: 1;
-
-  /* PERFORATION LINE BETWEEN LIGHT BROWN AND DARK BROWN */
   border-left: 2px dotted rgba(28, 25, 23, 0.4); 
 }
 
-
-
-
-/* 5. ACTION BUTTON (+ / X) */
 .actionButton {
-  width: 26px; /* Expanded button width */
+  width: 26px;
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -254,258 +432,22 @@
   flex-shrink: 0;
 }
 
-.buttonLoading {
-  background-color: rgba(255, 255, 255, 0.2);
-  cursor: not-allowed;
-}
-
-.buttonRemove {
-  background-color: rgb(180, 35, 35);
-  cursor: pointer;
-}
-
-.buttonAdd {
-  background-color: rgb(34, 139, 34);
-  cursor: pointer;
-}
-
-/* Ensure main grid items fill available height evenly */
-.quarter_section {
-  grid-column: span 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.three_quarter_section {
-  grid-column: span 3;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-/* Ensure IndexLoader panel container expands vertically */
-.quarter_section .panelContainer {
-  height: 100%;
-  max-height: none; /* Allows panel to match right side full height */
-}
-
-/* Right-side container holding Canvas + Slider Strip */
-.stageContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-height: 600px; /* Optional min height for desktop layout */
-  position: relative;
-  background-color: #000; /* Matches canvas backdrop */
-
-  overflow: hidden;
-}
-
-/* Canvas takes up all available vertical space */
-.canvasWrapper {
-  flex: 1;
-  width: 100%;
-  position: relative;
-  min-height: 0; /* Critical for flex child canvas scaling */
-}
-
-/* Pinned Slider Strip Container */
-.sliderWrapper {
-  flex-shrink: 0;
-  width: 100%;
-  background: rgba(12, 12, 16, 0.92);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px 16px 12px 16px;
-  box-sizing: border-box;
-}
-
-.sliderContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-}
-
-/* Header Text - Lighter and easily readable */
-.sliderHeader {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  font-family: monospace;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.65); /* High-contrast light gray */
-}
-
-.viewingValue {
-  color: #ffffff; /* Bright white highlight */
-  font-weight: 600;
-  margin-left: 6px;
-}
-
-/* Horizontal Track Row: [ Min Date ] === [ Slider Input ] === [ Max Date ] */
-.sliderTrackRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-/* Date Labels on Edges */
-.dateBoundLabel {
-  font-family: monospace;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85); /* Brightened readable type */
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* Range Input - Stretches 100% of remaining horizontal space */
-.fullWidthInput {
-  flex: 1;
-  width: 100%;
-  height: 6px;
-  appearance: none;
-  -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 9999px;
-  outline: none;
-  cursor: pointer;
-}
-
-/* Custom Thumb Styles for Smooth Dragging */
-.fullWidthInput::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #3b82f6; /* Accent color */
-  border: 2px solid #ffffff;
-  cursor: pointer;
-  transition: transform 0.1s ease, background-color 0.15s ease;
-}
-
-.fullWidthInput::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  background: #60a5fa;
-}
-
-.fullWidthInput::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #3b82f6;
-  border: 2px solid #ffffff;
-  cursor: pointer;
-}
-
-.draggableArea {
-  display: flex;
-  align-items: center;
-  cursor: grab;
-  user-select: none;
-}
-
-.draggableArea:active {
-  cursor: grabbing;
-}
-
-.nonDraggableArea {
-  display: flex;
-  align-items: center;
-}
-
-
-
-/* Standardized Window Top Bar */
-.windowBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 10px;
-  background: rgba(18, 18, 24, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  user-select: none;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.windowBarTitleGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-
-.windowBarIcon {
-  display: flex;
-  align-items: center;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.windowBarTitle {
-  font-family: monospace;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.8);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.windowBarActions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Uniform Action Button Style */
-.windowBarBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.55);
-  cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.windowBarBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-}
-
-.windowBarBtn:active {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-
-
+.buttonLoading { background-color: rgba(255, 255, 255, 0.2); cursor: not-allowed; }
+.buttonRemove { background-color: rgb(180, 35, 35); cursor: pointer; }
+.buttonAdd { background-color: rgb(34, 139, 34); cursor: pointer; }
 
 /* ==========================================================================
-   EVENTS & EVENT ROW STYLING
+   5. EVENTS LIST & ROWS
    ========================================================================== */
-
 .eventsContainer {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%; /* Changed from height: 100% to allow natural expansion */
   width: 100%;
-  overflow-y: auto;
   gap: 2px;
   padding: 4px;
+  box-sizing: border-box;
+  direction: ltr; /* Resets standard text layout inside RTL scroll container */
 }
 
 .eventsEmpty {
@@ -518,19 +460,21 @@
   font-size: 0.75rem;
   text-align: center;
   padding: 1rem;
+  direction: ltr;
 }
 
-/* Event Row Container */
+/* Event Row Wrapper */
 .eventRowWrapper {
   width: 100%;
   overflow: hidden;
   border-radius: 2px;
+  flex-shrink: 0; /* 🟢 FIX: Prevents Flexbox from squashing rows vertically */
 }
 
 .eventRowHeader {
   display: flex;
   align-items: stretch;
-  min-height: 24px;
+  min-height: 28px; /* Guaranteed minimum height for header */
   background-color: #2c2c2c;
   font-family: monospace;
 }
@@ -579,7 +523,8 @@
   flex-shrink: 0;
 }
 
-.eventActionButton {
+.eventActionButton,
+.eventChevronButton {
   background: transparent;
   border: none;
   cursor: pointer;
@@ -594,15 +539,6 @@
   opacity: 0.8;
 }
 
-.eventChevronButton {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 2px;
-}
-
 .eventAccordionContent {
   background-color: #1e293b;
   padding: 6px 8px;
@@ -612,7 +548,6 @@
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Sort Controls Sub-Bar */
 .eventControlsBar {
   display: flex;
   align-items: center;
@@ -632,4 +567,241 @@
   font-size: 0.6rem;
   padding: 1px 4px;
   outline: none;
+}
+
+/* ==========================================================================
+   6. STAGE & CANVAS CONTROLLER
+   ========================================================================== */
+
+.stageContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: #000;
+  overflow: hidden;
+}
+
+.canvasWrapper {
+  flex: 1;
+  width: 100%;
+  position: relative;
+  min-height: 0;
+}
+
+/* ==========================================================================
+   7. TIMELINE SLIDER
+   ========================================================================== */
+
+.sliderWrapper {
+  flex-shrink: 0;
+  width: 100%;
+  background: rgba(12, 12, 16, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 16px 12px 16px;
+  box-sizing: border-box;
+}
+
+.sliderContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.sliderHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.viewingValue {
+  color: #ffffff;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.sliderTrackRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.dateBoundLabel {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.fullWidthInput {
+  flex: 1;
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+}
+
+.fullWidthInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.fullWidthInput::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #60a5fa;
+}
+
+.fullWidthInput::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+}
+
+.draggableArea {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  user-select: none;
+}
+
+.draggableArea:active {
+  cursor: grabbing;
+}
+
+.nonDraggableArea {
+  display: flex;
+  align-items: center;
+}
+
+
+
+
+
+/* ==========================================================================
+   NLE TIMELINE BUILDER STYLES
+   ========================================================================== */
+
+.timelineBuilderWrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background-color: #121218;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: monospace;
+  user-select: none;
+}
+
+/* Time Ruler Track */
+.timelineRuler {
+  position: relative;
+  height: 36px;
+  background: #1a1a24;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 20px;
+  overflow: hidden;
+}
+
+.timelineRulerLabels {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  margin-top: 4px;
+}
+
+.timelineRulerLabel {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}
+
+.timelineRulerTrack {
+  position: relative;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 3px;
+  margin-top: 4px;
+}
+
+.timelineRulerTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Track Zone & Zebra Background */
+.timelineTracksZone {
+  position: relative;
+  padding: 8px 16px;
+  min-height: 80px;
+  max-height: 240px;
+  overflow-y: auto;
+  background-color: #16161e;
+  direction: rtl; /* Left-side scrollbar */
+}
+
+.timelineTracksInner {
+  direction: ltr; /* Reset text direction for tracks */
+  position: relative;
+  z-index: 2;
+}
+
+.timelineZebraBg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 23px,
+    transparent 23px,
+    transparent 46px
+  );
+  background-size: 100% 46px;
+}
+
+/* Empty Track State */
+.timelineEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.7rem;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+  direction: ltr;
+}
+
+.timelineTrackRow {
+  margin-bottom: 1px;
+  flex-shrink: 0;
 }

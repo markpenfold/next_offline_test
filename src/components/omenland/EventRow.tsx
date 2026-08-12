@@ -9,11 +9,13 @@ import { TimelineEvent } from "@/components/omenland/omenTypes";
 interface EventRowProps {
   item: TimelineEvent;
   collectionColor: string;
-  isAdded: boolean;
-  onToggleAdd: (event: TimelineEvent) => void;
+  isAdded?: boolean;
+  onToggleAdd?: (event: TimelineEvent) => void;
   showYear?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  reversed?: boolean;
+  rightButton?: React.ReactNode;
 }
 
 export function EventRow({
@@ -24,6 +26,7 @@ export function EventRow({
   showYear = true,
   isExpanded: externalIsExpanded,
   onToggleExpand,
+  rightButton,
 }: EventRowProps) {
   const [internalIsExpanded, setInternalIsExpanded] = useState(false);
 
@@ -38,10 +41,10 @@ export function EventRow({
     }
   };
 
-  const formattedYear = item.date_obj?.year
-    ? item.date_obj.year > 0
-      ? `${item.date_obj.year} AD`
-      : `${Math.abs(item.date_obj.year)} BC`
+  const formattedYear = item.year
+    ? item.year > 0
+      ? `${item.year} AD`
+      : `${Math.abs(item.year)} BC`
     : null;
 
   return (
@@ -74,7 +77,7 @@ export function EventRow({
             className={styles.eventActionButton}
             onClick={(e) => {
               e.stopPropagation();
-              onToggleAdd(item);
+              onToggleAdd?.(item);
             }}
             title={isAdded ? "Remove from timeline builder" : "Add to timeline builder"}
           >

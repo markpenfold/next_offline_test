@@ -55,6 +55,7 @@ export function IndexLoader() {
 
   // Helper to re-sync active slots into DuckDB and rebuild currentDataView
 const syncDuckDBView = async (activeSlots: typeof slots) => {
+  console.log("SUNC DDB VIEW")
   try {
     const mountedFileNames: string[] = [];
 
@@ -218,18 +219,7 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
   return (
     <div className={styles.container}>
       <div className={styles.panelContainer}>
-        <WindowBar title="Histories" icon={<Layers size={14} />}>
-          <WindowBarIconButton
-            icon={<FolderOpen size={13} />}
-            tooltip="Open Project"
-            onClick={() => setFinderOpen(true)}
-          />
-          <WindowBarIconButton
-            icon={<Save size={13} />}
-            tooltip="Save Project"
-            onClick={() => console.log("Save clicked")}
-          />
-        </WindowBar>
+
 
         {isInitializing ? (
           <p className={styles.initializingText}>Loading histories</p>
