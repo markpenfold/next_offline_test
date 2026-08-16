@@ -174,7 +174,6 @@ export async function startOmenland(accountId: string): Promise<OmenlandInitPayl
 
   await useDATAStore.getState().refreshDataShards();
 
-
   // PHASE 1: Fetch Index Registries (Cloud or Local OPFS Fallback)
   const { availableIndexes, localCacheIndexFiles, isOnline } = await getAllIndexes(accountId);
 

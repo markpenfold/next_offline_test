@@ -30,21 +30,7 @@ export function EventsList({ expandAll }: EventsListProps) {
   // Subscribed to useDATAStore for dynamic theme colors
   const slots = useDATAStore((state) => state.slots);
 
-  const getCollectionColor = (masterCategory?: string): string => {
-    if (!masterCategory) return "#3b82f6";
-
-    const matchingSlot = slots.find(
-      (slot) => slot.category?.toLowerCase() === masterCategory.toLowerCase()
-    );
-    if (matchingSlot?.color) return matchingSlot.color;
-
-    const matchingFile = slots.find(
-      (slot) => slot.fileName?.toLowerCase() === masterCategory.toLowerCase()
-    );
-    if (matchingFile?.color) return matchingFile.color;
-
-    return "#3b82f6";
-  };
+  const getCollectionColor = useDATAStore((state) => state.getSlotColor);
 
   const toggleEventSelection = (event: TimelineEvent) => {
     const isAdded = timelineBuilderEvents.some((e) => e._id === event._id);
@@ -127,14 +113,14 @@ export function EventsList({ expandAll }: EventsListProps) {
       <div className={styles.eventsContainer}>
         {sortedEvents.map((item) => {
           const isAdded = timelineBuilderEvents.some((e) => e._id === item._id);
-          const color = getCollectionColor(item.master_category);
+          const color = getCollectionColor(item.fileName);
           const isExpanded = expandedItems.has(item._id);
 
           return (
             <EventRow
               key={item._id}
               item={item}
-              collectionColor={color}
+              collectionColor={color || '#3b82f6'}
               isAdded={isAdded}
               onToggleAdd={toggleEventSelection}
               isExpanded={isExpanded}

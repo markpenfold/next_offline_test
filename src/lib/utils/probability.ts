@@ -1,4 +1,5 @@
-import { TimelineEvent, EventLink } from '@/stores/types';
+
+import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
 
 /**
  * Calculate the probability of an event occurring based on incoming links.

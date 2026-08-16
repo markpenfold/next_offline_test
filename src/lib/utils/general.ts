@@ -1,3 +1,7 @@
+import { TimelineEvent,} from '@/components/omenland/omenTypes';
+
+
+
 // Helper: Safely maps user/bucket tier strings to strictly "pro" or "free"
 export function normalizeTier(tierName?: string): "free" | "pro" {
   const lower = tierName?.toLowerCase();
@@ -70,4 +74,15 @@ export async function checkWebGPUSupport(): Promise<WebGPUStatus> {
       reason: err?.message || 'Failed to initialize GPU device.',
     };
   }
+}
+
+
+
+// Helper function to sort timeline events by year
+export function sortTimelineEvents(events: TimelineEvent[]): TimelineEvent[] {
+  return [...events].sort((a, b) => {
+    const yearA = a?.year ?? 0;
+    const yearB = b?.year ?? 0;
+    return yearA - yearB;
+  });
 }

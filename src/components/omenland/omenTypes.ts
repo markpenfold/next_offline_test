@@ -1,3 +1,4 @@
+import { Vector3 } from 'three';
 
 
 export interface EventRowProps {
@@ -25,30 +26,13 @@ export interface EventLink {
 
 
 
-/**
- * Date object structure containing year and optional month/day
- * - year: The primary temporal coordinate (can be negative for BCE)
- * - month: Optional month (1-12)
- * - day: Optional day of month
- * - time: Optional time components [hours, minutes, seconds]
- * - approximate: Flag indicating if the date is approximate/uncertain
- */
-export type DateObj = {
-  year: number;
-  month?: number;
-  day?: number;
-  hour?:number;
-  minutes?:number;
-  seconds?: number;
-  miliseconds?:number;
-  precision?: number;
-}
 
 export type TimelineEvent = {
   _id: string;                          // Unique identifier (mapped from 'id' in Parquet)
   subject: string;                      // Core event title (e.g. "Formation of Earth's Water")
   description: string;                  // Detailed explanation / extra context
   master_category: string;              // High-level timeline / collection grouping (for collection colors)
+  fileName:string;                          // free | pro
   version?: string;                     // Dataset schema/data version (e.g. "v1")
   event_type?: string;                  // Sub-category or classification
   
@@ -129,3 +113,83 @@ export type CollectionInfo = {
   color: string;                        // Hex color code (e.g., "#FF6B44") assigned from palette
   position: number;                     // Stable timeline position (0, 1, 2, ...) used for consistent color mapping
 }
+
+
+// GRAPH STUFF BELOW ///////////////////////////////////////////////
+
+export interface GraphNode {
+  id: string | number;
+  name: string;
+  description: string;
+  year?: string;
+  yearValue?: number;
+  val?: number;
+  color?: string;
+  saved_col?: string;
+
+  x?: number;
+  y?: number;
+  z?: number;
+  fx?: number;
+  fy?: number;
+  fz?: number;
+}
+
+export interface GraphLink {
+  source: string;
+  target: string;
+  value?: number;
+  collection?: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
+export interface GraphViewProps {
+  year: number;
+}
+
+
+
+
+export interface HoverInfo {
+  position: Vector3;
+  year: number | null; // Can be null when no valid intersection
+}
+
+export type LinkTypeSelectProps = {
+  value: string;
+  onChange: (value: string) => void;
+  color: string;
+};
+/**
+ * Link type definition for graph edges
+ * - id: Unique identifier for the link type
+ * - label: Human-readable name
+ * - weight: Default weight for this type (user can override per-link)
+ * - color: Hex color for visualization
+ */
+export interface LinkType {
+  id: string;
+  label: string;
+  weight: number;
+  color: string;
+  short: string;
+  icon:string;
+}
+
+/**
+ * Predefined link types for causal relationships
+ * Weight range: -100% to +100%, default 0
+ */
+export const LINK_TYPES: Record<string, LinkType> = {
+  direct_cause: { id: 'direct_cause', label: 'Direct Cause', weight: 0, color: '#F55347', short: 'caused by' , icon: 'ArrowRight'},
+  contributing_factor: { id: 'contributing_factor', label: 'Contributing Factor', weight: 0, color: '#6E64F7', short: 'contributing factor' , icon: 'Merge'},
+  confounding_factor: { id: 'confounding_factor', label: 'Confounding Factor', weight: 0, color: '#47F553', short: 'confounded by' , icon: 'ArrowRightToLine'},
+  modifier: { id: 'modifier', label: 'Modifier', weight: 0, color: '#4792F5', short: 'modified by', icon: 'Variable' },
+  condition: { id: 'condition', label: 'Condition', weight: 0, color: '#4c4c4c', short: 'conditional upon', icon: 'Key'},
+};
+
+export const DEFAULT_LINK_TYPE = 'contributing_factor';

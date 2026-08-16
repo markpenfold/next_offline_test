@@ -286,7 +286,7 @@ export async function hydrateSingleSlot(
 
   // 4. Generate the 1024-year Float32Array buffer and uuidMap
   const windowSlice = sliceWindow(terrainIndexData, resolvedYear);
-
+  console.log("SETTING FILE NAME:", fileName)
   // 5. Build hydrated data object (No dead 'isActive' field)
   return {
     slot: {

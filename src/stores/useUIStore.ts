@@ -9,7 +9,10 @@ import {
 } from '@/components/data/diskOPFS';
 
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
-import { TimelineEvent } from "@/components/omenland/omenTypes";
+import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
+import { GraphNode, GraphLink, GraphData } from "@/components/omenland/omenTypes";
+import { sortTimelineEvents } from '@/lib/utils/general';
+
 
 interface GPUStatus {
   supported: boolean;
@@ -19,6 +22,31 @@ interface GPUStatus {
 export type PanelTab = 'histories' | 'events';
 
 export interface UIStore {
+
+  //Graph view items
+  graphData: GraphData;
+  setGraphData: (data: GraphData) => void;
+  selectedNode: string | null;
+  setSelectedNode: (node: string | null) => void;
+  hoveredNode: string | null;
+  setHoveredNode: (node: string | null) => void;
+  selectedLink: { sourceId: string; targetId: string; linkType: string } | null;
+  setSelectedLink: (
+    link: { sourceId: string; targetId: string; linkType: string } | null
+  ) => void;
+
+
+
+  addEventLink: (sourceId: string, targetId: string, linkType?: string, weight?: number) => void; // Add a link with type and weight
+  updateEventGraphPosition: (eventId: string, x: number, y: number, z: number) => void; // Update event's graph node position
+  updateEventLinks: (eventId: string, linkedTo: EventLink[]) => void; // Update event's linkedTo array
+  removeEventLink: (sourceId: string, targetId: string, linkType?: string) => void; // Remove a link (optionally by type)
+  updateEventLinkWeight: (sourceId: string, targetId: string, linkType: string, weight: number) => void; // Update weight of an existing link
+  updateEventNote: (eventId: string, note: string) => void; 
+  isUiDragging: boolean;
+  setIsUiDragging: (dragging: boolean) => void;
+
+
   // Histories and Events Window
   activePanelTab: PanelTab;
   setActivePanelTab: (tab: PanelTab) => void;
@@ -54,6 +82,160 @@ export interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set, get) => ({
+
+  //////////////////////////////////////////////////////////////////////////
+  // EVENT METADATA - notes, graph positions, links
+  //////////////////////////////////////////////////////////////////////////
+  updateEventNote: (eventId: string, note: string) => {
+    const { timelineBuilderEvents } = get();
+
+    const updated = sortTimelineEvents(timelineBuilderEvents.map(event =>
+      event._id === eventId
+        ? { ...event, userNote: note }
+        : event
+    ));
+
+    set({ timelineBuilderEvents: updated });
+    console.log(`📝 Updated note for event ${eventId}`);
+  },
+
+  updateEventGraphPosition: (eventId: string, x: number, y: number, z: number) => {
+    const { timelineBuilderEvents } = get();
+
+    const updatedEvents = sortTimelineEvents(timelineBuilderEvents.map(event => {
+      if (event._id === eventId) {
+        return {
+          ...event,
+          graphNodePosition: { x, y, z }
+        };
+      }
+      return event;
+    }));
+
+    set({ timelineBuilderEvents: updatedEvents });
+    console.log(`📍 Saved graph position for event ${eventId}: (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`);
+  },
+
+  updateEventLinks: (eventId: string, linkedTo: EventLink[]) => {
+    const { timelineBuilderEvents } = get();
+
+    const updated = sortTimelineEvents(timelineBuilderEvents.map(event =>
+      event._id === eventId
+        ? { ...event, linkedTo }
+        : event
+    ));
+
+    set({ timelineBuilderEvents: updated });
+    console.log(`🔗 Updated links for event ${eventId}:`, linkedTo);
+  },
+
+  addEventLink: (sourceId: string, targetId: string, linkType: string = 'contributing_factor', weight: number = 0) => {
+    const { timelineBuilderEvents } = get();
+    const maxDuplicateLinks = 4;
+
+    const updated = sortTimelineEvents(timelineBuilderEvents.map(event => {
+      if (event._id === sourceId) {
+        const currentLinks = event.linkedTo || [];
+        // Count links to the same target (regardless of type)
+        // Handle both old string format and new EventLink format
+        const count = currentLinks.filter(link => {
+          const tid = typeof link === 'string' ? link : link.targetId;
+          return tid === targetId;
+        }).length;
+        if (count < maxDuplicateLinks) {
+          const newLink = { targetId, linkType, weight };
+          return { ...event, linkedTo: [...currentLinks, newLink] };
+        }
+      }
+      return event;
+    }));
+
+    set({ timelineBuilderEvents: updated });
+    console.log(`🔗 Added link: ${sourceId} -> ${targetId} (${linkType}, weight: ${weight})`);
+  },
+
+  removeEventLink: (sourceId: string, targetId: string, linkType?: string) => {
+    const { timelineBuilderEvents } = get();
+
+    const updated = sortTimelineEvents(timelineBuilderEvents.map(event => {
+      if (event._id === sourceId) {
+        const currentLinks = event.linkedTo || [];
+        // Handle both old string format and new EventLink format
+        if (linkType) {
+          const indexToRemove = currentLinks.findIndex(link => {
+            const tid = typeof link === 'string' ? link : link.targetId;
+            const lt = typeof link === 'string' ? 'contributing_factor' : link.linkType;
+            return tid === targetId && lt === linkType;
+          });
+          if (indexToRemove >= 0) {
+            const newLinks = [...currentLinks];
+            newLinks.splice(indexToRemove, 1);
+            return { ...event, linkedTo: newLinks };
+          }
+        } else {
+          // Remove first link to this target
+          const indexToRemove = currentLinks.findIndex(link => {
+            const tid = typeof link === 'string' ? link : link.targetId;
+            return tid === targetId;
+          });
+          if (indexToRemove >= 0) {
+            const newLinks = [...currentLinks];
+            newLinks.splice(indexToRemove, 1);
+            return { ...event, linkedTo: newLinks };
+          }
+        }
+      }
+      return event;
+    }));
+
+    set({ timelineBuilderEvents: updated });
+    console.log(`🔗 Removed link: ${sourceId} -> ${targetId}${linkType ? ` (${linkType})` : ''}`);
+  },
+
+  isUiDragging: false,
+  setIsUiDragging: (dragging) => set({ isUiDragging: dragging }),
+
+
+  updateEventLinkWeight: (sourceId: string, targetId: string, linkType: string, weight: number) => {
+    const { timelineBuilderEvents } = get();
+
+    const updated = sortTimelineEvents(timelineBuilderEvents.map(event => {
+      if (event._id === sourceId) {
+        const currentLinks = event.linkedTo || [];
+        // Find the matching link and update its weight
+        const updatedLinks = currentLinks.map(link => {
+          if (typeof link === 'string') return link;
+          if (link.targetId === targetId && link.linkType === linkType) {
+            return { ...link, weight };
+          }
+          return link;
+        });
+        return { ...event, linkedTo: updatedLinks };
+      }
+      return event;
+    }));
+
+    set({ timelineBuilderEvents: updated });
+    //console.log(`⚖️ Updated weight: ${sourceId} -> ${targetId} (${linkType}) = ${weight}`);
+  },
+
+
+
+
+
+  //////////////////////////////////////////////////////////////////////////
+  // GRAPH STATE - nodes, links, selection, hover
+  //////////////////////////////////////////////////////////////////////////
+  graphData: { nodes: [], links: [] },
+  setGraphData: (data) => set({ graphData: data }),
+  selectedNode: null,
+  setSelectedNode: (node) => set({ selectedNode: node }),
+  hoveredNode: null,
+  setHoveredNode: (node) => set({ hoveredNode: node }),
+  selectedLink: null,
+  setSelectedLink: (link) => set({ selectedLink: link }),
+
+
   // Histories and Events Window
   activePanelTab: 'histories',
   setActivePanelTab: (tab) => set({ activePanelTab: tab }),

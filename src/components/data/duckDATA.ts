@@ -108,9 +108,6 @@ export async function loadShardIntoEngine(
   }
 }
 
-
-
-
 /**
  * Drops a mounted file handle from DuckDB's VFS to free up worker memory
  */
@@ -128,6 +125,8 @@ export async function unloadShardFromEngine(
   }
 }
 
+
+
 /**
  * Rebuilds the unified DuckDB SQL view `currentDataView` across all active files
  */
@@ -142,7 +141,7 @@ export async function rebuildDataView(activeFiles: string[]): Promise<boolean> {
       return true;
     }
 
-    const selectStatements = activeFiles.map(fileName => `SELECT * FROM '${fileName}'`);
+    const selectStatements = activeFiles.map(fileName => `SELECT *, '${fileName}' AS file_name FROM '${fileName}'`);
     const unionQuery = selectStatements.join('\nUNION ALL\n');
 
     await conn.query(`CREATE OR REPLACE VIEW currentDataView AS \n${unionQuery}`);
@@ -202,7 +201,8 @@ export async function queryEventsByYear(
         millisecond,
         era,
         master_category,
-        version
+        version,
+        file_name
       FROM currentDataView
       WHERE year = ${year}
       ORDER BY year ASC
@@ -222,6 +222,7 @@ export async function queryEventsByYear(
       subject: row.subject ?? "Unnamed event",
       description: row.description ?? "",
       master_category: row.master_category ?? "default",
+      fileName: row.file_name ?? "",
       version: row.version ?? undefined,
       event_type: row.event_type ?? undefined,
       tags: Array.isArray(row.tags) ? row.tags : [],

@@ -102,6 +102,7 @@ export interface DATAStore {
   clearFileFromSlots: (target: string | AvailableIndex) => void;
   clearAllSlots: () => void;
   setSlotColor: (slotIndex: number, newColor: string) => void;
+  getSlotColor: (fileName: string) => string | undefined;
   getUUIDsForEvent: (slotIndex: number, year: number) => string[];
   reorderSlots: (fromIndex: number, toIndex: number) => void;
 
@@ -233,6 +234,26 @@ function triggerAutoSave(getStore: () => DATAStore) {
   }, 400);
 }
 
+
+function toIndexFileName(fileName: string): string {
+  if (fileName.startsWith('index__')) return fileName;
+
+  // Pattern: {tier}_{category}_{partition?}_{version}.parquet
+  // - tier: letters/numbers before first '_'
+  // - version: 'v' + numbers before extension
+  // - partition: optional '_pre_1900' or '_post_1900'
+  const regex = /^([a-zA-Z0-9]+)_(.+?)(?:_(?:pre|post)_\d+)?_(v\d+)\.parquet$/;
+  const match = fileName.match(regex);
+
+  if (!match) {
+    return fileName; // Return unchanged if non-standard
+  }
+
+  const [, tier, category, version] = match;
+
+  // Rebuild as index__tier__category__version.parquet
+  return `index__${tier}__${category}__${version}.parquet`;
+}
 // ============================================================================
 // 4. ZUSTAND STORE
 // ============================================================================
@@ -415,6 +436,14 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       set({ slots });
       triggerAutoSave(get);
     }
+  },
+
+  getSlotColor: (fileName: string) => {
+    let fN = toIndexFileName(fileName);
+    //console.log("FNFNFNFNFNFNFNFNFNFNFNFNFNFNFN: ", fN)
+    let col = get().slots.find((slot) => slot.fileName === fN)?.color;
+    //console.log("COLOR IS...............", col)
+    return col;
   },
 
   getUUIDsForEvent: function (slotIndex, year) {

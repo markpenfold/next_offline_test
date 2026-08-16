@@ -1,0 +1,419 @@
+.eventHeader{
+    background-color: #343434;
+    padding: 4px;
+}
+
+.graphEventHolder {
+    display: flex;
+    align-items: center;
+    border-bottom: 2px solid rgb(24, 24, 24);
+}
+
+.icontext {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.buttonz {
+  margin-left: auto; /* 🚀 pushes it to the right */
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;      /* space between buttons */
+  flex-shrink: 0;  
+}
+
+.buttonz button {
+    cursor: pointer;
+}
+.clicker {
+  cursor: pointer;
+  display: inline-flex;        /* make button a flex container */
+  align-items: center;         /* vertical align text + icon */
+  gap: 4px;                    /* spacing between text and + icon */
+  background: none;            /* optional: remove default button bg */
+  border: none;                /* optional: remove default button border */
+  padding: 4px 8px;            /* optional padding */
+  font-size: 8px;              /* matches your .headerRow text size */
+}
+
+.linkAddTab {
+  display: inline-flex;         /* aligns children horizontally */
+  align-items: center;          /* vertically centers children */
+  gap: 6px;                    /* space between text and plus icon */
+  cursor: pointer;             /* indicates clickable */
+  color: #a7a7a7;
+  padding: 4px;              /* horizontal padding inside */
+  padding-top: 2px;
+  padding-right: 12px;
+  margin-left:4px;
+  user-select: none;           /* optional: prevents text selection on click */
+
+  background-color: rgb(42,42,42);
+}
+
+.expanded {
+    background-color:rgb(28,57,142);
+    border-top-left-radius: 6px;
+}
+.expanded span {
+    color:ivory;
+}
+
+.eventrow {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  flex: 1;
+  min-width: 0;
+  color: #a7a7a7;
+}
+
+.eventrow span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80%;
+}
+
+.listHolder {
+    display: flex;
+    flex-direction: column;
+    width: auto;
+    background-color: #1b1b1b;
+
+
+}
+
+.linkrow {
+    padding-left:4px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    flex: 0 0 100%;
+    display:flex;
+    color: #a7a7a7;
+}
+
+.addLinkText {
+    font-size: 7pt;
+    color: #a7a7a7;
+    padding-left: 3px;
+}
+
+.nodeListText{
+    font-size: 7pt;
+    color: #a7a7a7;
+    padding-left: 3px;
+}
+
+.linkList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background-color: #161616;
+    padding-bottom: 0px;
+}
+
+.linkListItem {
+    display: flex;
+    align-items: center;
+    padding: 2px 0 2px 0px;
+    gap: 6px;
+    margin-left:0px;
+}
+
+
+.AddLinkListHeader{
+    display: flex;
+    align-items: center;
+    padding: 4px 0 4px 4px;
+    gap: 6px;
+    margin-left:0px;
+    border-bottom: 1px solid #1b1b1b;
+    font-size: 8pt;
+    color: #aca9a9;
+    background-color: rgba(28,57,142);
+    
+}
+
+.linkText {
+    font-size: 7pt;
+    color: #818181;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+
+.eventFooter {
+    height:20px;
+    width: 100%;
+    margin-left: -4px;
+}
+
+
+
+
+.selectTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 2px 3px;
+  border-radius: 1px;
+  border: none;
+  font-size: 10px;
+  cursor: pointer;
+  min-width: 95px;
+  background-color: #1d1d1d;
+  color: #a7a7a7;
+  margin-left: 4px;
+}
+
+.selectIcon {
+  display: flex;
+  align-items: center;
+}
+
+/* DROPDOWN */
+.selectContent {
+  background: white;
+  border-radius: 1px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 4px;
+}
+
+.selectItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 1px;
+  font-size: 10px;
+  color: #121212;
+  cursor: pointer;
+}
+
+.selectItem:hover {
+  background-color: #f3f4f6;
+}
+
+.selectItem[data-state="checked"] {
+  font-weight: 500;
+}
+
+.selectItemIndicator {
+  display: flex;
+  align-items: center;
+}
+
+/* GraphView styles */
+.graphContainer {
+  width: 100%;
+  height: 100%;
+  background: #1a1a1a;
+  position: relative;
+}
+
+.refocusButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ccc;
+  font-size: 12px;
+}
+
+.webglError {
+  width: 100%;
+  height: 100%;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+}
+
+.webglErrorContent {
+  text-align: center;
+  padding: 20px;
+}
+
+.webglErrorSubtext {
+  font-size: 10px;
+  margin-top: 8px;
+}
+
+
+/* Container & Node */
+.nodeWrapper {
+  position: relative;
+  width: 100%;
+  font-size: 10px;
+}
+
+.hoveredBg {
+  background-color: rgba(100, 150, 255, 0.15);
+}
+
+.pointerCursor {
+  cursor: pointer;
+}
+
+/* Indicators & Icons */
+.probabilityBadge {
+  padding: 1px 4px;
+  font-size: 9px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.probGreen {
+  background-color: #22c55e;
+}
+
+.probRed {
+  background-color: #ef4444;
+}
+
+.rotate180 {
+  transform: rotate(180deg);
+}
+
+.rotate0 {
+  transform: rotate(0deg);
+}
+
+.transitionTransform {
+  transition: transform 150ms ease;
+}
+
+/* Lists & Items */
+.linkListItemEven {
+  background-color: #e8e8e8;
+}
+
+.linkListItemOdd {
+  background-color: #d8d8d8;
+}
+
+.sliderContainer {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  cursor: ew-resize;
+  user-select: none;
+  padding: 2px 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.linkTextDark {
+  position: relative;
+  z-index: 1;
+  color: #1b1b1b;
+}
+
+.noteIconButton {
+  margin-left: auto;
+  margin-right: 4px;
+}
+
+/* Note Editor */
+.noteEditorContainer {
+  background-color: #f5f5f5;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.noteTextarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 8px;
+  font-size: 11px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.noteActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.cancelBtn {
+  padding: 4px 10px;
+  font-size: 10px;
+  background-color: #e5e5e5;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.saveBtn {
+  padding: 4px 10px;
+  font-size: 10px;
+  background-color: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* Tooltip */
+.weightTooltip {
+  position: fixed;
+  transform: translateX(-50%);
+  background-color: #1a1a1a;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+/* Parent container establishing the 3/4 and 1/4 split screen */
+.graphContainerSplit {
+  display: grid;
+  grid-template-columns: 3fr 1fr; /* 75% | 25% */
+  width: 100%;
+  height: 100vh; /* Adjust or set to 100% depending on parent layout height */
+  overflow: hidden;
+}
+
+/* 3/4 GraphView section */
+.timelineGraphGrid {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 1/4 GraphEditor section */
+.graphEditorGrid {
+  height: 100%;
+  width: 100%;
+  border-left: 1px solid #2a2a2a; /* Optional separator border */
+  background-color: #1a1a1a;
+  overflow-y: auto;
+}
