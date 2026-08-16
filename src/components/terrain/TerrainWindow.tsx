@@ -14,7 +14,8 @@ export function TerrainWindow() {
 
   return (
     <div className={styles.stageContainer}>
-      <WindowBar title="Terrain View" icon={<Globe size={14} />}>
+      <WindowBar
+          title="Terrain View" icon={<Globe size={14} />}>
         {/* Pass WindowBarIconButton as the trigger into OmenMenu */}
         <OmenMenu
           align="right"

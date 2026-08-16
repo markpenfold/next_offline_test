@@ -18,6 +18,7 @@ export function MainDataPanel() {
   return (
     <div className={styles.panelContainer}>
       <WindowBar
+        className={styles.windowbarHeader}
         title={
           <div className={styles.windowBarTabGroup}>
             <button

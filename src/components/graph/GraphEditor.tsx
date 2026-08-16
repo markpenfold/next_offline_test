@@ -4,7 +4,7 @@ import { TimelineEvent } from "@/components/omenland/omenTypes";
 import { useUIStore } from "@/stores/useUIStore";
 import { useDATAStore } from "@/stores/useDataStore";
 import { GraphEventCard } from './GraphEventCard';
-
+import classes from './graph.module.css';
 
 const GraphEditor = () => {
 
@@ -17,7 +17,7 @@ const GraphEditor = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', overflowY: 'auto', backgroundColor:'#1b1b1b'}}>
+    <div ref={containerRef} className={classes.graphEditor}>
       {timelineBuilderEvents.map((item: TimelineEvent, index: number) => (
         <GraphEventCard
           key={item._id || `item-${index}`}

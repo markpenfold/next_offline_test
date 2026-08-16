@@ -434,7 +434,7 @@ function pickRandomOtherNodeId(
           linkDirectionalArrowRelPos={1}
           linkDirectionalParticles={0}
           linkLabel={(link: any) => LINK_TYPES[link.linkType]?.label || link.linkType}
-          backgroundColor="#1a1a1a"
+          backgroundColor="rgb(41,41,41)"
           showNavInfo={true}
           enableNodeDrag={true}
           enableNavigationControls={true}

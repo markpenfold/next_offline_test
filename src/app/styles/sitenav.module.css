@@ -1,7 +1,4 @@
-:root {
-  --background: rgb(245,245,245);
-  --foreground: rgb(30,30,30);
-}
+
 
 .navcontainer {
   display: flex;
