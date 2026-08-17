@@ -20,20 +20,20 @@
   align-items: stretch; /* FORCES Data Panel and Terrain View to exact 1:1 equal height */
   width: 100%;
   flex: 1;              /* Dynamically fills all vertical space above timeline */
-  min-height: 450px;    /* Locks min-height so terrain is never squished */
+  min-height: 550px;    /* Locks min-height so terrain is never squished */
   flex-shrink: 0;       /* Prevents timeline growth from compressing top workspace */
 }
 
 /* 25% / 75% Column Split */
 .quarter_section {
-  width: 25%;
+  width: 30%;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
 .three_quarter_section {
-  width: 75%;
+  width: 70%;
   display: flex;
   flex-direction: column;
   min-height: 0;

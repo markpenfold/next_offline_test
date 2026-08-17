@@ -18,7 +18,7 @@ interface EventsListProps {
 }
 
 export function EventsList({ expandAll }: EventsListProps) {
-  const [sortBy, setSortBy] = useState<SortOption>("random");
+  const [sortBy, setSortBy] = useState<SortOption>("collection");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   // Subscribed to useUIStore

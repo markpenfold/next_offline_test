@@ -17,7 +17,7 @@ export default async function LoginPage({ searchParams }: LoginProps) {
 
   // 1. If already logged in, send them straight to the main dashboard entrypoint
   if (user) {
-    console.log("USER:", user)
+    console.log("USER:", user, 'return to dash!')
     redirect('/dash')
   }
 

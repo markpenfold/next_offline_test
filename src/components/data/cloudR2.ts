@@ -94,7 +94,7 @@ export async function fetchAndSaveSingleShard({
 
     return true;
   } catch (err: any) {
-    console.error(`❌ Single Shard Download Error (${localFileName}): ${err.message}`);
+    console.log(`❌ Single Shard Download Error (${localFileName}): ${err.message}`);
     return false;
   }
 }

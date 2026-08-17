@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, Globe, Plus, X } from "lucide-react";
 import styles from "@/app/styles/omenland.module.css";
 import { TimelineEvent } from "@/components/omenland/omenTypes";
 
@@ -81,6 +81,32 @@ export function EventRow({
 
         {/* Actions */}
         <div className={styles.eventActionsBox}>
+          {/* Google Search Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const year = item.year;
+              const yearStr =
+                typeof year === "number"
+                  ? year > 0
+                    ? `${year} AD`
+                    : `${Math.abs(year)} BC`
+                  : "";
+              const query = `${item.subject || item.description || "event"} ${yearStr}`.trim();
+              window.open(
+                `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+                "_blank",
+                "noopener,noreferrer"
+              );
+            }}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            aria-label="Search Google"
+            title="Search Google"
+          >
+            <Globe size={13} color="#9ca3af" strokeWidth={1.5} />
+          </button>
+
           {rightButton ? (
             rightButton
           ) : (

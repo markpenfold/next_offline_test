@@ -69,13 +69,14 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
     !request.nextUrl.pathname.startsWith('/confirm')&& 
+    !request.nextUrl.pathname.startsWith('/pricing')&& 
     request.nextUrl.pathname !== '/'
     
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    console.log("KUUUUUUUUUUUUUUUUUUUUUUNT REDURECT TO LOGIN")
+    //console.log("KUUUUUUUUUUUUUUUUUUUUUUNT REDURECT TO LOGIN")
     return NextResponse.redirect(url)
   }
 

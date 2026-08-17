@@ -9,6 +9,15 @@ export function createClient() {
 
     return createBrowserClient<Database>(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            // Optional custom lock override to avoid lock contention
+            lock: async (_name, _timeout, fn) => fn(),
+          },
+        }
     )
 }
