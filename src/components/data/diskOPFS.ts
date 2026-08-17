@@ -50,6 +50,7 @@ export async function getOPFSFileHandle(
   }
 }
 
+
 /**
  * Returns all (name + file handle) entries in a specified OPFS folder
  */
@@ -60,10 +61,13 @@ export async function getOPFSEntries(
     const dirHandle = await getDirectory(dirName);
     const entries: Array<{ name: string; handle: FileSystemFileHandle }> = [];
 
-    const entriesIterator = dirHandle.entries() as AsyncIterable<[string, FileSystemHandle]>;
-    for await (const [name, handle] of entriesIterator) {
+    const dirIterable = dirHandle as FileSystemDirectoryHandle & {
+      values(): AsyncIterable<FileSystemHandle>;
+    };
+
+    for await (const handle of dirIterable.values()) {
       if (handle.kind === "file") {
-        entries.push({ name, handle: handle as FileSystemFileHandle });
+        entries.push({ name: handle.name, handle: handle as FileSystemFileHandle });
       }
     }
 
@@ -72,7 +76,6 @@ export async function getOPFSEntries(
     return [];
   }
 }
-
 // ============================================================================
 // 2. READ / WRITE / DELETE ACTIONS
 // ============================================================================
