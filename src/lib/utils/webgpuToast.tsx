@@ -1,14 +1,14 @@
 // lib/utils/webgpuToast.tsx
 import toast from 'react-hot-toast';
 import { WebGPUStatus } from './general';
-import { useDATAStore } from '@/stores/useDataStore';
+import { useUIStore } from '@/stores/useUIStore';
 
 export function showWebGPUToast(status: WebGPUStatus) {
   toast.custom(
     (t) => {
       // 1. Action: Fallback to WebGL, persist preference to OPFS, & Dismiss Toast
       const handleAcceptWebGL = () => {
-        useDATAStore.getState().setGpuPreference('webgl');
+        useUIStore.getState().setGpuPreference('webgl');
         toast.dismiss(t.id);
       };
 
