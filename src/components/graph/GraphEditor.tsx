@@ -2,7 +2,6 @@
 import { useRef } from 'react';
 import { TimelineEvent } from "@/components/omenland/omenTypes";
 import { useUIStore } from "@/stores/useUIStore";
-import { useDATAStore } from "@/stores/useDataStore";
 import { GraphEventCard } from './GraphEventCard';
 import classes from './graph.module.css';
 

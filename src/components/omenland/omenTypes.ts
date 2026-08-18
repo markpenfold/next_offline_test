@@ -189,7 +189,7 @@ export const LINK_TYPES: Record<string, LinkType> = {
   contributing_factor: { id: 'contributing_factor', label: 'Contributing Factor', weight: 0, color: '#6E64F7', short: 'contributing factor' , icon: 'Merge'},
   confounding_factor: { id: 'confounding_factor', label: 'Confounding Factor', weight: 0, color: '#47F553', short: 'confounded by' , icon: 'ArrowRightToLine'},
   modifier: { id: 'modifier', label: 'Modifier', weight: 0, color: '#4792F5', short: 'modified by', icon: 'Variable' },
-  condition: { id: 'condition', label: 'Condition', weight: 0, color: '#4c4c4c', short: 'conditional upon', icon: 'Key'},
+  condition: { id: 'condition', label: 'Condition', weight: 0, color: '#fccfcc', short: 'conditional upon', icon: 'Key'},
 };
 
 export const DEFAULT_LINK_TYPE = 'contributing_factor';
