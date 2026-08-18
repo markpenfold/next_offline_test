@@ -6,7 +6,7 @@ import SpriteText from 'three-spritetext';
 import { Group } from 'three';
 import { GraphNode, LINK_TYPES } from '@/components/omenland/omenTypes';
 import { NodeObject } from 'react-force-graph-3d';
-import { Focus } from 'lucide-react';
+import { Focus, ZoomIn, ZoomOut, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useDATAStore } from '@/stores/useDataStore';
 import styles from './graph.module.css';
 
@@ -344,7 +344,7 @@ function pickRandomOtherNodeId(
 
     // Get current camera position to preserve zoom distance
     const camPos = graph.cameraPosition();
-    const currentDistance = Math.sqrt(camPos.x ** 2 + camPos.y ** 2 + camPos.z ** 2);
+    const currentDistance = Math.sqrt(camPos.x ** 2 + camPos.y ** 2 + camPos.z ** 1.6);
 
     // Use our cached nodes from prevNodesRef
     const nodes = Array.from(prevNodesRef.current.values());
@@ -360,6 +360,62 @@ function pickRandomOtherNodeId(
     );
   }, []);
 
+  ////////////////////////////////////////////////
+  /// pan control for camera on graph nodes
+  ////////////////////////////////////////////////
+  const handlePan = useCallback((deltaX: number, deltaY: number) => {
+    const graph = graphRef.current;
+    if (!graph) return;
+  
+    const currentPos = graph.cameraPosition();
+    const controls = graph.controls();
+    const target = controls?.target || { x: 0, y: 0, z: 0 };
+  
+    // Shift both camera position and OrbitControls target point together
+    const newTarget = {
+      x: target.x + deltaX,
+      y: target.y + deltaY,
+      z: target.z,
+    };
+  
+    graph.cameraPosition(
+      {
+        x: currentPos.x + deltaX,
+        y: currentPos.y + deltaY,
+        z: currentPos.z,
+      },
+      newTarget,
+      200
+    );
+  }, []);
+
+
+  ////////////////////////////////////////////////
+  // Zoom control for Graph Node camera //////////
+  ////////////////////////////////////////////////
+  const handleZoom = useCallback((zoomFactor: number) => {
+    const graph = graphRef.current;
+    if (!graph) return;
+  
+    const currentPos = graph.cameraPosition();
+    const lookAt = graph.controls()?.target || { x: 0, y: 0, z: 0 };
+  
+    // Calculate direction vector from target to camera
+    const dx = currentPos.x - lookAt.x;
+    const dy = currentPos.y - lookAt.y;
+    const dz = currentPos.z - lookAt.z;
+  
+    // Adjust camera distance by factor
+    graph.cameraPosition(
+      {
+        x: lookAt.x + dx * zoomFactor,
+        y: lookAt.y + dy * zoomFactor,
+        z: lookAt.z + dz * zoomFactor,
+      },
+      lookAt,
+      300 // transition duration in ms
+    );
+  }, []);
 
 
   ////////////////////////////////////////////////
@@ -396,14 +452,34 @@ function pickRandomOtherNodeId(
 
   return (
     <div ref={containerRef} className={styles.graphContainer}>
-        {/* Refocus button */}
-        <button
-          onClick={handleRefocus}
-          className={styles.refocusButton}
-          title="Refocus camera on graph"
-        >
-          <Focus size={14} />
-        </button>
+        <div className={styles.controlsOverlay}>
+          {/* Refocus */}
+          <button onClick={handleRefocus} title="Refocus camera">
+            <Focus size={14} />
+          </button>
+
+          {/* Zoom Controls */}
+          <button onClick={() => handleZoom(0.7)} title="Zoom In">
+            <ZoomIn size={14} />
+          </button>
+          <button onClick={() => handleZoom(1.3)} title="Zoom Out">
+            <ZoomOut size={14} />
+          </button>
+
+          {/* Directional Pan Controls */}
+          <button onClick={() => handlePan(0, 30)} title="Pan Up">
+            <ArrowUp size={14} />
+          </button>
+          <button onClick={() => handlePan(0, -30)} title="Pan Down">
+            <ArrowDown size={14} />
+          </button>
+          <button onClick={() => handlePan(-30, 0)} title="Pan Left">
+            <ArrowLeft size={14} />
+          </button>
+          <button onClick={() => handlePan(30, 0)} title="Pan Right">
+            <ArrowRight size={14} />
+          </button>
+        </div>
 
         <ForceGraph3D
           ref={graphRef}
