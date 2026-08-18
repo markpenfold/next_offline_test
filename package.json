@@ -40,6 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.185.0",
+    "@webgpu/types": "^0.1.71",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "supabase": "^2.105.0",
