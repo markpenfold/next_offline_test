@@ -57,7 +57,8 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
 
       activeSlotsMetadata.push({
         id: slot.id,
-        name: slot.category || slot.fileName || `Slot ${slot.id}`,
+        fileName: slot.fileName,
+        name: slot.category || "",
         color: slot.color,
       });
     });

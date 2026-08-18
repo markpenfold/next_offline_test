@@ -34,7 +34,7 @@ export interface ChangedSlotEvent {
 
 export interface ActiveSlotMeta {
   id: number;
-  slotIndex: number;
+  fileName: string;
   name: string;
   color: string;
 }
