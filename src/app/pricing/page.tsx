@@ -46,6 +46,69 @@ export default function PricingPage() {
         </div>
        
         <div className={classes.priceContainer}>
+  {tier_details.map((tier) => {
+    const isCurrentPlan = currentTier === tier.id;
+    const isFree = tier.id === 'free'; // Adjust to match your exact free plan ID
+    const isAvailable = isFree;
+
+    return (
+      <div key={tier.id} className={classes.priceBox}>
+        {/* Badges - uses the exact same current_tag styling */}
+        {isCurrentPlan ? (
+          <div className={classes.current_tag}>
+            CURRENT PLAN
+          </div>
+        ) : !isAvailable ? (
+          <div className={classes.current_tag}>
+            COMING SOON
+          </div>
+        ) : null}
+
+        <h3>{tier.name}</h3>
+        <div>{tier.price}</div>
+
+        {/* Action Buttons */}
+        {isCurrentPlan ? (
+          <button className={classes.buttonClass} style={{ backgroundColor: '#035503' }}>
+            Cancel
+          </button>
+        ) : isAvailable ? (
+          !profile ? (
+            <Link href={`/signup?plan=${tier.id}`} className={classes.buttonClass}>
+              Sign up
+            </Link>
+          ) : (
+            <CheckoutButton plan={tier.id} activeAccount={activeAccount} className={classes.buttonClass}>
+              Switch
+            </CheckoutButton>
+          )
+        ) : (
+          /* Greyed-out button for Coming Soon tiers */
+          <button 
+            className={classes.buttonClass} 
+            style={{ 
+              backgroundColor: '#d1d5db', 
+              color: '#9ca3af', 
+              cursor: 'not-allowed' 
+            }} 
+            disabled
+          >
+            {!profile ? 'Sign up' : 'Switch'}
+          </button>
+        )}
+      </div>
+    );
+  })}
+</div>
+      </div>
+    </>
+  )
+}
+
+
+/*
+//Return this once paying customers are invited....
+<div className={classes.priceContainer}>
           {tier_details.map((tier) => {
             const isCurrentPlan = currentTier === tier.id
 
@@ -76,7 +139,4 @@ export default function PricingPage() {
             )
           })}
         </div>
-      </div>
-    </>
-  )
-}
+         */
