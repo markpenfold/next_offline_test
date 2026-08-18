@@ -61,7 +61,7 @@ export async function refreshSession() {
 export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
 
   const rawData = Object.fromEntries(formData)
-  console.log("rawData sent to signUp:", rawData)
+  //console.log("rawData sent to signUp:", rawData)
   
   const result = signUpSchema.safeParse(rawData)
   if (!result.success) {
@@ -223,10 +223,8 @@ export async function resetPassword(prevState: ActionState, formData: FormData) 
 // 1. Define a type helper for the profiles query response
 type ProfileResponse = Database['public']['Tables']['profiles']['Row'];
 
-async function getUserDetails(user: User, 
-  supabase: SupabaseClient<Database>
-){
-
+async function getUserDetails(user: User, supabase: SupabaseClient<Database>)
+{
   // CONCURRENT PIPELINE: Run both queries in parallel
   const [profileResult, membershipsResult] = await Promise.all([
     supabase
