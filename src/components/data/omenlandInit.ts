@@ -1,4 +1,4 @@
-// @/components/data/omenlandOrchestrator.ts
+// @/components/data/omenladnInit.ts
 
 import { getExpectedDataShardNames } from "@/components/data/dataHelpers"; // or buildLocalDataShardFileName
 import { fetchAvailableIndexes, getMasterIndex } from "@/components/data/cloudR2";
@@ -129,6 +129,7 @@ async function loadFromSession(
   activeIndexes: ActiveDataViewIndex[];
   savedProjectsList: Array<{ name: string; handle: FileSystemFileHandle }>;
   resolvedProjectName: null;
+  windowStart:number | null;
 }> {
   const savedProjectsList = await getSavedProjects(accountId).catch(() => []);
   const sessionConfig = await loadProject(accountId, null).catch(() => null);
@@ -149,6 +150,7 @@ async function loadFromSession(
       activeIndexes: [],
       savedProjectsList,
       resolvedProjectName: null,
+      windowStart: null,
     };
   }
 
@@ -165,6 +167,7 @@ async function loadFromSession(
     activeIndexes,
     savedProjectsList,
     resolvedProjectName: null,
+    windowStart: sessionConfig.windowStartYear || null,
   };
 }
 
@@ -178,7 +181,7 @@ export async function startOmenland(accountId: string): Promise<OmenlandInitPayl
   const { availableIndexes, localCacheIndexFiles, isOnline } = await getAllIndexes(accountId);
 
   // PHASE 2: Load Session / Verify Active Indexes
-  const { activeIndexes, savedProjectsList, resolvedProjectName } = await loadFromSession(
+  const { activeIndexes, savedProjectsList, resolvedProjectName, windowStart } = await loadFromSession(
     accountId,
     localCacheIndexFiles,
     availableIndexes,
@@ -227,10 +230,12 @@ if (activeIndexes && activeIndexes.length > 0) {
   console.log("✅ Engine boot complete. Handing payload back to state manager.");
 
   return {
+    // I think here we need to return the windowStart
     availableIndexes,
     downloadedIndexes: localCacheIndexFiles.map((entry) => entry.name),
     localProjects: savedProjectsList,
     activeDataViewIndexes: activeIndexes,
     activeProjectName: resolvedProjectName,
+    windowStartYear: windowStart,
   };
 }

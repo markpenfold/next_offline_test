@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDATAStore } from "@/stores/useDataStore";
 import styles from "@/app/styles/omenland.module.css";
 
@@ -63,9 +63,30 @@ export function TimelineSlider() {
   const currentStart = windowStartYear ?? sliderMax;
   const currentEnd = currentStart + 1024;
 
+  // Local state for the year input field
+  const [inputValue, setInputValue] = useState<string>(String(currentStart));
+
+  // Sync input text when slider updates
+  useEffect(() => {
+    setInputValue(String(currentStart));
+  }, [currentStart]);
+
+  // Clamp and commit the input value to the store
+  const commitYearInput = () => {
+    const parsed = parseInt(inputValue, 10);
+    if (isNaN(parsed)) {
+      setInputValue(String(currentStart));
+      return;
+    }
+    // Clamp between minYear and sliderMax so currentEnd never exceeds maxYear
+    const clamped = Math.max(minYear, Math.min(parsed, sliderMax));
+    setWindowStartYear(clamped);
+    setInputValue(String(clamped));
+  };
+
   return (
     <div className={styles.sliderContainer}>
-      {/* Active Viewing Window Text */}
+      {/* Active Viewing Window Text & Jump To Field */}
       <div className={styles.sliderHeader}>
         <span className={styles.viewingLabel}>
           Viewing:{" "}
@@ -73,6 +94,24 @@ export function TimelineSlider() {
             {formatSliderYear(currentStart, isGeologicalTime)} — {formatSliderYear(currentEnd, isGeologicalTime)}
           </span>
         </span>
+
+        {/* Year Jump Input */}
+        <div className={styles.jumpToContainer}>
+          <label htmlFor="year-input" className={styles.jumpToLabel}>Jump to year:</label>
+          <input
+            id="year-input"
+            type="number"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onBlur={commitYearInput}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                commitYearInput();
+              }
+            }}
+            className={styles.yearInput}
+          />
+        </div>
       </div>
 
       {/* Full-Width Horizontal Track Row */}

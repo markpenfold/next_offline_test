@@ -47,6 +47,7 @@ export const TerrainOrchestrator: React.FC<OrchestratorProps> = ({
 
     slots.forEach((slot, arrayIndex) => {
      // console.log("arrayIndex: ", arrayIndex);
+     console.log(slot.fileName, "Index 0 density:", slot.buffer?.[0]);
       const offset = arrayIndex * 1024;
       if (slot.buffer) {
         MASTER_BUFFER.set(slot.buffer, offset);

@@ -281,12 +281,18 @@ export async function hydrateSingleSlot(
   const minYear = Math.min(rawMinYear, 1000);
 
   // 3. Resolve start year (bootstraps to minYear on first run when store year is null, capped at 2026)
-  const rawResolvedYear = windowStartYear ?? minYear;
-  const resolvedYear = Math.min(Math.max(rawResolvedYear, minYear), 2026);
+  let resolvedYear = 0;
+  if(windowStartYear){
+    resolvedYear = windowStartYear;
+   }else{
+    resolvedYear =  minYear;
+   }
+
+  console.log("settign resolved year in singlSlot to: ", resolvedYear);
 
   // 4. Generate the 1024-year Float32Array buffer and uuidMap
   const windowSlice = sliceWindow(terrainIndexData, resolvedYear);
-  console.log("SETTING FILE NAME:", fileName)
+  
   // 5. Build hydrated data object (No dead 'isActive' field)
   return {
     slot: {

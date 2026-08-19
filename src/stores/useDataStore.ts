@@ -141,6 +141,7 @@ export interface PopulateSlotsResult {
   lastChangedSlot: ChangedSlotEvent;
 }
 
+// used to reload from session/project
 export async function populateSlots({
   items,
   currentSlots,
@@ -370,6 +371,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     };
 
     const updatedSlots = [...currentSlots, newSlot];
+    // this needs to only update if was previously null
     const nextWindowYear = currentYear ?? resolvedWindowStartYear;
 
     set({
