@@ -115,7 +115,6 @@ export function TimelineBuilder() {
                       left: `${fraction * 100}%`,
                       transform,
                       fontSize: "10px",
-                      color: "#9ca3af",
                       whiteSpace: "nowrap",
                     }}
                   >

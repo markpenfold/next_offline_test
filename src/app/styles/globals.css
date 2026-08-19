@@ -1,14 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: rgb(245,245,245);
-  --background_b: rgb(235,235,235);
-  --foreground: rgb(30,30,30);
-  --foreground_b: rgb(41,41,41);
+  --background: rgb(245,245,245, 0.949);
+  --background_b: rgb(235,235,235, 0.949);
+  --foreground: rgb(30,30,3, 0.9490);
+  --foreground_b: rgb(41,41,41, 0.949);
   --darkie_a:rgba(32, 27, 25, 0.949);
-  --red:rgb(162, 5, 5);
-  --green:rgb(27, 99, 116);
-  --blue:rgb(65,105,225);
+  --red:rgb(162, 5, 5, 0.949);
+  --green:rgb(27, 99, 116, 0.949);
+  --blue:rgb(65,105,225, 0.949);
+  --window_bar: rgba(64, 58, 57, 0.949);
+  --feint:rgba(203, 197, 197, 0.949);
   
 }
 

@@ -446,9 +446,6 @@ function pickRandomOtherNodeId(
     );
   }
 
-////////////////////////////////////////////////
-// END WEBGL COPING MECHANISMS /////////////////
-////////////////////////////////////////////////
 
   return (
     <div ref={containerRef} className={styles.graphContainer}>

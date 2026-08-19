@@ -89,7 +89,7 @@
   min-height: 0;    /* 🟢 Crucial: Allows flex child to shrink/scroll instead of pushing parent */
   width: 100%;
   overflow: hidden;
-  background-color: var(--foreground_b);
+  background-color: #322e2e;
   color: rgb(245, 245, 245);
 }
 
@@ -172,7 +172,7 @@
   height: 32px;
   min-height: 32px;
   padding: 0 10px;
-  background:var(--darkie_a);
+  
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   user-select: none;
   width: 100%;
@@ -458,8 +458,8 @@
 }
 
 .buttonLoading { background-color: rgba(255, 255, 255, 0.2); cursor: not-allowed; }
-.buttonRemove { background-color: rgb(180, 35, 35); cursor: pointer; }
-.buttonAdd { background-color: rgb(34, 139, 34); cursor: pointer; }
+.buttonRemove { background-color: var(--red); cursor: pointer; }
+.buttonAdd { background-color: var(--green); cursor: pointer; }
 
 /* ==========================================================================
    5. EVENTS LIST & ROWS
@@ -622,7 +622,7 @@
 .sliderWrapper {
   flex-shrink: 0;
   width: 100%;
-  background: var(--foreground);
+  background: var(--window_bar);
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding: 8px 16px 12px 16px;
   box-sizing: border-box;
@@ -672,7 +672,7 @@
   height: 6px;
   appearance: none;
   -webkit-appearance: none;
-  background: var(--background);
+  background: var(--feint);
   color:var(--foreground);
   border-radius: 9999px;
   outline: none;
@@ -685,8 +685,8 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #3b82f6;
-  border: 2px solid #ffffff;
+  background: var(--blue);
+  border: 2px solid var(--feint);
   cursor: pointer;
   transition: transform 0.1s ease, background-color 0.15s ease;
 }
@@ -733,7 +733,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  background-color: #121218;
+  background-color: var(--foreground_b);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-family: monospace;
   user-select: none;
@@ -743,7 +743,7 @@
 .timelineRuler {
   position: relative;
   height: 36px;
-  background: #1a1a24;
+  background: var(--feint);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding: 0 20px;
   overflow: hidden;
@@ -760,14 +760,14 @@
   position: absolute;
   transform: translateX(-50%);
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--foreground_a);
   white-space: nowrap;
 }
 
 .timelineRulerTrack {
   position: relative;
   height: 6px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(85, 81, 81, 0.4);
   border-radius: 3px;
   margin-top: 4px;
 }
@@ -777,17 +777,17 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.75);
 }
 
 /* Track Zone & Zebra Background */
 .timelineTracksZone {
   position: relative;
   padding: 8px 16px;
-  min-height: 80px;
+  min-height: 180px;
   max-height: 440px;
   overflow-y: auto;
-  background-color: #16161e;
+  background-color: var(--foreground_a);
   direction: rtl; /* Left-side scrollbar */
 }
 
