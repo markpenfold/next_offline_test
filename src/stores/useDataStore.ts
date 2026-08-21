@@ -213,31 +213,6 @@ export async function populateSlots({
   };
 }
 
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-function triggerAutoSave(getStore: () => DATAStore) {
-  const state = getStore();
-  const accountId = state.accountId;
-
-  if (!accountId || !state.isInitialized || state.isInitializing) return;
-
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
-
-  autoSaveTimer = setTimeout(async function () {
-    const state = getStore();
-
-    await saveProject(accountId, state.activeProjectName, {
-      activeProjectName: state.activeProjectName,
-      activeDataViewIndexes: state.activeDataViewIndexes,
-      windowStartYear: state.windowStartYear,
-      isGeologicalTime: state.isGeologicalTime,
-      builderEvents: useUIStore.getState().timelineBuilderEvents,
-
-    });
-    console.log("SSSSSSSSSAVED COME ON YOU CUNT: ", useUIStore.getState().timelineBuilderEvents)
-    console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes.length} active slots]`);
-  }, 400);
-}
 
 
 function toIndexFileName(fileName: string): string {
@@ -316,7 +291,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   setIsGeologicalTime: function (val) {
     set({ isGeologicalTime: val });
-    triggerAutoSave(get);
+    //triggerAutoSave(get);
   },
 
   setWindowStartYear: function (year) {
@@ -333,7 +308,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     });
 
     set({ windowStartYear: year, slots: reSlicedSlots });
-    triggerAutoSave(get);
+   // triggerAutoSave(get);
   },
 
   setMasterBufferData: (buffer, metadata) =>
@@ -391,7 +366,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       tier: item.tier,
     });
 
-    triggerAutoSave(get);
+   // triggerAutoSave(get);
   },
 
   clearSlot: function (slotIndex) {
@@ -414,7 +389,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       lastChangedSlot: { indices: slotIndex, nonce: Date.now() },
     });
 
-    triggerAutoSave(get);
+   // triggerAutoSave(get);
   },
 
   clearFileFromSlots: function (target: string | AvailableIndex) {
@@ -432,7 +407,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
     });
 
-    triggerAutoSave(get);
+   // triggerAutoSave(get);
   },
 
   setSlotColor: (slotIndex: number, newColor: string) => {
@@ -440,7 +415,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     if (slots[slotIndex]) {
       slots[slotIndex] = { ...slots[slotIndex], color: newColor };
       set({ slots });
-      triggerAutoSave(get);
+     // triggerAutoSave(get);
     }
   },
 
@@ -509,7 +484,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
     });
 
-    triggerAutoSave(get);
+   // triggerAutoSave(get);
   },
 
   saveCurrentProjectAs: async function (projectName, accountId) {

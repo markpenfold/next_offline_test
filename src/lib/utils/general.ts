@@ -1,7 +1,6 @@
 import { TimelineEvent,} from '@/components/omenland/omenTypes';
 
 
-
 // Helper: Safely maps user/bucket tier strings to strictly "pro" or "free"
 export function normalizeTier(tierName?: string): "free" | "pro" {
   const lower = tierName?.toLowerCase();
