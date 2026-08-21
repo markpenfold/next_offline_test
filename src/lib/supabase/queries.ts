@@ -296,7 +296,7 @@ export async function setUpStripeCustomer(accountId:string, userId:string):Promi
         }
 
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-          apiVersion: "2026-05-27.dahlia"
+          apiVersion: "2026-07-29.dahlia"
         })
 
         const existingCustomers = await stripe.customers.search({

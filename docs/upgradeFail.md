@@ -84,7 +84,7 @@ Checkout routing failure: Error: You passed an empty string for 'flow_data[subsc
     'report-to': '{"group":"csp","max_age":8640,"endpoints":[{"url":"https://q.stripe.com/csp-report-v2?q=oVpjeE1FONF8rgOoyLub8uDA_4viyPn4AV3kbw8lEJ0wZuxZQlj83_fCETUGdRfkvr204d_5siIm3KcO&t=1"}],"include_subdomains":true}',
     'reporting-endpoints': 'csp="https://q.stripe.com/csp-report-v2?q=oVpjeE1FONF8rgOoyLub8uDA_4viyPn4AV3kbw8lEJ0wZuxZQlj83_fCETUGdRfkvr204d_5siIm3KcO&t=1"',
     'request-id': 'req_T0nwevNar4pMpF',
-    'stripe-version': '2026-05-27.dahlia',
+    'stripe-version': '2026-07-29.dahlia',
     vary: 'Origin',
     'x-stripe-priority-routing-enabled': 'true',
     'x-stripe-routing-context-priority-tier': 'api-testmode',
