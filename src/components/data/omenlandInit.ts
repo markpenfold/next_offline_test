@@ -18,6 +18,7 @@ import {
 import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
 
 import { useDATAStore } from "@/stores/useDataStore";
+import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
 
 // 🟢 Import DuckDB helpers to mount files into DuckDB VFS and build currentDataView at boot
 import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
@@ -130,6 +131,7 @@ async function loadFromSession(
   savedProjectsList: Array<{ name: string; handle: FileSystemFileHandle }>;
   resolvedProjectName: null;
   windowStart:number | null;
+  tlBuilderEvents: TimelineEvent[] |  null;
 }> {
   const savedProjectsList = await getSavedProjects(accountId).catch(() => []);
   const sessionConfig = await loadProject(accountId, null).catch(() => null);
@@ -151,6 +153,7 @@ async function loadFromSession(
       savedProjectsList,
       resolvedProjectName: null,
       windowStart: null,
+      tlBuilderEvents: null,
     };
   }
 
@@ -162,12 +165,15 @@ async function loadFromSession(
     accountId,
     isOnline
   );
-
+    
+  console.log("SESSION HAS THESE BUILDER EVENTS:",  sessionConfig.builderEvents);
+  
   return {
     activeIndexes,
     savedProjectsList,
     resolvedProjectName: null,
     windowStart: sessionConfig.windowStartYear || null,
+    tlBuilderEvents:sessionConfig.builderEvents || [],
   };
 }
 
@@ -181,7 +187,7 @@ export async function startOmenland(accountId: string): Promise<OmenlandInitPayl
   const { availableIndexes, localCacheIndexFiles, isOnline } = await getAllIndexes(accountId);
 
   // PHASE 2: Load Session / Verify Active Indexes
-  const { activeIndexes, savedProjectsList, resolvedProjectName, windowStart } = await loadFromSession(
+  const { activeIndexes, savedProjectsList, resolvedProjectName, windowStart, tlBuilderEvents } = await loadFromSession(
     accountId,
     localCacheIndexFiles,
     availableIndexes,
@@ -237,5 +243,6 @@ if (activeIndexes && activeIndexes.length > 0) {
     activeDataViewIndexes: activeIndexes,
     activeProjectName: resolvedProjectName,
     windowStartYear: windowStart,
+    builderEvents:tlBuilderEvents,
   };
 }

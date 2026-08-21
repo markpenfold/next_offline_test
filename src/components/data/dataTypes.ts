@@ -1,4 +1,4 @@
-
+import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
 export interface AvailableIndex {
   key:string;
   fileName: string;
@@ -74,6 +74,7 @@ export interface OmenlandInitPayload {
   windowStartYear?: number | null;
   fullYearRange?: [number, number] | null;
   isGeologicalTime?: boolean;
+  builderEvents?:  TimelineEvent[] | null;
 }
 
 export interface OPFSFile {
@@ -99,6 +100,8 @@ export interface ProjectConfig {
 
   /** ISO 8601 timestamp automatically recorded when saved to OPFS */
   updatedAt?: string;
+
+  builderEvents?:  TimelineEvent[];
 }
 
 export type TerrainYearStep = [

@@ -13,7 +13,6 @@ import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
 import { GraphNode, GraphLink, GraphData } from "@/components/omenland/omenTypes";
 import { sortTimelineEvents } from '@/lib/utils/general';
 
-
 interface GPUStatus {
   supported: boolean;
   [key: string]: any;
@@ -35,8 +34,6 @@ export interface UIStore {
     link: { sourceId: string; targetId: string; linkType: string } | null
   ) => void;
 
-
-
   addEventLink: (sourceId: string, targetId: string, linkType?: string, weight?: number) => void; // Add a link with type and weight
   updateEventGraphPosition: (eventId: string, x: number, y: number, z: number) => void; // Update event's graph node position
   updateEventLinks: (eventId: string, linkedTo: EventLink[]) => void; // Update event's linkedTo array
@@ -54,6 +51,7 @@ export interface UIStore {
   // Event State (Transient UI Data)
   latestClickedEvents: TimelineEvent[];
   timelineBuilderEvents: TimelineEvent[];
+  setTimelineBuilderEvents: (events: TimelineEvent[]) => void;
   setLatestClickedEvents: (events: TimelineEvent[]) => void;
   addToTimeline: (event: TimelineEvent) => void;
   removeFromTimeline: (eventId: string) => void;
@@ -84,11 +82,10 @@ export interface UIStore {
 export const useUIStore = create<UIStore>((set, get) => ({
 
   //////////////////////////////////////////////////////////////////////////
-  // EVENT METADATA - notes, graph positions, links
+  // EVENT METADATA - notes, graph positions, links ////////////////////////
   //////////////////////////////////////////////////////////////////////////
   updateEventNote: (eventId: string, note: string) => {
     const { timelineBuilderEvents } = get();
-
     const updated = sortTimelineEvents(timelineBuilderEvents.map(event =>
       event._id === eventId
         ? { ...event, userNote: note }
@@ -101,7 +98,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   updateEventGraphPosition: (eventId: string, x: number, y: number, z: number) => {
     const { timelineBuilderEvents } = get();
-
     const updatedEvents = sortTimelineEvents(timelineBuilderEvents.map(event => {
       if (event._id === eventId) {
         return {
@@ -118,7 +114,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   updateEventLinks: (eventId: string, linkedTo: EventLink[]) => {
     const { timelineBuilderEvents } = get();
-
     const updated = sortTimelineEvents(timelineBuilderEvents.map(event =>
       event._id === eventId
         ? { ...event, linkedTo }
@@ -193,8 +188,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
   },
 
   isUiDragging: false,
-  setIsUiDragging: (dragging) => set({ isUiDragging: dragging }),
 
+  setIsUiDragging: (dragging) => set({ isUiDragging: dragging }),
 
   updateEventLinkWeight: (sourceId: string, targetId: string, linkType: string, weight: number) => {
     const { timelineBuilderEvents } = get();
@@ -219,10 +214,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
     //console.log(`⚖️ Updated weight: ${sourceId} -> ${targetId} (${linkType}) = ${weight}`);
   },
 
-
-
-
-
   //////////////////////////////////////////////////////////////////////////
   // GRAPH STATE - nodes, links, selection, hover
   //////////////////////////////////////////////////////////////////////////
@@ -234,18 +225,16 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setHoveredNode: (node) => set({ hoveredNode: node }),
   selectedLink: null,
   setSelectedLink: (link) => set({ selectedLink: link }),
-
-
+  
   // Histories and Events Window
   activePanelTab: 'histories',
   setActivePanelTab: (tab) => set({ activePanelTab: tab }),
-
+  
   // Event State
   latestClickedEvents: [],
   timelineBuilderEvents: [],
-
   setLatestClickedEvents: (events) => set({ latestClickedEvents: events }),
-
+  setTimelineBuilderEvents: (events) => set({timelineBuilderEvents: events}),
   addToTimeline: (event) =>
     set((state) => {
       if (state.timelineBuilderEvents.some((e) => e._id === event._id)) {
@@ -253,19 +242,16 @@ export const useUIStore = create<UIStore>((set, get) => ({
       }
       return { timelineBuilderEvents: [...state.timelineBuilderEvents, event] };
     }),
-
   removeFromTimeline: (eventId) =>
     set((state) => ({
       timelineBuilderEvents: state.timelineBuilderEvents.filter((e) => e._id !== eventId),
     })),
-
   clearTimelineBuilder: () => set({ timelineBuilderEvents: [] }),
 
-  // Modals
+  // Modals ////
   finderIsOpen: false,
   setFinderOpen: (openORclosed) => set({ finderIsOpen: openORclosed }),
-
-  // Transient Loading Keys
+  // Transient Loading Keys ////
   loadingKeys: [],
   setKeyLoading: (key, isLoading) => {
     const currentKeys = get().loadingKeys;
@@ -276,7 +262,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set({ loadingKeys: nextKeys });
   },
 
-  // Pointer Interaction
+  // Pointer Interaction ////
   hoverCoord: null,
   setHoverCoord: (coord) =>
     set({
@@ -287,7 +273,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   gpuPreference: 'unset',
   gpuStatus: null,
   useWebGL: false,
-
+  
   setGpuPreference: async (pref) => {
     const accountId = useDATAStore.getState().accountId;
     const { gpuStatus } = get();
@@ -302,7 +288,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
       });
     }
   },
-
   resetGpuPreference: async () => {
     const accountId = useDATAStore.getState().accountId;
     set({ gpuPreference: 'unset', useWebGL: false });
@@ -316,7 +301,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
     await get().initWebGPUSupport(accountId);
   },
-
   initWebGPUSupport: async (accountId?: string | null) => {
     const targetAccountId = accountId ?? useDATAStore.getState().accountId ?? null;
 
@@ -351,5 +335,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
         }
       }
     }
-  },
-}));
+      },
+    }
+  )
+);

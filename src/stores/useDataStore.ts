@@ -20,6 +20,8 @@ import {
   checkFileExists, 
   saveToOPFSFolder,
 } from '@/components/data/diskOPFS';
+import { useUIStore } from '@/stores/useUIStore';
+
 
 // ============================================================================
 // 1. TYPES & INTERFACES
@@ -93,7 +95,7 @@ export interface DATAStore {
   setDataShards: (shards: AvailableDataShard[]) => void;
   refreshDataShards: () => Promise<AvailableDataShard[]>;
 
-
+  // Slots
   setIsGeologicalTime: (val: boolean) => void;
   setWindowStartYear: (year: number) => void;
   setMasterBufferData: (buffer: any, metadata: any[]) => void;
@@ -229,8 +231,10 @@ function triggerAutoSave(getStore: () => DATAStore) {
       activeDataViewIndexes: state.activeDataViewIndexes,
       windowStartYear: state.windowStartYear,
       isGeologicalTime: state.isGeologicalTime,
-    });
+      builderEvents: useUIStore.getState().timelineBuilderEvents,
 
+    });
+    console.log("SSSSSSSSSAVED COME ON YOU CUNT: ", useUIStore.getState().timelineBuilderEvents)
     console.log(`💾 Auto-saved state to OPFS [${state.activeDataViewIndexes.length} active slots]`);
   }, 400);
 }
@@ -466,7 +470,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       await saveProject(accountId, null, {
         activeProjectName: null,
         activeDataViewIndexes: [],
-        windowStartYear: 1000,
+        windowStartYear: null,
+        builderEvents: [],
       });
     }
   },
@@ -516,18 +521,16 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       activeDataViewIndexes: state.activeDataViewIndexes,
       windowStartYear: state.windowStartYear,
       isGeologicalTime: state.isGeologicalTime,
+      tlBuilderEvents: useUIStore.getState().timelineBuilderEvents,
     };
-
     await saveProject(accountId, projectName, projectPayload);
     await saveProject(accountId, null, projectPayload);
-
     set({ activeProjectName: projectName });
     await get().refreshLocalProjects(accountId);
   },
 
   loadNamedProject: async function (projectName: string, accountId?: string) {
     if (!accountId) return;
-
     const targetConfig = await loadProject(accountId, projectName);
     if (!targetConfig) return;
 
@@ -547,6 +550,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       totalYearSpan: result.totalYearSpan,
       lastChangedSlot: result.lastChangedSlot,
     });
+    useUIStore.getState().setTimelineBuilderEvents(targetConfig.builderEvents  || []);
   },
 
   refreshLocalProjects: async function (accountId) {
@@ -586,13 +590,16 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
         isInitialized: true,
         isInitializing: false,
       });
-    } catch (error) {
-      console.error('Critical failure during initialization:', error);
-      set({ isInitializing: false });
-    }
-  },
+
+      useUIStore.getState().setTimelineBuilderEvents(setUpData.builderEvents || []);
+      } catch (error) {
+        console.error('Critical failure during initialization:', error);
+        set({ isInitializing: false });
+      }
+    },
 
   downloadStatuses: {},
+
   inFlightDownloads: new Map(),
 
   getDownloadStatus: (fileName) => {
@@ -653,4 +660,5 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
     return downloadTask;
   },
+
 }));

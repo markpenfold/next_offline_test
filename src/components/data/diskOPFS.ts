@@ -330,6 +330,7 @@ export async function saveProject(
 
   try {
     const existing = (await loadProject(accountId, projectName)) || {};
+    
     const updatedConfig = {
       ...existing,
       ...patch,
