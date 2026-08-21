@@ -5,7 +5,7 @@ import Stripe from 'stripe'
 import { Database } from '@/lib/tl_utils/database_types'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-05-27.dahlia",
+  apiVersion: "2026-07-29.dahlia",
 })
 
 export async function GET(request: Request) {
