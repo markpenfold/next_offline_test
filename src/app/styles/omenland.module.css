@@ -739,6 +739,16 @@
   user-select: none;
 }
 
+.fullWidthWrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: rgba(41,41,41,0.94);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: monospace;
+  user-select: none;
+}
+
 /* Time Ruler Track */
 .timelineRuler {
   position: relative;
@@ -834,3 +844,116 @@
 
 
 
+.statusText {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.contentBody {
+  padding: 1rem;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.launchButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: #2563eb;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.launchButton:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.launchButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggleButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #475569;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.toggleButton:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.toggleLabel {
+  user-select: none;
+}
+
+.previewContainer {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.previewTitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.copyButton {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #2563eb;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.copyButton:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.promptCodeBox {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 9rem;
+  overflow-y: auto;
+}

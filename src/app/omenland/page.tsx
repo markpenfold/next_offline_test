@@ -34,10 +34,16 @@ export default function OmenPage() {
 
           <GraphModel />
         </div>
+
+        <div className={styles.full_width}>
+        <AskGeminiButton />
+        </div>
+       
         {/* Full-Width Bottom Timeline */}
         <div className={styles.full_width}>
+          
           <Footer >
-    <AskGeminiButton />
+    
           </Footer>
         </div>
 
