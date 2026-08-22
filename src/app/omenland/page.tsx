@@ -6,10 +6,13 @@ import GraphModel from "@/components/graph/GraphModel";
 import {Footer} from '@/components/omenland/Footer'
 import styles from "@/app/styles/omenland.module.css";
 export const dynamic = "force-static";
+import { ModalManager } from './ModalManager';
+import {AskGeminiButton} from '@/components/helpers/AskGeminiButton';
 
 export default function OmenPage() {
   return (
     <OmenWrap>
+      <ModalManager />
       <div className={styles.pageContainer}>
         {/* Top Workspace Row */}
         <div className={styles.topWorkspaceRow}>
@@ -34,7 +37,7 @@ export default function OmenPage() {
         {/* Full-Width Bottom Timeline */}
         <div className={styles.full_width}>
           <Footer >
-
+    <AskGeminiButton />
           </Footer>
         </div>
 

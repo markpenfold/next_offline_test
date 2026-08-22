@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { useDATAStore } from "@/stores/useDataStore";
+import { useUIStore } from "@/stores/useUIStore";
 
 export default function OmenlandLayout({
   children,
@@ -20,6 +21,7 @@ export default function OmenlandLayout({
 
   // DATAStore state & actions
   const { initializeOmenland, isInitialized } = useDATAStore();
+  
 
   // 1. Initialize the App Engine on layout mount
   useEffect(() => {

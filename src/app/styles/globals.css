@@ -27,7 +27,7 @@ html, body {
   color: var(--foreground);
   /* This makes Geist Sans the default font for everything */
   font-family: var(--font-geist-sans), sans-serif;
-  
+  overflow: hidden;
   /* Optional: Ensures smooth text rendering */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

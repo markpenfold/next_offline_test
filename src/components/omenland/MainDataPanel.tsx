@@ -12,7 +12,7 @@ import styles from "@/app/styles/omenland.module.css";
 export function MainDataPanel() {
   const activePanelTab = useUIStore((state) => state.activePanelTab);
   const setActivePanelTab = useUIStore((state) => state.setActivePanelTab);
-  const setFinderOpen = useUIStore((state) => state.setFinderOpen);
+
   const latestClickedEvents = useUIStore((state) => state.latestClickedEvents);
 
   return (
@@ -50,16 +50,7 @@ export function MainDataPanel() {
           </div>
         }
       >
-        <WindowBarIconButton
-          icon={<FolderOpen size={13} />}
-          tooltip="Open Project"
-          onClick={() => setFinderOpen(true)}
-        />
-        <WindowBarIconButton
-          icon={<Save size={13} />}
-          tooltip="Save Project"
-          onClick={() => console.log("Save clicked")}
-        />
+
       </WindowBar>
 
       <div className={styles.tabContentArea}>

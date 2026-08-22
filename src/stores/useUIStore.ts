@@ -61,6 +61,9 @@ export interface UIStore {
   finderIsOpen: boolean;
   setFinderOpen: (open: boolean) => void;
 
+  saverIsOpen: boolean;
+  setSaverOpen: (open: boolean) => void;
+
   // Transient Loading Indicators
   loadingKeys: string[];
   setKeyLoading: (key: string, isLoading: boolean) => void;
@@ -251,6 +254,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
   // Modals ////
   finderIsOpen: false,
   setFinderOpen: (openORclosed) => set({ finderIsOpen: openORclosed }),
+
+  saverIsOpen: false,
+  setSaverOpen: (openORclosed) => set({ finderIsOpen: openORclosed }),
   // Transient Loading Keys ////
   loadingKeys: [],
   setKeyLoading: (key, isLoading) => {
