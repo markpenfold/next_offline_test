@@ -18,7 +18,7 @@ export function ProjectSaveModal({ isOpen, onClose }: ProjectSaveModalProps) {
   
   const saveCurrentProjectAs = useDATAStore((state) => state.saveCurrentProjectAs);
   const refreshLocalProjects = useDATAStore((state) => state.refreshLocalProjects);
-
+  const createNewProject = useDATAStore((state) => state.createNewProject);
   // Check if UI store has active builder events
   const builderEvents = useUIStore((state) => state.timelineBuilderEvents);
 

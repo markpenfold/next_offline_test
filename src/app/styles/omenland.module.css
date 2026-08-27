@@ -957,3 +957,37 @@
   max-height: 9rem;
   overflow-y: auto;
 }
+
+.p4 {
+  padding:24px;
+}
+
+.pt2 {
+  padding-top:2px;
+}
+
+
+.versionTag {
+  font-size: 0.75rem;
+  color: #888;
+  margin-left: 6px;
+  padding: 1px 5px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.localBadge {
+  color:var(--green);
+  padding:4px;
+}
+
+.jumpToContainer {
+  margin-left: 10%;
+}
+
+.yearInput {
+  margin-left: 4px;
+  background: var(--feint);
+  color: var(--foreground);
+  padding-left: 4px;
+}

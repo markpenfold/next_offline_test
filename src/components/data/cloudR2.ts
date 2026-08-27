@@ -241,7 +241,15 @@ export function normalizeCategory(category: string): string {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///// list indexes using the API ///////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/*
+activeTier: normalizedTier, // the user's access level
+bucketUsed: BUCKET_NAME,  // indexes
+indexes: availableIndexes,  // array of AvailableIndex items
+  indexes:category,
+  tier,
+  versions, // Available versions for dropdown
+  defaultVersion: versions[0] || "v1", // Newest version selected by default
+*/
 export async function fetchAvailableIndexes(accountId: string): Promise<AvailableIndex[]> {
   const response = await fetch("/api/aggregates/list", {
     method: "POST",

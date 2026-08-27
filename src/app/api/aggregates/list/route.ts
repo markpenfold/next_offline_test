@@ -4,7 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { checkMembershipAndAccess } from "@/lib/supabase/queries";
 import { normalizeTier } from "@/lib/utils/general";
 
-// 1. Initialize R2 Client
+export interface AvailableIndex {
+  key: string;
+  fileName: string;
+  category: string;
+  tier: "free" | "pro";
+  version: string;
+  cube?: string;
+  s3Key?: string;
+  sizeBytes?: number;
+  handle?: FileSystemFileHandle;
+}
+
 const r2 = new S3Client({
   region: "auto",
   endpoint: process.env.R2_ENDPOINT,
@@ -20,41 +31,31 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // 2. Authenticate user session
+    // 1. Authenticate user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 3. Extract active account ID from request body
+    // 2. Validate request body
     const body = await req.json().catch(() => ({}));
     const { accountId } = body;
-
     if (!accountId) {
       return NextResponse.json({ error: "Missing required accountId" }, { status: 400 });
     }
 
-    // 4. Verify membership & retrieve raw tier
+    // 3. Verify membership & access tier
     const rawAccessTier = await checkMembershipAndAccess(user.id, accountId);
-
     if (!rawAccessTier || typeof rawAccessTier !== "string") {
-      return NextResponse.json(
-        { error: "Forbidden: You are not a member of this account" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Lock down user tier to strictly "free" or "pro"
     const normalizedTier = normalizeTier(rawAccessTier);
-
-    // 5. Determine R2 prefixes to scan
     const prefixesToScan = ["free/"];
-    if (normalizedTier === "pro") {
-      prefixesToScan.push("pro/");
-    }
+    if (normalizedTier === "pro") prefixesToScan.push("pro/");
 
-    // 6. Scan R2 prefixes concurrently
-    const listResponses = await Promise.all(
+    // 4. Fetch objects recursively under accessible tier folders
+    const objectResponses = await Promise.all(
       prefixesToScan.map((prefix) =>
         r2.send(
           new ListObjectsV2Command({
@@ -65,46 +66,60 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    // Flatten all returned R2 objects
-    const allObjects = listResponses.flatMap((res) => res.Contents || []);
+    // 5. Group objects by version directory level to collapse chunked files
+    const indexMap = new Map<string, AvailableIndex>();
 
-    // Filter out directory markers or empty keys
-    const validObjects = allObjects.filter((obj) => obj.Key && !obj.Key.endsWith("/"));
+    for (const res of objectResponses) {
+      for (const obj of res.Contents || []) {
+        if (!obj.Key || obj.Key.endsWith("/")) continue;
 
-    // 7. Parse metadata synchronously into AvailableIndex schema
-    const availableIndexes = validObjects.map((object) => {
-      const rawKey = object.Key!;
-      const parts = rawKey.split("/");
+        const parts = obj.Key.split("/").filter(Boolean);
 
-      // Structure: ['free' | 'pro', 'category=<cat>', 'version=<v>', 'data.parquet']
-      const tierStr = parts[0];
-      const tier = normalizeTier(tierStr);
+        // Find the folder segment containing the version
+        const versionIndex = parts.findIndex(
+          (p) => p.startsWith("version=") || p.match(/^v\d+$/i)
+        );
 
-      // Extract category (e.g. "category=music_albums" -> "music_albums")
-      const categoryPart = parts.find((p) => p.startsWith("master_category=")) || parts[1] || "";
-      const category = categoryPart.replace(/^master_category=/, "");
+        if (versionIndex === -1) continue; // Skip files outside a version scope
 
-      // Extract version (e.g. "version=v1" -> "v1")
-      const versionPart = parts.find((p) => p.startsWith("v")) || parts[parts.length - 2] || "v1";
-      const version = versionPart;
+        // Truncate path up to the version directory level
+        const versionFolderPath = parts.slice(0, versionIndex + 1).join("/") + "/";
 
-      // Unique OPFS-friendly identifier
-      const fileName = `index__${tier}__${category}__version__${version}.parquet`;
+        const tier = (normalizeTier(parts[0]) === "pro" ? "pro" : "free") as "free" | "pro";
 
-      return {
-        fileName,
-        category,             // Clean category string (e.g. "music_albums")
-        tier,                 // Guaranteed "free" | "pro"
-        version,              // Clean version string (e.g. "v1")
-        sizeBytes: object.Size,
-        lastModified: object.LastModified,
-      };
-    });
+        const categoryPart = parts.find((p) => p.startsWith("master_category=")) || parts[1] || "";
+        const category = categoryPart.replace(/^master_category=/, "");
+
+        const versionRaw = parts[versionIndex];
+        const version = versionRaw.replace(/^version=/, "");
+
+        // Dedup key based on version folder path
+        const mapKey = versionFolderPath;
+
+        if (!indexMap.has(mapKey)) {
+          indexMap.set(mapKey, {
+            key: mapKey,
+            fileName: `${category}_${version}.parquet`,
+            category,
+            tier,
+            version,
+            s3Key: versionFolderPath,
+            sizeBytes: obj.Size || 0,
+          });
+        } else {
+          // Sum up bytes across all parquet chunks in this version directory
+          const existing = indexMap.get(mapKey)!;
+          existing.sizeBytes = (existing.sizeBytes || 0) + (obj.Size || 0);
+        }
+      }
+    }
+
+    const indexes = Array.from(indexMap.values());
 
     return NextResponse.json({
       activeTier: normalizedTier,
       bucketUsed: BUCKET_NAME,
-      indexes: availableIndexes,
+      indexes,
     });
 
   } catch (error: any) {

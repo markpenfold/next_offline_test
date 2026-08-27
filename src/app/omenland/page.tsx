@@ -43,7 +43,13 @@ export default function OmenPage() {
         <div className={styles.full_width}>
           
           <Footer >
-    
+            <div className={styles.pt2}>
+            <p className={styles.pt2}>Contact</p>
+            <p className={styles.pt2}>About</p>
+            <p className={styles.pt2}>User guide</p>
+            <p className={styles.pt2}>Pricing</p>
+            </div>
+            
           </Footer>
         </div>
 

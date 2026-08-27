@@ -4,17 +4,26 @@ export interface AvailableIndex {
   fileName: string;
   category:string;
   tier: "free" | "pro"; 
-  cube: string;         
+  version:string;    
   s3Key?: string;        
   sizeBytes?: number;   
   handle?: FileSystemFileHandle; 
-  version:string;
+
+}
+
+export interface AvailableIndex2 {
+  key?:string;
+  fileName: string;
+  category:string;
+  tier: "free" | "pro"; 
+  handle?: FileSystemFileHandle; 
+  default_version:string;
+  versions:string[];
 }
 
 export interface DownloadIndexOptions {
   item: AvailableIndex;
   accountId: string;
-  onLog?: (msg: string) => void;
 }
 
 export interface AvailableDataShard {
@@ -38,7 +47,6 @@ export interface IndexRow {
 export interface GetShardParams {
   item: AvailableDataShard;
   accountId?: string;
-  onLog?: (msg: string) => void;
 }
 
 export interface AvailableDataShard {

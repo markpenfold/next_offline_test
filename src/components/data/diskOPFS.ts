@@ -169,7 +169,7 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
         const parts = name.replace('.parquet', '').split('__');
         
         const tier = (parts[1] as "free" | "pro") || 'free';
-        const cube = parts[2] || 'unknown';
+        const cat = parts[2] || 'unknown';
         const version = parts[4] || 'v1';
         
         const file = await handle.getFile();
@@ -178,8 +178,7 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
           key: name, 
           fileName: name,
           tier,
-          cube,
-          category: cube,
+          category: cat,
           version,
           sizeBytes: file.size,
           handle,

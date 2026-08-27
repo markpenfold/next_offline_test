@@ -583,6 +583,10 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
 
   getFullDataShards: async (item, accountId) => {
     const fileName = item.fileName;
+
+    console.log("CUNTING CUTTUFKCL getFullDataShards fileName:", fileName);
+
+
     const { inFlightDownloads, downloadStatuses } = get();
 
     if (inFlightDownloads.has(fileName)) {
@@ -604,6 +608,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
           fileName,
           accountId,
         });
+
+        console.log("FUCKING CUNT BUCKET:", result);
 
         if (!result.success) {
           throw new Error(`Failed to retrieve shards for index: ${fileName}`);

@@ -7,7 +7,6 @@ import {Brain, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
 import { WindowBar, WindowBarIconButton} from "@/components/omenland/WindowBar";
 import styles from "@/app/styles/omenland.module.css";
 
-
 export function AskGeminiButton() {
   const timelineBuilderEvents = useUIStore(
     (state) => state.timelineBuilderEvents

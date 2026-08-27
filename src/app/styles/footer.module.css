@@ -4,10 +4,10 @@
 
 .footerContainer {
   width: 100%;
-  background-color: var(--background);
+  background-color: var(--foreground);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--foreground);
-  font-size: 0.875rem;
+  color: var(--feint);
+  font-size: 0.775rem;
   box-sizing: border-box;
   flex-shrink: 0;
 }

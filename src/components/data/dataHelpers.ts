@@ -21,7 +21,6 @@ import { getOPFSFileHandle } from '@/components/data/diskOPFS';
 export function formatIndexDisplayName(category = "", version = "v1"): string {
   const formattedCategory = category
     .replace(/^category=/i, "")
-    .replace(/^history_/i, "")
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
