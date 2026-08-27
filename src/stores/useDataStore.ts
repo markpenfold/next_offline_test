@@ -438,7 +438,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       slots: [],
       activeDataViewIndexes: [],
       activeProjectName: null,
-      windowStartYear: 1000,
+      windowStartYear: null,
     });
 
     if (accountId) {
@@ -509,12 +509,14 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
     const targetConfig = await loadProject(accountId, projectName);
     if (!targetConfig) return;
 
+    console.log("LOADING THIS CONFIG::::>", targetConfig);
     const result = await populateSlots({
       items: targetConfig.activeDataViewIndexes || [],
       currentSlots: [],
       windowStartYear: targetConfig.windowStartYear ?? null,
       mode: 'replace',
     });
+    
 
     set({
       slots: result.slots,

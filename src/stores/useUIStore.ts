@@ -256,7 +256,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setFinderOpen: (openORclosed) => set({ finderIsOpen: openORclosed }),
 
   saverIsOpen: false,
-  setSaverOpen: (openORclosed) => set({ finderIsOpen: openORclosed }),
+  setSaverOpen: (openORclosed) => set({ saverIsOpen: openORclosed }),
   // Transient Loading Keys ////
   loadingKeys: [],
   setKeyLoading: (key, isLoading) => {

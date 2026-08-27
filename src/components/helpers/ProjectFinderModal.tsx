@@ -1,47 +1,49 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useDATAStore } from "@/stores/useDataStore"; // Adjust import path
+import { useDATAStore } from "@/stores/useDataStore";
+import { useUIStore } from "@/stores/useUIStore";
 import styles from "./helpers.module.css";
 
-interface ProjectFinderModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export function ProjectFinderModal({ isOpen, onClose }: ProjectFinderModalProps) {
-  // 1. Pull reactive state and actions directly from your Zustand store
+export function ProjectFinderModal() {
+  // Data Store
   const accountId = useDATAStore((state) => state.accountId);
   const localProjects = useDATAStore((state) => state.localProjects);
   const refreshLocalProjects = useDATAStore((state) => state.refreshLocalProjects);
   const loadNamedProject = useDATAStore((state) => state.loadNamedProject);
 
+  // UI Store
+  const finderIsOpen = useUIStore((state) => state.finderIsOpen);
+  const setFinderOpen = useUIStore((state) => state.setFinderOpen);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProject, setLoadingProject] = useState<string | null>(null);
 
-  // 2. Fetch fresh OPFS project listings whenever the modal opens
+  const handleClose = () => setFinderOpen(false);
+
+  // Fetch fresh OPFS project listings whenever the modal opens
   useEffect(() => {
-    if (isOpen && accountId) {
+    if (finderIsOpen && accountId) {
       setIsLoading(true);
       refreshLocalProjects(accountId).finally(() => setIsLoading(false));
     }
-  }, [isOpen, accountId, refreshLocalProjects]);
+  }, [finderIsOpen, accountId, refreshLocalProjects]);
 
-  if (!isOpen) return null;
+  if (!finderIsOpen) return null;
 
-  // 3. Filter projects stored in Zustand
+  // Filter projects stored in Zustand
   const filteredProjects = localProjects.filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 4. Delegate project loading to `loadNamedProject`
+  // Delegate project loading to `loadNamedProject`
   const handleSelect = async (projectName: string) => {
     if (!accountId) return;
     try {
       setLoadingProject(projectName);
       await loadNamedProject(projectName, accountId);
-      onClose();
+      handleClose();
     } catch (err) {
       console.error("Failed to load project via store:", err);
     } finally {
@@ -61,7 +63,7 @@ export function ProjectFinderModal({ isOpen, onClose }: ProjectFinderModalProps)
             </svg>
             <h2 className={styles.title}>Open Local Project</h2>
           </div>
-          <button onClick={onClose} className={styles.closeButton}>
+          <button onClick={handleClose} className={styles.closeButton}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -123,7 +125,7 @@ export function ProjectFinderModal({ isOpen, onClose }: ProjectFinderModalProps)
         {/* Footer */}
         <div className={styles.footer}>
           <span>Storage: Browser OPFS</span>
-          <button onClick={onClose} className={styles.cancelButton}>
+          <button onClick={handleClose} className={styles.cancelButton}>
             Cancel
           </button>
         </div>

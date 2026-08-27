@@ -50,7 +50,6 @@ export async function getOPFSFileHandle(
   }
 }
 
-
 /**
  * Returns all (name + file handle) entries in a specified OPFS folder
  */
@@ -318,6 +317,7 @@ export async function loadProject(
   }
 }
 
+// This should really be 'saveExistingProject'
 export async function saveProject(
   accountId: string, 
   projectName: string | null | undefined, 
