@@ -50,7 +50,7 @@ export function ProjectSaveModal() {
     (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
   );
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async(e: React.SubmitEvent) => {
     e.preventDefault();
     if (!trimmedName || !accountId) return;
 

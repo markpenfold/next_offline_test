@@ -13,14 +13,8 @@ export function ModalManager() {
 
   return (
     <>
-      <ProjectFinderModal
-        isOpen={isFinderOpen}
-        onClose={() => setFinderOpen(false)}
-      />
-      <ProjectSaveModal
-        isOpen={isSaverOpen}
-        onClose={() => setSaverOpen(false)}
-      />
+      <ProjectFinderModal />
+      <ProjectSaveModal />
     </>
   );
 }
