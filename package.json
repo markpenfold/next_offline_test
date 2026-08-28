@@ -6,7 +6,7 @@
     "clean": "rm -rf .next node_modules/.cache",
     "dev": "next dev",
     "build": "next build",
-    "start": "node .next/standalone/server.js",
+    "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {

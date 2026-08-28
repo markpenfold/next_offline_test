@@ -12,6 +12,12 @@ import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_q
 //const SCHEMA_VERSION = 'v2_0_0';
 export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
   console.log("CreateAppStore RUNS with initial Tier of:",initialTier );
+  // Prevent browser-only APIs from running on the Node server during SSG
+  const isServer = typeof window === "undefined";
+
+  const initialData = isServer 
+    ? { tier: initialTier } 
+    : { tier: localStorage.getItem("user_tier") || initialTier };
 
   return createStore<AppState>()((set, get) => ({
     // Default Initial States
