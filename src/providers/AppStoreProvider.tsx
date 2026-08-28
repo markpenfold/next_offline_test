@@ -1,4 +1,4 @@
-// 📄 src/providers/AppStoreProvider.tsx
+// src/providers/AppStoreProvider.tsx
 'use client'
 
 import { createContext, useContext, useRef, useEffect } from 'react';
@@ -25,12 +25,13 @@ export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { child
     const store = storeRef.current;
     if (!store) return;
 
-    console.log("🔥 useEffect FIRED");
-    // THE SELF-STARTUP TRIGGER: Launches online/offline orchestration
-    store.getState().initializeWorkspace();
+    // Only run workspace initialization in the actual browser environment
+    if (typeof window !== 'undefined') {
+      store.getState().initializeWorkspace();
+    }
 
     const handlePageShow = (e: PageTransitionEvent) => {
-      console.log("📄 pageshow fired, persisted:", e.persisted);
+      console.log("pageshow fired, persisted:", e.persisted);
       if (e.persisted) {
         store.getState().initializeWorkspace();
       }

@@ -8,7 +8,7 @@ import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_q
 
 
 
-const supabase = createClient();
+//const supabase = createClient();
 //const SCHEMA_VERSION = 'v2_0_0';
 export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
   console.log("CreateAppStore RUNS with initial Tier of:",initialTier );
@@ -149,6 +149,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     // 2. LIVE DATABASE SYNCHRONIZATION (Handles Stripe returns & Auto-Logins from password changes)
     syncFromDatabase: async () => {
       try {
+        const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         
         // If no active auth cookie is detected on the device, nuke local states safely
@@ -270,6 +271,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       try {
         // If online, tell Supabase to sign out and invalidate server cookies
         if (get().isOnline) {
+          const supabase = createClient();
           await supabase.auth.signOut();
         }
       } catch (e) {
@@ -287,7 +289,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
 
       try {
         console.log("Syncing subscription tier with database...");
-
+        const supabase = createClient();
         // Get plan name given the active account ID
         const { data, error } = await supabase
           .from('accounts')
