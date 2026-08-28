@@ -4,10 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin' // 🛡️ Import your admin utility
 import { UserTier } from '@/lib/tl_utils/types'
 import { getAccountContext } from '@/lib/supabase/queries'
-
+import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-07-29.dahlia"
+  apiVersion: STRIPE_API_VERSION
 })
 
 const PRICE_IDS: Record<string, string> = {

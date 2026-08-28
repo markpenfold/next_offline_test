@@ -7,9 +7,10 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { Database, Tables } from '@/lib/tl_utils/database_types'
 import { sendEmergencyAdminAlert } from '@/lib/utils/sendEmergencyLog'
 import { PRICE_IDS } from '@/lib/utils/constants'
+import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-07-29.dahlia",
+  apiVersion:STRIPE_API_VERSION
 });
 
 // TIER MAP

@@ -6,6 +6,7 @@ import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
 import { Database, Tables } from '@/lib/tl_utils/database_types'
 import { SupabaseClient, QueryData } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
 
 // Using 'cache' ensures that if you call this 3 times in 
 // one request, it only hits the database ONCE.
@@ -296,7 +297,7 @@ export async function setUpStripeCustomer(accountId:string, userId:string):Promi
         }
 
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-          apiVersion: "2026-07-29.dahlia"
+          apiVersion: STRIPE_API_VERSION
         })
 
         const existingCustomers = await stripe.customers.search({

@@ -1,6 +1,9 @@
 import Stripe from 'stripe';
+import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
+
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-07-29.dahlia"
+  apiVersion: STRIPE_API_VERSION
 })
 
 export async function getUserBillingPeriod(customerId:string) {
