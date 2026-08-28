@@ -11,6 +11,9 @@ export function ContactUsCard() {
   const [body, setBody] = useState('')
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const profile = useAppStore((s) => s.profile)
+  const activeAccount = useAppStore((s) => s.activeAccount)
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,8 +21,6 @@ export function ContactUsCard() {
     setErrorMessage('')
 
     // Read latest store state at submission time
-    const profile = useAppStore((s) => s.profile)
-    const activeAccount = useAppStore((s) => s.activeAccount)
 
     const cleanSubject = DOMPurify.sanitize(subject.trim())
     const cleanBody = DOMPurify.sanitize(body.trim())
