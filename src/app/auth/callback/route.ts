@@ -3,9 +3,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { Database } from '@/lib/tl_utils/database_types'
+import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-08-26.dahlia",
+  apiVersion: STRIPE_API_VERSION,
 })
 
 export async function GET(request: Request) {
