@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     // 1. Forward the enquiry to unbornbuddhamind@gmail.com
     // Sets 'replyTo' to the user's email so clicking "Reply" in Gmail replies directly to the user
     await resend.emails.send({
-      from: 'Omenland <hello@omen.land>',
+      from: 'Omenland <incoming@omen.land>',
       to: ['unbornbuddhamind@gmail.com'],
       replyTo: userEmail || undefined,
       subject: `[Website Enquiry] ${subject}`,
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       await resend.emails.send({
         from: 'Omenland <hello@omen.land>',
         to: [userEmail],
-        subject: `We've received your message`,
+        subject: `We've received your message. Maybe there will be a sign.`,
         html: `
           <p>Hi ${userInfo.username},</p>
           <p>Thanks for getting in touch! We've received your message and will read through it shortly.</p>
