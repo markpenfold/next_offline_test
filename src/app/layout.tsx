@@ -4,7 +4,7 @@ import { AppStoreProvider } from "@/providers/AppStoreProvider";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from 'react-hot-toast';
 import { StoreSync } from '@/stores/StoreSync';
-
+import { Analytics } from "@vercel/analytics/next"
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -27,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body >
+        <Analytics/>
         <AppStoreProvider initialTier="none">
           <StoreSync/>
               {children}

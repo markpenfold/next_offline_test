@@ -19,6 +19,7 @@
     "@stripe/stripe-js": "^9.7.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
+    "@vercel/analytics": "^2.0.1",
     "dompurify": "^3.4.14",
     "jose": "^6.2.3",
     "lodash": "^4.18.1",
