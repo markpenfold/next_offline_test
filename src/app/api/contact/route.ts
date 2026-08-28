@@ -37,10 +37,11 @@ export async function POST(req: Request) {
       await resend.emails.send({
         from: 'Omenland <hello@omen.land>',
         to: [userEmail],
-        subject: `We've received your message. Maybe there will be a sign.`,
+        subject: `We've received your message`,
         html: `
           <p>Hi ${userInfo.username},</p>
-          <p>Thanks for getting in touch! We've received your message and will read through it shortly.</p>
+          <p>Thanks for getting in touch.</p>
+          <p>We try to reply to all genuine enquiries</p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
           <p><strong>Your Message:</strong></p>
           <p style="color: #555;"><em>${body.replace(/\n/g, '<br>')}</em></p>
