@@ -21,9 +21,8 @@ export default function AccountDetailsCard() {
   }
 
   return (
-    <div className={styles.gridCard}>
-      <h1 className={styles.AccountCardHeader}>Account Details</h1>
-
+    
+<>
       {/* =========================================================
           🟢 THE INTERACTIVE HOT-SWAP DROPDOWN
           Only renders if the user belongs to more than 1 workspace
@@ -70,6 +69,6 @@ export default function AccountDetailsCard() {
           )}
         </div>
       </div>
-    </div>
+  </>
   )
 }

@@ -61,8 +61,7 @@ export function SandboxWorkspace() {
   };
 
   return (
-    <div className={styles.gridCard}>
-      <h1 className={styles.AccountCardHeader}>Sandbox</h1>
+    <>
         <p className={styles.detailText}> for account: {activeAccount?.id || profile?.username || 'Guest'}</p>
         
         <div style={{ padding: '15px', background: '#f1f5f9', borderRadius: '8px', marginBottom: '20px' }}>
@@ -110,7 +109,7 @@ export function SandboxWorkspace() {
             </div>
           )}
         </div>
-      </div>
+  </>
 
   );
 }

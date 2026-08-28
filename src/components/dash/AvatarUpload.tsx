@@ -123,11 +123,8 @@ export function AvatarUpload() {
   }
 
   return (
-   <div className={styles.gridCard}>
 
-    <h1 className={styles.AccountCardHeader}>Upload your Avatar</h1>
-
- 
+ <>
   <label 
     className={`${styles.dropZone} ${isDragging ? styles.dragging : ''}`}
     onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -207,6 +204,6 @@ export function AvatarUpload() {
       {uploading ? 'DELETING...' : 'DELETE AVATAR'}
     </button>
   )}
-</div>
+</>
   )
 }
