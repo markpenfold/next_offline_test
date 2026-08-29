@@ -3,15 +3,6 @@
    1. PAGE LAYOUT CONTAINER & RESPONSIVE FLEXBOX
    ========================================================================== */
 
-.pageContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100vh;
-  box-sizing: border-box;
-  overflow-x: hidden;
-  overflow-y: auto; /* Single master scrollbar when timeline grows downward */
-}
 
 /* Top Workspace Row: Holds 25% Sidebar + 75% Terrain View */
 .topWorkspaceRow {

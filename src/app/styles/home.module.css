@@ -1,8 +1,3 @@
-.pageContainer {
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-}
 
 .oneTwoOne {
   display: grid;
@@ -10,6 +5,7 @@
   max-width: 100vw;
   overflow-x: hidden;
 }
+
 
 .oneTwoThreeFour {
   display: grid;
