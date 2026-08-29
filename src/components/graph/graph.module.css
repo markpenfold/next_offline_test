@@ -432,7 +432,7 @@
   display: grid;
   grid-template-columns: 3fr 1fr; /* 75% | 25% */
   width: 100%;
-  height: 100vh; /* Adjust or set to 100% depending on parent layout height */
+  height: 60vh; /* Adjust or set to 100% depending on parent layout height */
   overflow: hidden;
   background: var(--foreground)
 }

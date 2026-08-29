@@ -71,16 +71,15 @@ export function AskGeminiButton() {
 
       <div className={styles.contentBody}>
         <div className={styles.actionRow}>
-          <button
-            onClick={handleLaunchGemini}
-            disabled={isDisabled}
-            className={styles.launchButton}
-          >
-            <Sparkles size={16} />
-           Let's make history!
-          </button>
+          
+        <div className={styles.launchGroup}>
+          <p className={styles.gemini_instruct}>
+              Send your selected timeline of events to Gemini for instant analysis
+            </p>
+          <div className={styles.launchButtonGroup}>
+           
 
-          {!isDisabled && (
+            {!isDisabled && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className={styles.toggleButton}
@@ -89,9 +88,28 @@ export function AskGeminiButton() {
               <span className={styles.toggleLabel}>
                 {isExpanded ? "Hide Prompt" : "Show Prompt"}
               </span>
-              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              
             </button>
           )}
+           <button
+              onClick={handleLaunchGemini}
+              disabled={isDisabled}
+              className={styles.launchButton}
+            >
+              <Sparkles size={16} />
+              Let's make history!
+            </button>
+
+          </div>
+
+            
+            <p className={styles.gemini_instruct}>
+              Just hit 'Run' when you get there!
+            </p>
+          </div>
+
+
+          
         </div>
 
         {!isDisabled && isExpanded && (
