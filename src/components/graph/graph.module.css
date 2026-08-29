@@ -451,7 +451,7 @@
   width: 100%;
   border-left: 1px solid #2a2a2a; /* Optional separator border */
   background-color: #1a1a1a;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 .graphEditor {

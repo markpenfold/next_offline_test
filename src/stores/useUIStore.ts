@@ -64,6 +64,9 @@ export interface UIStore {
   saverIsOpen: boolean;
   setSaverOpen: (open: boolean) => void;
 
+  terrainMax: boolean;
+  setTerrainMax: (maxORnot: boolean) => void;
+
   // Transient Loading Indicators
   loadingKeys: string[];
   setKeyLoading: (key: string, isLoading: boolean) => void;
@@ -257,6 +260,11 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
   saverIsOpen: false,
   setSaverOpen: (openORclosed) => set({ saverIsOpen: openORclosed }),
+
+  terrainMax: false,
+  setTerrainMax: (maxOrNot) => set({ terrainMax: maxOrNot }),
+
+
   // Transient Loading Keys ////
   loadingKeys: [],
   setKeyLoading: (key, isLoading) => {

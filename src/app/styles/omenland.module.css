@@ -606,6 +606,16 @@
   position: relative;
   background-color: var(--foreground);
   overflow: hidden;
+  transition: all 0.2s ease-in-out;
+}
+
+.stageContainer.maximized {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
 }
 
 .canvasWrapper {

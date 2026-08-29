@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Globe, Maximize2, Minimize2, Settings, FolderOpen, Save  } from "lucide-react";
 import { WindowBar, WindowBarIconButton } from "@/components/omenland/WindowBar";
-import { OmenMenu } from '@/components/omenland/OmenlandMenu';
 import { TimelineSlider } from '@/components/terrain/Slider';
 import { MasterBufferHUD } from "@/components/terrain/terrainHUD";
 import { MyCanvas } from '@/components/terrain/MyCanvas';
@@ -11,12 +10,14 @@ import styles from "@/app/styles/omenland.module.css";
 import { useUIStore } from "@/stores/useUIStore";
 
 export function TerrainWindow() {
-  const [isMaximized, setIsMaximized] = useState(false);
+  
   const setFinderOpen = useUIStore((state) => state.setFinderOpen);
   const setSaverOpen = useUIStore((state) => state.setSaverOpen);
+  const setTerrainMax = useUIStore((state) => state.setTerrainMax);
+  const terrainMax = useUIStore((state) => state.terrainMax);
 
   return (
-    <div className={styles.stageContainer}>
+    <div className={`${styles.stageContainer} ${terrainMax ? styles.maximized : ''}`}>
       <WindowBar
           title="Terrain View" icon={<Globe size={14} />}>
         <WindowBarIconButton
@@ -30,20 +31,12 @@ export function TerrainWindow() {
           onClick={() => setSaverOpen(true)}
         />
         {/* Pass WindowBarIconButton as the trigger into OmenMenu */}
-        <OmenMenu
-          align="right"
-          trigger={
-            <WindowBarIconButton
-              icon={<Settings size={13} />}
-              tooltip="Terrain & App Settings"
-            />
-          }
-        />
+
 
         <WindowBarIconButton
-          icon={isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-          tooltip={isMaximized ? "Restore Window" : "Maximize Window"}
-          onClick={() => setIsMaximized(!isMaximized)}
+          icon={terrainMax ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          tooltip={terrainMax ? "Restore Window" : "Maximize Window"}
+          onClick={() => setTerrainMax(!terrainMax)}
         />
       </WindowBar>
 
