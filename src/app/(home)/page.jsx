@@ -11,7 +11,7 @@ export default async function HomePage() {
     <div className={classes.navholder}>
       <SiteNav />
     </div>
-
+<div  className={classes.spacer}></div>
     <div className={classes.section}>
         <div className={`${classes.omenland}`}>OMENLAND</div>
     </div>
@@ -39,11 +39,9 @@ export default async function HomePage() {
             <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos.</p>
             
             <div  className={classes.spacer}></div>
-            <div className={classes.filmie}>
-            <img src='./terrain.png' />
-              </div>
+
               <div  className={classes.spacer}></div>
-            <p>This is work for adventurous spirits.</p>
+            <p>"This is work for adventurous spirits."</p>
           </div>
         <div></div>
       </div>
@@ -113,10 +111,12 @@ export default async function HomePage() {
  <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
 
+            <div className={classes.filmie}>
+            <img src='./terrain.png' />
+              </div>
 
 
-
-
+<div  className={classes.spacer}></div><div  className={classes.spacer}></div><div  className={classes.spacer}></div>
 <div  className={classes.sectionDark}>
   <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
