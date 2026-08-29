@@ -296,7 +296,7 @@
 .nodeWrapper {
   position: relative;
   width: 100%;
-  font-size: 10px;
+  font-size: 14px;
 }
 
 .hoveredBg {
@@ -430,7 +430,7 @@
 /* Parent container establishing the 3/4 and 1/4 split screen */
 .graphContainerSplit {
   display: grid;
-  grid-template-columns: 3fr 1fr; /* 75% | 25% */
+  grid-template-columns: 2fr 1fr; 
   width: 100%;
   height: 60vh; /* Adjust or set to 100% depending on parent layout height */
   overflow: hidden;
