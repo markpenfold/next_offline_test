@@ -2,82 +2,89 @@ import { MDXRemote } from 'next-mdx-remote/rsc';
 import remarkGfm from 'remark-gfm';
 import matter from 'gray-matter';
 import styles from '@/app/styles/markdown.module.css';
-import { SiteNav } from '@/components/identity/SiteNav'
-
-const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_SITE_CONTENT_URL || '';
-const R2_BASE_URL = `${R2_PUBLIC_URL}/omenland_pages/about`;
-
-const mdxComponents = {
-  img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
-    const rawSrc = typeof props.src === 'string' ? props.src : '';
-    const src = rawSrc.startsWith('http') 
-      ? rawSrc 
-      : `${R2_BASE_URL}/${rawSrc.replace(/^\.\//, '')}`;
-      
-    return (
-      <span className={styles.centeredImageWrapper}>
-        <img {...props} src={src} className={styles.markdownImage} alt={props.alt || ''} />
-        {props.alt && <span className={styles.imageCaption}>{props.alt}</span>}
-      </span>
-    );
-  },
-};
 
 export default async function AboutPage() {
+  // Read dynamically at runtime and clean trailing slashes
+  const rawDomain = (
+    process.env.NEXT_PUBLIC_R2_SITE_CONTENT_URL || 
+    process.env.R2_ENDPOINT || 
+    ''
+  ).replace(/\/+$/, '');
+
+  const R2_BASE_URL = `${rawDomain}/omenland_pages/about`;
   const targetUrl = `${R2_BASE_URL}/omenland.md`;
 
-  const res = await fetch(targetUrl, {
-    cache: process.env.NODE_ENV === 'development' ? 'no-store' : 'default',
-    next: { revalidate: process.env.NODE_ENV === 'development' ? 0 : 3600 },
-  });
+  const mdxComponents = {
+    img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
+      const rawSrc = typeof props.src === 'string' ? props.src : '';
+      const src = rawSrc.startsWith('http') 
+        ? rawSrc 
+        : `${R2_BASE_URL}/${rawSrc.replace(/^\.\//, '')}`;
+        
+      return (
+        <span className={styles.centeredImageWrapper}>
+          <img {...props} src={src} className={styles.markdownImage} alt={props.alt || ''} />
+          {props.alt && <span className={styles.imageCaption}>{props.alt}</span>}
+        </span>
+      );
+    },
+  };
 
-  if (!res.ok) {
-    return <div className={styles.error}>Failed to load content from R2.</div>;
-  }
+  try {
+    const res = await fetch(targetUrl, {
+      cache: 'no-store', // Temporarily bypass Vercel Data Cache to force a fresh hit
+    });
 
-  const rawText = await res.text();
-  
-  // Extract frontmatter metadata (data) and body text (content)
-  const { data, content } = matter(rawText);
-
-  // Resolve hero image URL if specified in frontmatter
-  const heroUrl = data.heroImage
-    ? data.heroImage.startsWith('http')
-      ? data.heroImage
-      : `${R2_BASE_URL}/${data.heroImage.replace(/^\.\//, '')}`
-    : null;
-
-  return (
-    <>
-            <SiteNav/>
-
-    <div className={`pageContainer darkBackground ${styles.omenlandAboutLayout}`}>
-
-      {/* 1. Full-Width Hero Image from Frontmatter */}
-      {heroUrl && (
-        <div className={styles.heroWrapper}>
-          <img src={heroUrl} alt={data.title || 'Hero image'} className={styles.heroImage} />
+    if (!res.ok) {
+      return (
+        <div style={{ color: '#ef4444', padding: '2rem', fontFamily: 'monospace' }}>
+          <h3>R2 Fetch Error (HTTP {res.status})</h3>
+          <p><b>Attempted URL:</b> <code>{targetUrl}</code></p>
+          <p><b>Status Text:</b> {res.statusText}</p>
         </div>
-      )}
+      );
+    }
 
-      <article className={styles.proseContainer}>
-        {/* 2. Structured Header & Subhead from Frontmatter */}
-        {data.title && <h1 className={styles.pageTitle}>{data.title}</h1>}
-        {data.subtitle && <p className={styles.pageSubtitle}>{data.subtitle}</p>}
+    const rawText = await res.text();
+    const { data, content } = matter(rawText);
 
+    const heroUrl = data.heroImage
+      ? data.heroImage.startsWith('http')
+        ? data.heroImage
+        : `${R2_BASE_URL}/${data.heroImage.replace(/^\.\//, '')}`
+      : null;
 
-        {/* 3. Render pure Markdown body */}
-        <MDXRemote
-          source={content}
-          options={{
-            mdxOptions: {
-              remarkPlugins: [remarkGfm],
-            },
-          }}
-          components={mdxComponents}
-        />
-      </article>
-    </div>
-        </>
-  );
+    return (
+      <div className={`pageContainer darkBackground ${styles.omenlandAboutLayout}`}>
+        {heroUrl && (
+          <div className={styles.heroWrapper}>
+            <img src={heroUrl} alt={data.title || 'Hero banner'} className={styles.heroImage} />
+          </div>
+        )}
+
+        <article className={styles.proseContainer}>
+          {data.title && <h1 className={styles.pageTitle}>{data.title}</h1>}
+          {data.subtitle && <p className={styles.pageSubtitle}>{data.subtitle}</p>}
+          {data.title && <hr className={styles.divider} />}
+
+          <MDXRemote
+            source={content}
+            options={{
+              mdxOptions: { remarkPlugins: [remarkGfm] },
+            }}
+            components={mdxComponents}
+          />
+        </article>
+      </div>
+    );
+  } catch (err: unknown) {
+    const error = err as Error;
+    return (
+      <div style={{ color: '#ef4444', padding: '2rem', fontFamily: 'monospace' }}>
+        <h3>Fetch Threw Exception</h3>
+        <p><b>Attempted URL:</b> <code>{targetUrl}</code></p>
+        <p><b>Error Message:</b> {error.message}</p>
+      </div>
+    );
+  }
 }
