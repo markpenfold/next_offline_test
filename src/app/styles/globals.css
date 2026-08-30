@@ -49,4 +49,5 @@ code, pre, .mono-text {
 
 .darkBackground {
   background:var(--foreground);
+  color:var(--background);
 }
