@@ -2,6 +2,7 @@ import { MDXRemote } from 'next-mdx-remote/rsc';
 import remarkGfm from 'remark-gfm';
 import matter from 'gray-matter';
 import styles from '@/app/styles/markdown.module.css';
+import { SiteNav } from '@/components/identity/SiteNav'
 
 const R2_PUBLIC_URL = process.env.NEXT_PUBLIC_R2_SITE_CONTENT_URL || '';
 const R2_BASE_URL = `${R2_PUBLIC_URL}/omenland_pages/about`;
@@ -47,7 +48,11 @@ export default async function AboutPage() {
     : null;
 
   return (
+    <>
+            <SiteNav/>
+
     <div className={`pageContainer darkBackground ${styles.omenlandAboutLayout}`}>
+
       {/* 1. Full-Width Hero Image from Frontmatter */}
       {heroUrl && (
         <div className={styles.heroWrapper}>
@@ -73,5 +78,6 @@ export default async function AboutPage() {
         />
       </article>
     </div>
+        </>
   );
 }

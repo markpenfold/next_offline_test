@@ -18,11 +18,12 @@ export const Footer: React.FC<FooterProps> = ({
       <div className={styles.footerInner}>
         {/* 4-Column Grid Container */}
         <div className={styles.footerGrid}>
-          {React.Children.map(children, (child, index) => (
-            <div key={index} className={styles.footerColumn}>
-              {child}
-            </div>
-          ))}
+          <div className={styles.pt2}>
+              <p className={styles.pt2}>Contact</p>
+              <p className={styles.pt2}>About</p>
+              <p className={styles.pt2}>User guide</p>
+              <p className={styles.pt2}>Pricing</p>
+                      </div>
         </div>
 
         {/* Bottom Bar */}
