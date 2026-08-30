@@ -50,7 +50,7 @@ export default async function DashboardPage() {
             
         <div className={styles.gridCard}>
           <div className={styles.cardHeader}>
-          <h1 className={styles.AccountCardHeader}>Other Card</h1>
+          <h1 className={styles.AccountCardHeader}>Message from beyond</h1>
           </div>
           <div className={styles.cardBody}>
             HELLO

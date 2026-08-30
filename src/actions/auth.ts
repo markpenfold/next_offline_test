@@ -167,6 +167,7 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
 
 export async function requestPasswordReset(prevState: any, formData: FormData) {
   const email = formData.get('email') as string
+  console.log('Server received email:', email); // Check your terminal for this!
   const supabase = await createClient()
   // Get the site URL dynamically so it works in localhost and production
   const origin = (await headers()).get('origin')

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { login } from '@/actions/auth';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAppStore } from "@/providers/AppStoreProvider";
+import styles from '@/app/styles/auth.module.css'; // Adjust path as needed
 
 export function LoginForm() {
   const router = useRouter();
@@ -39,61 +40,47 @@ export function LoginForm() {
     });
   };
 
-  return (
-    <div className="mx-auto max-w-sm p-6">
-      <form onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.currentTarget);
-          handleSubmit(formData);
-        }} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
-          <input name="email" type="email" required className="w-full border p-2 rounded" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Password</label>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <input 
-              name="password" 
-              type={isVisible ? 'text' : 'password'} 
-              required 
-              className="w-full border p-2 rounded pr-10" 
-            />
-            <button
-              type="button"
-              onClick={() => setIsVisible(!isVisible)}
-              style={{
-                position: 'absolute',
-                right: '10px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#64748b',
-                display: 'flex',
-                alignItems: 'center',
-  
-              }}
-              aria-label={isVisible ? "Hide password" : "Show password"}
-            >
-              {isVisible ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
-        </div>
+return (
+  <div className={styles.container}>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        handleSubmit(formData);
+      }}
+      className={styles.form}
+    >
+      <div className={styles.fieldGroup}>
+        <label className={styles.label}>Email</label>
+        <input name="email" type="email" required className={styles.input} />
+      </div>
 
-        {error && (
-          <p className="text-sm font-semibold text-red-600 bg-red-50 p-2 rounded border border-red-200">
-            {error}
-          </p>
-        )}
+      <div className={styles.fieldGroup}>
+        <label className={styles.label}>Password</label>
+        <div className={styles.inputWrapper}>
+          <input
+            name="password"
+            type={isVisible ? 'text' : 'password'}
+            required
+            className={`${styles.input} ${styles.passwordInput}`}
+          />
+          <button
+            type="button"
+            onClick={() => setIsVisible(!isVisible)}
+            className={styles.eyeButton}
+            aria-label={isVisible ? 'Hide password' : 'Show password'}
+          >
+            {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
+      </div>
 
-        <button 
-          type="submit" 
-          disabled={isPending}
-          className="w-full bg-black text-white p-2 rounded font-medium disabled:bg-gray-400 dynamic-transition"
-       style={{marginTop: '10px'}} >
-          {isPending ? 'Establishing Link...' : 'Sign In'}
-        </button>
-      </form>
-    </div>
-  );
+      {error && <p className={styles.errorBox}>{error}</p>}
+
+      <button type="submit" disabled={isPending} className={styles.submitButton}>
+        {isPending ? 'Establishing Link...' : 'Sign In'}
+      </button>
+    </form>
+  </div>
+);
 }

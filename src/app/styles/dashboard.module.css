@@ -1,16 +1,5 @@
 /* 📄 src/app/styles/dashboard.module.css */
 
-.pageContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;     
-  justify-content: flex-start; 
-  width: 100%;
-  min-height: 80vh; 
-  box-sizing: border-box;
-  padding-left: 24px;
-  text-align: left;
-}
 
 .loadingContainer {
   padding: 40px;
@@ -27,6 +16,7 @@
   margin-top: 16px;
   box-sizing: border-box;
   align-items: stretch; /* Magic line: forces all cards in a row to match height */
+  padding:24px;
 }
 
 /* 🟢 The Reusable Component Card Base */
@@ -132,6 +122,7 @@
   border-bottom: var(--foreground) 1px;
   border-top-left-radius: 12px;
   border-top-right-radius: 12px;
+  padding-right: 24px;
 }
 .cardHeader > h1 {
   font-size: 1.0rem;
