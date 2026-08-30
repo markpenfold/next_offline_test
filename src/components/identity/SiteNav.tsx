@@ -75,6 +75,8 @@ function AuthenticatedSiteNav() {
         return { title: 'Pricing', subtitle: 'Choose your plan' }
       case '/settings':
         return { title: 'Settings', subtitle: 'Manage account preferences' }
+      case '/about':
+        return { title: 'About', subtitle: 'Territorial divination' }
       default:
         return null
     }
@@ -136,6 +138,7 @@ function AuthenticatedSiteNav() {
           <Link href="/pricing" className={classes.link}>Pricing</Link>
            <Link href="/dash" className={classes.link}>Dashboard</Link>
            <Link href="/omenland" className={classes.link}>Omenland</Link>
+           <Link href="/about" className={classes.link}>About</Link>
            
           
         </div>
