@@ -47,3 +47,7 @@ code, pre, .mono-text {
   overflow-x: hidden;
   overflow-y: auto; /* Single master scrollbar when timeline grows downward */
 }
+
+.darkBackground {
+  background:var(--foreground);
+}
