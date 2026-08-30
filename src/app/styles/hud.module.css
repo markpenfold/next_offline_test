@@ -1,0 +1,164 @@
+.hudContainer {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999; /* Ensures HUD sits above 3D canvas and overlays */
+  width: 18rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #27272a;
+  background-color: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #f4f4f5;
+  font-family: monospace;
+  font-size: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  user-select: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.headerIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cellCoords {
+  font-size: 0.625rem;
+  color: #71717a;
+}
+
+.yearBadge {
+  border-radius: 0.25rem;
+  background-color: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 0.125rem 0.5rem;
+  font-weight: 700;
+  color: #fcd34d;
+}
+
+.contentWrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0.5rem 0;
+}
+
+.stackBar {
+  display: flex;
+  flex-direction: column-reverse;
+  width: 0.625rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  background-color: #18181b;
+  border: 1px solid #27272a;
+}
+
+.layersList {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.layerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.layerMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.layerDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.layerName {
+  color: #d4d4d8;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layerCount {
+  font-weight: 700;
+  color: #f4f4f5;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: #71717a;
+  padding: 0.75rem 0;
+}
+
+.emptyIcon {
+  width: 1rem;
+  height: 1rem;
+  color: #52525b;
+}
+
+.emptyText {
+  font-size: 0.6875rem;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #27272a;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.footerLabel {
+  color: #a1a1aa;
+}
+
+.footerValue {
+  font-weight: 700;
+  color: #34d399;
+  font-size: 0.875rem;
+}

@@ -42,7 +42,6 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/dompurify": "^3.0.5",
     "@types/lodash": "^4.17.25",
     "@types/node": "^20",
@@ -53,7 +52,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "supabase": "^2.105.0",
-    "tailwindcss": "^4",
     "typescript": "^5"
   },
   "allowScripts": {

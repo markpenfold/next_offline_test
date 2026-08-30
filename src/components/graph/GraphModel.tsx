@@ -25,16 +25,7 @@ const GraphModel = () => {
           </div>
         }
       >
-        <WindowBarIconButton
-          icon={<FolderOpen size={13} />}
-          tooltip="Open Project"
-          onClick={() => console.log("YOOOOOOO")}
-        />
-        <WindowBarIconButton
-          icon={<Save size={13} />}
-          tooltip="Save Project"
-          onClick={() => console.log("Save clicked")}
-        />
+       
       </WindowBar>
         <GraphView />
       </div>
@@ -52,16 +43,7 @@ const GraphModel = () => {
           </div>
         }
       >
-        <WindowBarIconButton
-          icon={<FolderOpen size={13} />}
-          tooltip="Open Project"
-          onClick={() => console.log("YOOOOOOO")}
-        />
-        <WindowBarIconButton
-          icon={<Save size={13} />}
-          tooltip="Save Project"
-          onClick={() => console.log("Save clicked")}
-        />
+        
       </WindowBar>
         <GraphEditor />
       </div>

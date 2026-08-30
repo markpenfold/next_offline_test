@@ -2,6 +2,7 @@ import { MDXRemote } from 'next-mdx-remote/rsc';
 import remarkGfm from 'remark-gfm';
 import matter from 'gray-matter';
 import styles from '@/app/styles/markdown.module.css';
+import { SiteNav } from '@/components/identity/SiteNav';
 
 export default async function AboutPage() {
   // Read dynamically at runtime and clean trailing slashes
@@ -55,6 +56,9 @@ export default async function AboutPage() {
       : null;
 
     return (
+
+        <>
+        <SiteNav/>
       <div className={`pageContainer darkBackground ${styles.omenlandAboutLayout}`}>
         {heroUrl && (
           <div className={styles.heroWrapper}>
@@ -76,6 +80,7 @@ export default async function AboutPage() {
           />
         </article>
       </div>
+      </>
     );
   } catch (err: unknown) {
     const error = err as Error;
