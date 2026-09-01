@@ -27,7 +27,7 @@
 
 /* Image scaling */
 .filmie img {
-  max-width: 100%;
+  width: 100%;
   height: auto;
   display: block;
 }
@@ -214,11 +214,12 @@
 }
 
 .filmie {
-  width: 80%;
-  margin-left: auto;
-  margin-right: auto;
-  border: 2px solid;
-  border-color: var(--background);
+  width: 100%;
+  width: none; /* Removes any width restrictions */
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 

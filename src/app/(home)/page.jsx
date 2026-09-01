@@ -7,7 +7,7 @@ export default async function HomePage() {
 
   return (
    
-  <div className={classes.pageContainer} >
+  <div className="pageContainer" >
     <div className={classes.navholder}>
       <SiteNav />
     </div>
@@ -110,11 +110,11 @@ export default async function HomePage() {
 </div>
  <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
-
+<div  className={classes.sectionDark}>
             <div className={classes.filmie}>
             <img src='./terrain.png' />
               </div>
-
+</div>
 
 <div  className={classes.spacer}></div><div  className={classes.spacer}></div><div  className={classes.spacer}></div>
 <div  className={classes.sectionDark}>
