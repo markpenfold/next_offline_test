@@ -2,6 +2,7 @@ import { LocateFixed, BookCheck,MountainSnow, Share2, ChartNoAxesGantt, ArrowDow
 import P5Canvas from "../(home)/home_components/P5Canvas.jsx";
 import classes from '@/app/styles/home.module.css'
 import { SiteNav } from '@/components/identity/SiteNav'
+import {Footer} from '@/components/omenland/Footer'
 
 export default async function HomePage() {
 
@@ -110,20 +111,26 @@ export default async function HomePage() {
 </div>
  <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
+
+  <div className={classes.subTitle}>The hills and valleys of the past</div>
+   <div  className={classes.spacer}></div>
+    <div  className={classes.spacer}></div>
 <div  className={classes.sectionDark}>
             <div className={classes.filmie}>
             <img src='./terrain.png' />
               </div>
 </div>
 
-<div  className={classes.spacer}></div><div  className={classes.spacer}></div><div  className={classes.spacer}></div>
 <div  className={classes.sectionDark}>
   <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
 </div>
-  
+
+  <div  className={classes.section}>
+    <Footer />
+  </div>
     </div>
   );
 }
