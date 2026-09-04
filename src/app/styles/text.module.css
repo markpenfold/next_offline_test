@@ -87,3 +87,39 @@
   padding: 4px 8px;
   border-radius: 4px;
 }
+
+.quoteBoxContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: 650px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  min-height: 270px;
+}
+
+.quoteIcon {
+  color: var(--red);
+  margin-bottom: 1rem;
+  margin-top: -3rem;
+  opacity: 0.8;
+}
+
+.quoteText {
+  font-size: 1.25rem; /* Mid-sized font */
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--background);
+  margin: 0 0 0.75rem 0;
+  padding: 0;
+}
+
+.quoteSource {
+  font-size: 1rem;
+  font-style: italic;
+  color: var(--feint);
+  display: block;
+}

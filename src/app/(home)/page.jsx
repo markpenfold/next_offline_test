@@ -3,6 +3,7 @@ import P5Canvas from "../(home)/home_components/P5Canvas.jsx";
 import classes from '@/app/styles/home.module.css'
 import { SiteNav } from '@/components/identity/SiteNav'
 import {Footer} from '@/components/omenland/Footer'
+import {QuoteBox} from '@/components/omenland/QuoteBox'
 import Link from 'next/link'
 
 export default async function HomePage() {
@@ -37,13 +38,9 @@ export default async function HomePage() {
       <div className={classes.central}>
        
           <div className={classes.intro}>
-            <p>To live well in the present, and ensure a better future, we must understand our past. </p>
-            <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos.</p>
-            
-            <div  className={classes.spacer}></div>
-
-              <div  className={classes.spacer}></div>
-            <p>"This is work for adventurous spirits."</p>
+            <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos</p>
+   
+            <QuoteBox />
           </div>
         <div></div>
       </div>

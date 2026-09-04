@@ -8,8 +8,8 @@ import { tier_details } from '@/lib/utils/constants'
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { SiteNav } from '@/components/identity/SiteNav'
 import { Suspense } from 'react'
+import { Check } from 'lucide-react'
 
-// 1. Move the error element into its own sub-component
 function ErrorBanner() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
@@ -33,7 +33,6 @@ export default function PricingPage() {
       <SiteNav />
       <div className={classes.pageContainer}>
         
-        {/* 2. Wrap only the parameter consumer inside Suspense */}
         <Suspense fallback={null}>
           <ErrorBanner />
         </Suspense>
@@ -41,102 +40,69 @@ export default function PricingPage() {
         <div className={classes.pageSection}>
           <div className={classes.wideCentralHeader}>
             <h1>Discover the Omenland</h1>
-            <br/><br/>
+            <p className={classes.subHeader}>Choose the plan that fits your historical ambitions</p>
           </div>
         </div>
        
         <div className={classes.priceContainer}>
-  {tier_details.map((tier) => {
-    const isCurrentPlan = currentTier === tier.id;
-    const isFree = tier.id === 'free'; // Adjust to match your exact free plan ID
-    const isAvailable = isFree;
+          {tier_details.map((tier) => {
+            const isCurrentPlan = currentTier === tier.id;
+            const isFree = tier.id === 'free';
+            const isAvailable = isFree;
 
-    return (
-      <div key={tier.id} className={classes.priceBox}>
-        {/* Badges - uses the exact same current_tag styling */}
-        {isCurrentPlan ? (
-          <div className={classes.current_tag}>
-            CURRENT PLAN
-          </div>
-        ) : !isAvailable ? (
-          <div className={classes.current_tag}>
-            COMING SOON
-          </div>
-        ) : null}
+            return (
+              <div 
+                key={tier.id} 
+                className={`${classes.priceBox} ${!isAvailable ? classes.disabledCard : ''}`}
+              >
 
-        <h3>{tier.name}</h3>
-        <div>{tier.price}</div>
+                {isCurrentPlan ? (
+                  <div className={classes.current_tag}>CURRENT PLAN</div>
+                ) : !isAvailable ? (
+                  <div className={`${classes.current_tag} ${classes.comingSoonTag}`}>COMING SOON</div>
+                ) : null}
 
-        {/* Action Buttons */}
-        {isCurrentPlan ? (
-          <button className={classes.buttonClass} style={{ backgroundColor: '#035503' }}>
-            Cancel
-          </button>
-        ) : isAvailable ? (
-          !profile ? (
-            <Link href={`/signup?plan=${tier.id}`} className={classes.buttonClass}>
-              Sign up
-            </Link>
-          ) : (
-            <CheckoutButton plan={tier.id} activeAccount={activeAccount} className={classes.buttonClass}>
-              Switch
-            </CheckoutButton>
-          )
-        ) : (
-          /* Greyed-out button for Coming Soon tiers */
-          <button 
-            className={classes.buttonClass} 
-            style={{ 
-              backgroundColor: '#d1d5db', 
-              color: '#9ca3af', 
-              cursor: 'not-allowed' 
-            }} 
-            disabled
-          >
-            {!profile ? 'Sign up' : 'Switch'}
-          </button>
-        )}
-      </div>
-    );
-  })}
-</div>
+                {/* Fixed-height header wrapper keeps benefits aligned horizontally across cards */}
+                <div className={classes.cardHeader}>
+                  <h3>{tier.name}</h3>
+                  <div className={classes.priceText}>{tier.price}</div>
+                </div>
+
+                {/* Benefits list with Lucide Check Icon */}
+                <ul className={classes.bensList}>
+                  {tier.bens.map((benefit, index) => (
+                    <li key={index} className={classes.benItem}>
+                      <Check size={16} className={classes.checkIcon} />
+                      <span>{benefit}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Action Buttons */}
+                {isCurrentPlan ? (
+                  <button className={classes.buttonClass} style={{ backgroundColor: '#035503' }}>
+                    Cancel
+                  </button>
+                ) : isAvailable ? (
+                  !profile ? (
+                    <Link href={`/signup?plan=${tier.id}`} className={classes.buttonClass}>
+                      Sign up
+                    </Link>
+                  ) : (
+                    <CheckoutButton plan={tier.id} activeAccount={activeAccount} className={classes.buttonClass}>
+                      Switch
+                    </CheckoutButton>
+                  )
+                ) : (
+                  <button className={`${classes.buttonClass} ${classes.disabledBtn}`} disabled>
+                    {!profile ? 'Sign up' : 'Switch'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </>
   )
 }
-
-
-/*
-//Return this once paying customers are invited....
-<div className={classes.priceContainer}>
-          {tier_details.map((tier) => {
-            const isCurrentPlan = currentTier === tier.id
-
-            return (
-              <div key={tier.id} className={classes.priceBox}>
-                {isCurrentPlan && (
-                  <div className={classes.current_tag}>
-                    Current Plan
-                  </div>
-                )}
-                <h3>{tier.name}</h3>
-                <div>{tier.price}</div>
-
-                {isCurrentPlan ? (
-                  <button className={classes.buttonClass} style={{ backgroundColor:'#035503' }}>
-                    Cancel
-                  </button>
-                ) : !profile ? (
-                  <Link href={`/signup?plan=${tier.id}`} className={classes.buttonClass}>
-                    Sign up
-                  </Link>
-                ) : (
-                  <CheckoutButton plan={tier.id} activeAccount={activeAccount} className={classes.buttonClass}>
-                    Switch
-                  </CheckoutButton>
-                )}
-              </div>
-            )
-          })}
-        </div>
-         */

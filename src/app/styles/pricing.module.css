@@ -1,158 +1,174 @@
-/* pricing.module.css */
-
-/* Main wrapper centering layout */
+/* Center whole page cleanly */
 .pageContainer {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;     
+  align-items: center;     
   justify-content: flex-start; 
   width: 100%;
   min-height: 80vh; 
   box-sizing: border-box;
-  padding-left: 24px;
-  text-align: left;
+  padding: 40px 24px;
 }
-/* Header Text Wrapper */
+
+/* Header Text */
 .pageSection {
   width: 100%;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
-}
-
-/* 🎯 Alignment Modifiers */
-.alignCenter {
   align-items: center;
   text-align: center;
+  margin-bottom: 48px;
 }
 
-.alignLeft {
-  align-items: flex-start;
-  text-align: left;
+.wideCentralHeader h1 {
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 8px 0;
 }
 
-.alignRight {
-  align-items: flex-end;
-  text-align: right;
-}
-
-.pageSection h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+.subHeader {
+  font-size: 1.1rem;
+  color: #6b7280;
   margin: 0;
 }
 
-.wideCentralHeader {
-  margin-left:auto;
-  margin-right: auto;
-}
-
-/* 📱 MOBILE FIRST LAYOUT: Cards stack into a single column automatically */
+/* Grid layout with ample width per card */
 .priceContainer {
-  display: flex;
+  display: grid;
   grid-template-columns: 1fr;
-  flex-direction: column-reverse;
   gap: 24px;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1140px;
   margin: 0 auto;
-  align-items: stretch;
 }
 
-/* 💻 DESKTOP BREAKPOINT: Items layout side-by-side on larger screens */
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .priceContainer {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 190px));
-    display: grid;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
-/* 📦 Individual Pricing Cards */
+@media (min-width: 1024px) {
+  .priceContainer {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Individual Card */
 .priceBox {
-  position: relative; /* Crucial anchor for the absolute positioned 'Current Plan' tag */
+  position: relative;
   background-color: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 36px 28px;
+  border-radius: 12px;
+  padding: 32px 24px 24px 24px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  box-shadow: 0 4px 6px -1px rgba(31,31,31, 0.05), 0 2px 4px -1px rgba(31,31,31, 0.03);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
 }
 
-/* Subtle elevation look when users hover over cards */
 .priceBox:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.1);
 }
 
-/* 🌟 Current Plan Visual Highlight Modifier */
-.priceBox:has(.current_tag) {
-  border: 2px solid #000000;
+.disabledCard {
+  background-color: #fafafa;
+  border-color: #d1d5db;
 }
 
-/* Card Elements Typography */
+/* Header locking element heights */
+.cardHeader {
+  min-height: 85px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 12px;
+}
+
 .priceBox h3 {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  color: rgba(31,31,31,1);
-  margin: 0 0 12px 0;
+  color: #111827;
+  margin: 0 0 4px 0;
 }
 
-/* Target the wrapper holding the price text string */
-.priceBox h3 + div {
-  font-size: 1 rem;
-  font-weight: 800;
-  color: rgba(31,31,31,1);
-  margin-bottom: 32px;
+.priceText {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #374151;
 }
 
-/* 🎨 Floating Current Plan Tag Badge */
+/* Floating Tag */
 .current_tag {
   position: absolute;
-  top: -14px;
+  top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(31,31,31,1);
+  background-color: #111827;
   color: #ffffff;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 6px 16px;
+  padding: 4px 12px;
   border-radius: 9999px;
-  box-shadow: 0 4px 6px rgbargba(31,31,31,0.1);
   white-space: nowrap;
-  z-index: 10;
 }
 
-/* 🔘 Dynamic Action Buttons (Universal Formats for Links & Buttons) */
+.comingSoonTag {
+  background-color: #4b5563;
+}
+
+/* Benefits list & Lucide icon */
+.bensList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px 0;
+  flex-grow: 1; /* Pushes button down cleanly */
+}
+
+.benItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin-bottom: 12px;
+  text-transform: capitalize;
+}
+
+.checkIcon {
+  color: #10b981; /* Green check accent */
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Buttons */
 .buttonClass {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  text-align: center;
-  background-color: rgba(31,31,31,1);
+  background-color: #111827;
   color: #ffffff;
   font-size: 0.95rem;
   font-weight: 600;
-  padding: 12px 24px;
-  border-radius: 3px;
+  padding: 10px 16px;
+  border-radius: 6px;
   text-decoration: none;
   border: none;
   cursor: pointer;
-  margin-top: auto; /* Snaps buttons neatly to the bottom if description text heights vary */
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition: background-color 0.15s ease;
+  box-sizing: border-box;
 }
 
 .buttonClass:hover:not(:disabled) {
-  background-color: #1f2937; /* Dark charcoal shift */
+  background-color: #1f2937;
 }
 
-/* Style state for your Cancel (disabled) button element */
-.buttonClass:disabled {
+.disabledBtn {
   background-color: #e5e7eb;
   color: #9ca3af;
   cursor: not-allowed;
-  border: 1px solid #d1d5db;
 }
