@@ -204,6 +204,17 @@
   white-space: nowrap;
 }
 
+/* Fluid subtitle — scales from 28px on mobile to 64px on desktop */
+.sub_subTitle {
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 300;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--red);
+}
+
 /* Fix the intro text widths */
 .intro {
   text-align: center;

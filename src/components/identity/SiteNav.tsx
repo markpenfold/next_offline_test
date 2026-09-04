@@ -40,7 +40,8 @@ function PublicSiteNav() {
       <div className={classes.linksGroup}>
         <Link href="/" className={classes.brandLink}><Circle /></Link>
         <Link href="/login" className={classes.brandLink}>Login</Link>
-        <Link href="/pricing" className={classes.brandLink}>Sign Up</Link>
+        <Link href="/pricing" className={classes.brandLink}>Pricing</Link>
+        <Link href="/about" className={classes.brandLink}>About</Link>
       </div>
     </nav>
   );

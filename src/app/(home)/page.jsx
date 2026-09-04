@@ -112,13 +112,24 @@ export default async function HomePage() {
  <div  className={classes.spacer}></div>
   <div  className={classes.spacer}></div>
 
-  <div className={classes.subTitle}>The hills and valleys of the past</div>
+
    <div  className={classes.spacer}></div>
     <div  className={classes.spacer}></div>
 <div  className={classes.sectionDark}>
+     <div  className={classes.spacer}></div>
+    <div  className={classes.spacer}></div>
+    
+    <div className={classes.subTitle}>History is another country</div>
+    <h2 className={classes.sub_subTitle}>They do things differently there</h2>
+
+     <div  className={classes.spacer}></div>
+    <div  className={classes.spacer}></div>
             <div className={classes.filmie}>
             <img src='./terrain.png' />
               </div>
+              <div  className={classes.spacer}></div>
+  <div  className={classes.spacer}></div>
+              <div className={classes.subTitle}></div>
 </div>
 
 <div  className={classes.sectionDark}>
