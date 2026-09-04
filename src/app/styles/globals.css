@@ -100,3 +100,10 @@ code, pre, .mono-text {
   background:var(--foreground);
   color:var(--background);
 }
+
+.brandLink {
+  font-weight: 400;
+  text-decoration: none;
+  color: var(--foreground);
+  font-size: 21px;
+}

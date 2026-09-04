@@ -16,7 +16,6 @@ import styles from '@/app/styles/text.module.css'
 export function SiteNav() {
   // We peek at the raw context directly instead of using the throwing hook
   // const storeContext = useContext(AppStoreContext);
-
   const authStatus = useAppStore((s) => s.authStatus);
 
   if (authStatus === 'unknown' || authStatus === 'loading') {
@@ -30,6 +29,20 @@ export function SiteNav() {
   // If it does exist, pass control to the store-aware nav
   return <AuthenticatedSiteNav />;
 }
+
+// Neutral placeholder matching your nav dimensions
+function SiteNavSkeleton() {
+  return (
+    <nav className={classes.navcontainer}>
+      <div className={classes.linksGroup}>
+        <Link href="/" className={classes.brandLink}>
+          <Circle size={32} strokeWidth={3} />
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
 
 // =========================================================
 // 2. PUBLIC GUEST NAVBAR (No Store, Lightning Fast)

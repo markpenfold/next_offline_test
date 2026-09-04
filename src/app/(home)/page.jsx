@@ -3,6 +3,7 @@ import P5Canvas from "../(home)/home_components/P5Canvas.jsx";
 import classes from '@/app/styles/home.module.css'
 import { SiteNav } from '@/components/identity/SiteNav'
 import {Footer} from '@/components/omenland/Footer'
+import Link from 'next/link'
 
 export default async function HomePage() {
 
@@ -56,6 +57,10 @@ export default async function HomePage() {
 
  <div  className={classes.section}>
   <div className={classes.subTitle}>How it works</div>
+
+  <div className={classes.sub_subTitle}>
+    <Link href="/pricing" className='brandLink'>Create a free account to get started</Link>
+  </div>
   <div className={classes.oneTwoThree}>
         
         <div className={classes.iconbox} >
