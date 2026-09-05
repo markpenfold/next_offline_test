@@ -51,7 +51,7 @@ function PublicSiteNav() {
   return (
     <nav className={classes.navcontainer}>
       <div className={classes.linksGroup}>
-        <Link href="/" className={classes.brandLink}><Circle /></Link>
+        <Link href="/" className={classes.brandLink}><Circle size={32} strokeWidth={3} /></Link>
         <Link href="/login" className={classes.brandLink}>Login</Link>
         <Link href="/pricing" className={classes.brandLink}>Pricing</Link>
         <Link href="/about" className={classes.brandLink}>About</Link>

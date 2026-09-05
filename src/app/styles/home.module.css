@@ -87,14 +87,49 @@
   margin-left: auto;
   margin-right: auto;
 }
-
 .iconbox {
   display: flex;
   flex-direction: column;
   align-items: center;
+  text-align: center;
   gap: 12px;
   padding: 32px 12px;
-  text-align: center;
+  box-sizing: border-box;
+}
+
+/* Link wrapper specifically surrounding the icon */
+.iconLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: var(--foreground);
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.iconLink:visited,
+.iconLink:hover,
+.iconLink:active {
+  color: var(--foreground);
+}
+
+/* Lucide Icon */
+.icon {
+  color: var(--foreground);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s ease;
+}
+
+/* Icon hover transition */
+.iconLink:hover .icon {
+  transform: translateY(-2px) scale(1.02);
+  color: var(--red); /* Optional accent color shift on hover */
+}
+
+.iconHeader {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--foreground);
 }
 
 .iconbox > svg {
@@ -109,7 +144,7 @@
 }
 
 .iconbox:hover .icon {
-  color: rgb(243, 38, 35);
+  color: var(--red);
 }
 
 
@@ -124,10 +159,6 @@
   }
 }
 
-.iconHeader {
-  font-weight: 600;
-  font-style: italic;
-}
 
 /* Fluid headline — Scaled to be more sensible on mobile */
 /* 2.5rem (~40px) minimum to 6.75rem maximum */
@@ -290,8 +321,4 @@ display: flex;
 
 .navholder {
   min-height: 60px;
-}
-
-.tall600 {
-  min-height:950px;
 }
