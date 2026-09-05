@@ -287,7 +287,7 @@ export async function hydrateSingleSlot(
     resolvedYear =  minYear;
    }
 
-  console.log("settign resolved year in singlSlot to: ", resolvedYear);
+  //console.log("settign resolved year in singlSlot to: ", resolvedYear);
 
   // 4. Generate the 1024-year Float32Array buffer and uuidMap
   const windowSlice = sliceWindow(terrainIndexData, resolvedYear);

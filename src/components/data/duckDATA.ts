@@ -73,7 +73,7 @@ export async function loadShardIntoEngine(
   fileName: string,
   fileHandle?: FileSystemFileHandle,
 ): Promise<string | null> {
-  console.log("loadShardIntoEngine:::>", fileName)
+  //console.log("loadShardIntoEngine:::>", fileName)
   try {
     const db = await getSharedDuckDBEngine();
     

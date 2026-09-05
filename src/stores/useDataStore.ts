@@ -611,7 +611,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
           accountId,
         });
 
-        console.log("FUCKING CUNT BUCKET:", result);
+        //console.log("FUCKING CUNT BUCKET:", result);
 
         if (!result.success) {
           throw new Error(`Failed to retrieve shards for index: ${fileName}`);

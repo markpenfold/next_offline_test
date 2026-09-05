@@ -16,16 +16,16 @@ export async function POST(req: NextRequest) {
 
     // 2. Extract request body params
     const body = await req.json().catch(() => ({}));
-    const { accountId, file, key, tier } = body;
-    
-    console.log("Some problem here is there?", file, key);
+    const { accountId, key, tier } = body;
+
+    console.log("Some problem here is there?", key);
 
     if (!accountId) {
       return NextResponse.json({ error: "Missing required accountId" }, { status: 400 });
     }
 
     // Key or File parameter is required
-    const targetKey = key || (file ? `data/${file}` : null);
+    const targetKey = key ||  null;
     if (!targetKey) {
       return NextResponse.json({ error: "Missing file or key parameter" }, { status: 400 });
     }
