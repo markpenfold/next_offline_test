@@ -10,7 +10,6 @@
 .proseContainer h1 {
   font-size: 4rem;
   font-weight: 700;
-
   margin-top: 0;
   margin-bottom: 1.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -20,7 +19,6 @@
 .proseContainer h2 {
   font-size: 1.5rem;
   font-weight: 600;
-
   margin-top: 2rem;
   margin-bottom: 1rem;
 }
@@ -28,7 +26,6 @@
 .proseContainer h3 {
   font-size: 1.25rem;
   font-weight: 600;
-
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }

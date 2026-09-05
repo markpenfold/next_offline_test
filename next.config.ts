@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['@duckdb/node-api', '@duckdb/node-bindings'],
+  serverExternalPackages: ['p5',
+  '@duckdb/node-api',
+  '@duckdb/node-bindings',
+  'remark',
+  'rehype',
+  'unified'],
   output: 'standalone',
   async headers() {
     return [
@@ -40,3 +45,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+import('@opennextjs/cloudflare').then(m => m.initOpenNextCloudflareForDev());

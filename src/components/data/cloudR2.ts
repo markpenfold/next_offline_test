@@ -60,7 +60,7 @@ export async function fetchAndSaveSingleShard({
   const { localFileName, tier, category, era, version } = shardMeta;
 
   // Derive S3 key directly from shard metadata
-  const s3Key = `data/master_category=${category}/era=${era}/version=${version}/data.parquet`;
+  const s3Key = `master_category=${category}/era=${era}/version=${version}/data.parquet`;
 
   console.log(`📡 Fetching key "${s3Key}" from remote R2...`);
 

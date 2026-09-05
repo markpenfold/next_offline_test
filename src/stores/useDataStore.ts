@@ -605,7 +605,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       }));
 
       try {
-        // 🟢 Delegate fetching, S3 key generation, and OPFS saving to getShardsFromIndex
+        // Delegate fetching, S3 key generation, and OPFS saving to getShardsFromIndex
         const result = await getShardsFromIndex({
           fileName,
           accountId,

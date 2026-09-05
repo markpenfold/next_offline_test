@@ -151,9 +151,6 @@ export interface GraphViewProps {
   year: number;
 }
 
-
-
-
 export interface HoverInfo {
   position: Vector3;
   year: number | null; // Can be null when no valid intersection
@@ -180,6 +177,46 @@ export interface LinkType {
   icon:string;
 }
 
+
+
+/**
+ * Date object structure containing year and optional month/day
+ * - year: The primary temporal coordinate (can be negative for BCE)
+ * - month: Optional month (1-12)
+ * - day: Optional day of month
+ * - time: Optional time components [hours, minutes, seconds]
+ * - approximate: Flag indicating if the date is approximate/uncertain
+ */
+export type DateObj = {
+  year: number;
+  month?: number;
+  day?: number;
+  time?: number[];
+  approximate?: boolean;
+}
+
+export interface HoverInfo {
+  position: Vector3;
+  year: number | null; // Can be null when no valid intersection
+}
+
+
+/**
+ * Link type definition for graph edges
+ * - id: Unique identifier for the link type
+ * - label: Human-readable name
+ * - weight: Default weight for this type (user can override per-link)
+ * - color: Hex color for visualization
+ */
+export interface LinkType {
+  id: string;
+  label: string;
+  weight: number;
+  color: string;
+  short: string;
+  icon:string;
+}
+
 /**
  * Predefined link types for causal relationships
  * Weight range: -100% to +100%, default 0
@@ -189,7 +226,120 @@ export const LINK_TYPES: Record<string, LinkType> = {
   contributing_factor: { id: 'contributing_factor', label: 'Contributing Factor', weight: 0, color: '#6E64F7', short: 'contributing factor' , icon: 'Merge'},
   confounding_factor: { id: 'confounding_factor', label: 'Confounding Factor', weight: 0, color: '#47F553', short: 'confounded by' , icon: 'ArrowRightToLine'},
   modifier: { id: 'modifier', label: 'Modifier', weight: 0, color: '#4792F5', short: 'modified by', icon: 'Variable' },
-  condition: { id: 'condition', label: 'Condition', weight: 0, color: '#fccfcc', short: 'conditional upon', icon: 'Key'},
+  condition: { id: 'condition', label: 'Condition', weight: 0, color: '#4c4c4c', short: 'conditional upon', icon: 'Key'},
 };
 
 export const DEFAULT_LINK_TYPE = 'contributing_factor';
+
+/**
+ * Individual link from one event to another
+ * - targetId: The event being linked to
+ * - linkType: Type of relationship (from LINK_TYPES)
+ * - weight: User-adjustable weight (-100% to +100%)
+ */
+export interface EventLink {
+  targetId: string;
+  linkType: string;
+  weight: number;
+}
+
+
+
+export interface UIStore {
+  graphData: GraphData;
+  setGraphData: (data: GraphData) => void;
+
+  selectedNode: string | null;
+  setSelectedNode: (node: string | null) => void;
+
+  hoveredNode: string | null;
+  setHoveredNode: (node: string | null) => void;
+
+  isUiDragging: boolean;
+  setIsUiDragging: (dragging: boolean) => void;
+
+  // Hover info in world space (existing)
+  hoverInfo: HoverInfo | null;
+  setHoverInfo: (info: HoverInfo | null) => void;
+
+  // For shader dot & old logic (keep if still needed)
+  clickedUV: { x: number; y: number } | null;
+  setClickedUV: (uv: { x: number; y: number } | null) => void;
+
+  hoverUV: { x: number; y: number } | null;
+  setHoverUV: (uv: { x: number; y: number } | null) => void;
+
+  // NEW: baked-geometry lookup
+  hoverVertexData: { uv: { x: number; y: number } } | null;
+  setHoverVertexData: (data: { uv: { x: number; y: number } } | null) => void;
+
+  viewingWindowStart: number;
+  setViewingWindowStart: (s: number) => number;
+
+  viewingWindowWidth: number;
+  setViewingWindowWidth: (w: number) => number;
+
+  selectedLink: { sourceId: string; targetId: string; linkType: string } | null;
+  setSelectedLink: (
+    link: { sourceId: string; targetId: string; linkType: string } | null
+  ) => void;
+
+  hoverYear: number | null;
+  setHoverYear: (year: number | null) => void;
+
+
+}
+
+
+
+
+export interface EventStore {
+  selectedCollections: CollectionInfo[];
+  aggregatedEvents: EventYear[];
+  availableDateRange: [number, number];
+  sliderYear: number;
+  timeUnitSize: number;
+  availableCollections: CollectionMetadata[];
+  collectionsLoading: boolean;
+  collectionsError: string | null;
+  latestClickedEvents: TimelineEvent[];
+  timelineBuilderEvents: TimelineEvent[];  // Events added to the timeline builder (includes graphNodePosition)
+  nextTimelinePosition: number;         // Counter for assigning stable positions to new collections
+  terrainData: number[][];
+  restorationComplete: boolean;         // Flag indicating all collections have been restored
+
+  updateTerrainData: () => void;
+  fetchAvailableCollections: (limit?: number, sortBy?: string) => Promise<void>;
+  addCollection: (collectionKey: string) => Promise<void>;
+  removeCollection: (collectionKey: string) => void;
+  setSliderYear: (year: number) => void;
+  setTimeUnitSize: (size: number) => void;
+  setLatestClickedEvents: (year: number) => void; // ✅ Changed from index to year
+  addToTimeline: (event: TimelineEvent) => void;
+  removeFromTimeline: (eventId: string) => void;
+  updateEventNote: (eventId: string, note: string) => void; // Add/update note on timeline builder event
+  updateEventGraphPosition: (eventId: string, x: number, y: number, z: number) => void; // Update event's graph node position
+  updateEventLinks: (eventId: string, linkedTo: EventLink[]) => void; // Update event's linkedTo array
+  addEventLink: (sourceId: string, targetId: string, linkType?: string, weight?: number) => void; // Add a link with type and weight
+  removeEventLink: (sourceId: string, targetId: string, linkType?: string) => void; // Remove a link (optionally by type)
+  updateEventLinkWeight: (sourceId: string, targetId: string, linkType: string, weight: number) => void; // Update weight of an existing link
+  restorePersistedCollections: () => Promise<void>; // Re-fetch collections after page load
+  loadFromSaved: (source: string | SavedState) => Promise<void>; // Load state from URL or SavedState object
+
+  reset: () => void;
+  getCollectionColor: (collectionKey: string) => string | null;
+}
+
+/**
+ * Persisted/saved state structure
+ * Matches the partialize output - only UI state and metadata, not heavy data
+ */
+export interface SavedState {
+  sliderYear: number;
+  timeUnitSize: number;
+  availableDateRange: [number, number];
+  timelineBuilderEvents: TimelineEvent[];
+  selectedCollections: CollectionInfo[];
+  nextTimelinePosition: number;
+}
+

@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
     // 2. Extract request body params
     const body = await req.json().catch(() => ({}));
     const { accountId, file, key, tier } = body;
+    
+    console.log("Some problem here is there?", file, key);
 
     if (!accountId) {
       return NextResponse.json({ error: "Missing required accountId" }, { status: 400 });

@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useRef, useState } from "react";
 import { ArrowDownToLine } from "lucide-react";
-import ob1Sketch from "./ob1Sketch";
+//import ob1Sketch from "./ob1Sketch";
 import classes from "@/app/styles/home.module.css";
 
 export default function P5Canvas() {
@@ -14,15 +14,21 @@ export default function P5Canvas() {
 
   const displaySize = containerRef.current?.offsetWidth || 650;
 
-  import("p5").then((p5Module) => {
-    if (cancelled || !containerRef.current) return;
+  // Load BOTH p5 and ob1Sketch dynamically inside useEffect
+    Promise.all([
+      import("p5"),
+      import("./ob1Sketch")
+    ]).then(([p5Module, sketchModule]) => {
+      if (cancelled || !containerRef.current) return;
 
-    const p5 = p5Module.default;
-    p5Instance = new p5(
-      (p) => ob1Sketch(p, displaySize, () => setAnimDone(true)),
-      containerRef.current
-    );
-  });
+      const p5 = p5Module.default;
+      const ob1Sketch = sketchModule.default;
+
+      p5Instance = new p5(
+        (p) => ob1Sketch(p, displaySize, () => setAnimDone(true)),
+        containerRef.current
+      );
+    });
 
   return () => {
     cancelled = true;

@@ -1,4 +1,4 @@
-import { getUrushiF } from './shaders/urushiF';
+
 import { getUrushiG } from './shaders/urushiG';
 import { useMemo, useRef } from 'react';
 import { StorageBufferAttribute, MeshBasicNodeMaterial } from 'three/webgpu';
