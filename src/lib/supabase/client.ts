@@ -16,7 +16,7 @@ export function createClient() {
             autoRefreshToken: true,
             detectSessionInUrl: true,
             // Optional custom lock override to avoid lock contention
-            lock: async (_name, _timeout, fn) => fn(),
+            //lock: async (_name, _timeout, fn) => fn(),
           },
         }
     )
