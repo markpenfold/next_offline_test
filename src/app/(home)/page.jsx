@@ -5,6 +5,8 @@ import { SiteNav } from '@/components/identity/SiteNav'
 import {Footer} from '@/components/omenland/Footer'
 import {QuoteBox} from '@/components/omenland/QuoteBox'
 import Link from 'next/link'
+import { Egg } from 'lucide-react';
+
 
 export default async function HomePage() {
 
@@ -26,11 +28,12 @@ export default async function HomePage() {
     <div  className={classes.spacer}></div>
     <div  className={classes.spacer}></div>
 
-    <div  className={classes.sectionDark}>
+    <div  className={`${classes.sectionDark}`}>
+      <div  className={classes.spacer}></div>
       <div  className={classes.spacer}></div>
       <div  className={classes.spacer}></div>
       <div className={classes.oneTwoOne}>
-        <div></div>
+        <div  className={classes.spacer}></div>
           <div className={classes.subTitle}>History in the making</div>
         <div></div>
       </div>
@@ -39,11 +42,11 @@ export default async function HomePage() {
        
           <div className={classes.intro}>
             <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos</p>
-   
-            <QuoteBox />
           </div>
-        <div></div>
+        <QuoteBox />
       </div>
+
+
 <div  className={classes.spacer}></div>
 <div  className={classes.spacer}></div>
 <div  className={classes.spacer}></div>
@@ -111,8 +114,9 @@ export default async function HomePage() {
         </div>
     </div>
 </div>
- <div  className={classes.spacer}></div>
-  <div  className={classes.spacer}></div>
+
+<div  className={classes.spacer}></div>
+<div  className={classes.spacer}></div>
 
 
    <div  className={classes.spacer}></div>
@@ -121,8 +125,8 @@ export default async function HomePage() {
      <div  className={classes.spacer}></div>
     <div  className={classes.spacer}></div>
     
-    <div className={classes.subTitle}>History is another country</div>
-    <h2 className={classes.sub_subTitle}>They do things differently there</h2>
+    <div className={classes.subTitle}>Words go here</div>
+    <h2 className={classes.sub_subTitle}>Words go here</h2>
 
      <div  className={classes.spacer}></div>
     <div  className={classes.spacer}></div>

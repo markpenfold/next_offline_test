@@ -88,24 +88,48 @@
   border-radius: 4px;
 }
 
+
+/* QUOTES */
 .quoteBoxContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
   max-width: 650px;
   margin: 2rem auto;
   padding: 1.5rem;
   box-sizing: border-box;
-  min-height: 270px;
+  min-height: 440px;
+  flex-shrink: 0; 
+  box-sizing: border-box;
 }
+
+
 
 .quoteIcon {
   color: var(--red);
-  margin-bottom: 1rem;
-  margin-top: -3rem;
+  margin-bottom: 4rem;
+  margin-top: 3rem;
   opacity: 0.8;
+  flex-shrink: 0; /* Prevents icon from collapsing */
+  font-size: 8rem ;
+  line-height: 1;
+}
+
+/* Subtle fade animation for quote text */
+.quoteContent {
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.quoteContent.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .quoteText {
@@ -123,3 +147,5 @@
   color: var(--feint);
   display: block;
 }
+
+

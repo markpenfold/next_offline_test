@@ -55,7 +55,29 @@ export const QUOTES = [
   { text: "History is more or less bunk", source: "Henry Ford" },
   { text: "It is a strange thing, the way things happen", source: "Flann O’Brien" },
   { text: "One can only be interested in what one believes to be true", source: "Denis Diderot" },
+  { text: "My duty is to report what has been said, but I am by no means bound to believe it all", source: "Herodotus" },
+  { text: "What is written without effort is in general read without pleasure.", source: "Dr. Samuel Johnson" },
+  { text: "To be ignorant of what occurred before you were born is to remain always a child.", source: "Cicero" },
+  { text: "Men are disturb'd not by things, but by the views which they take of things.", source: "Epictetus" },
+  { text: "The world is a stage, but the play is badly cast", source: "Oscar Wilde" },
+  { text: "The most effective way to destroy people is to deny and obliterate their own understanding of their history", source: "George Orwell" },
+  { text: "The conscious and intelligent manipulation of the organized habits and opinions of the masses is an important element in democratic society", source: "Edward Bernays" },
+  { text: "What a man wishes to be true, he readily believes. His judgment is guided by his passions, not by reason", source: "Francis Bacon" },
+  { text: "History is written by the victors, not because they survived, but because they understood that whoever controls the narrative of yesterday shapes the compliance of tomorrow.", source: "Arthur Koestler" },
+  { text: "People do not want the truth. They want security, they want dignity, and above all, they want to feel righteous. History is simply the mirror in which power reflects those desires back to them", source: "Umberto Eco" },
+  { text: "Propaganda does not deceive people; it merely helps them to deceive themselves.", source: "Jean-Paul Sartre" },
+  { text: "The most effective propaganda is that which flatters the victim’s vanity while stripping him of his judgment", source: "Aldous Huxley" },
 ]
-
-
+//  { text: "", source: "" },
+ 
+export const TRIGRAMS = [
+  { symbol: "☰", name: "Qián", meaning: "Heaven / Sky", element: "Metal" },
+  { symbol: "☱", name: "Duì", meaning: "Lake / Mist", element: "Metal" },
+  { symbol: "☲", name: "Lí", meaning: "Fire / Sun", element: "Fire" },
+  { symbol: "☳", name: "Zhèn", meaning: "Thunder", element: "Wood" },
+  { symbol: "☴", name: "Xùn", meaning: "Wind", element: "Wood" },
+  { symbol: "☵", name: "Kǎn", meaning: "Water / Moon", element: "Water" },
+  { symbol: "☶", name: "Gèn", meaning: "Mountain", element: "Earth" },
+  { symbol: "☷", name: "Kūn", meaning: "Earth / Ground", element: "Earth" },
+];
 

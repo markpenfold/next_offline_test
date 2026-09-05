@@ -291,3 +291,7 @@ display: flex;
 .navholder {
   min-height: 60px;
 }
+
+.tall600 {
+  min-height:950px;
+}
