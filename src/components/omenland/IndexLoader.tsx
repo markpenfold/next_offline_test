@@ -22,7 +22,6 @@ import { useDATAStore } from "@/stores/useDataStore";
 import { useUIStore } from '@/stores/useUIStore';
 import styles from "@/app/styles/omenland.module.css";
 import { formatIndexDisplayName, formatYear } from "@/components/data/dataHelpers";
-import { WindowBar, WindowBarIconButton } from "@/components/omenland/WindowBar";
 import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
 
 export function IndexLoader() {

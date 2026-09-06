@@ -11,7 +11,8 @@ export const AppStoreContext = createContext<AppStoreInstance | null>(null);
 export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { children: React.ReactNode; initialTier?: UserTier }) {
   console.log("AppstorePRovider RUNS")
   const storeRef = useRef<AppStoreInstance>(null);
-  
+  const initializedRef = useRef(false); // Lock to prevent multi-triggering
+
   // 1. Instant Synchronous Creation of the Brain //////////////
   //////////////////////////////////////////////////////////////
   if (!storeRef.current) {
@@ -25,9 +26,15 @@ export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { child
     const store = storeRef.current;
     if (!store) return;
 
-    console.log("🔥 useEffect FIRED");
+    console.log("🔥 useEffect FIRED in app Provider");
     // THE SELF-STARTUP TRIGGER: Launches online/offline orchestration
-    store.getState().initializeWorkspace();
+    // Guard against double-execution from StrictMode or Provider re-mounts
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      console.log(" useEffect FIRED (Initializing Workspace)");
+      store.getState().initializeWorkspace();
+    }
+
 
     const handlePageShow = (e: PageTransitionEvent) => {
       console.log("📄 pageshow fired, persisted:", e.persisted);
@@ -37,7 +44,6 @@ export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { child
     };
 
     window.addEventListener('pageshow', handlePageShow);
-
     // Catch immediate physical connection cuts or antenna restorations
     const handleOffline = () => store.setState({ isOnline: false });
     const handleOnline = () => store.getState().checkNetwork();
@@ -46,6 +52,7 @@ export function AppStoreProvider({ children, initialTier = TIERS.FREE }: { child
     window.addEventListener('online', handleOnline);
 
     return () => {
+      window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };

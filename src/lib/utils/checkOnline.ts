@@ -4,21 +4,30 @@ export async function isReallyOnline(): Promise<boolean> {
   }
 
   try {
-    const response = await fetch("/api/ping", { 
-      method: 'HEAD', 
-      cache: 'no-store', 
-      signal: AbortSignal.timeout(2500),
+    const response = await fetch('/api/ping', {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
     });
-    
-    console.log("📶 Connection confirmed via /ping.");
-    return response.ok; // ← actually check the response
-  } catch (e) {
-    console.log("🚫 Genuinely offline or request timed out.");
+
+    console.log('📶 Connection confirmed via /ping.');
+    return response.ok;
+  } catch (e: any) {
+    // Catch TimeoutError, AbortError, or thread-starvation TypeError ('Failed to fetch')
+    const isTimeoutOrAbort = 
+      e.name === 'TimeoutError' || 
+      e.name === 'AbortError' || 
+      (e instanceof TypeError && e.message.toLowerCase().includes('fetch'));
+
+    if (isTimeoutOrAbort) {
+      console.warn('⚠️ Healthcheck timed out due to thread saturation; keeping online state.');
+      return typeof window !== 'undefined' ? navigator.onLine : true;
+    }
+
+    console.log('🚫 Genuinely offline.');
     return false;
   }
 }
-
-
 
 export async function isSUPAyOnline(): Promise<boolean> {
   if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -27,22 +36,29 @@ export async function isSUPAyOnline(): Promise<boolean> {
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl) return typeof window !== 'undefined' ? navigator.onLine : true;
 
-    if (!supabaseUrl) return navigator.onLine;
-
-    // Ping Supabase directly. Any HTTP response (even 401/403) means internet + DNS work.
-    const response = await fetch(`${supabaseUrl}/rest/v1/`, { 
-      method: 'HEAD', 
-      headers: { apikey: anonKey || '' },
-      cache: 'no-store', 
-      signal: AbortSignal.timeout(3000),
+    // Ping Supabase base URL without custom headers to avoid CORS preflight delays
+    const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
     });
-    
-    console.log("📶 Connection confirmed to Supabase.");
+
+    console.log('📶 Connection confirmed to Supabase.');
     return response.ok || response.status < 500;
-  } catch (e) {
-    console.log("🚫 Unable to reach Supabase backend (offline or DNS failed).");
+  } catch (e: any) {
+    const isTimeoutOrAbort = 
+      e.name === 'TimeoutError' || 
+      e.name === 'AbortError' || 
+      (e instanceof TypeError && e.message.toLowerCase().includes('fetch'));
+
+    if (isTimeoutOrAbort) {
+      console.warn('⚠️ Supabase ping timed out due to thread saturation; keeping online state.');
+      return typeof window !== 'undefined' ? navigator.onLine : true;
+    }
+
+    console.log('🚫 Unable to reach Supabase backend.');
     return false;
   }
 }

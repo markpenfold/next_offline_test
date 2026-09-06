@@ -1,11 +1,20 @@
-// app/ping/route.ts
-import { NextResponse } from 'next/server'
+// app/api/ping/route.ts
+import { NextResponse } from 'next/server';
 
-// Handles the checkOnline.ts HEAD request safely
 export async function HEAD() {
-  return new NextResponse(null, { status: 200 })
+  return new NextResponse(null, { 
+    status: 200,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+    },
+  });
 }
 
 export async function GET() {
-  return new NextResponse('pong', { status: 200 })
+  return new NextResponse('pong', { 
+    status: 200,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+    },
+  });
 }

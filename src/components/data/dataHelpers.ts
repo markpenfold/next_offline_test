@@ -247,9 +247,25 @@ export async function hydrateSingleSlot(
     );
   }
 
+  console.log()
   // 1. Load full timeline Map + precomputed total events from OPFS Parquet
   const { indexMap: terrainIndexData, totalEvents } = await loadSlotIndexData(fileName);
   
+  // 🔍 DATA PEEK: Inspect raw returns from OPFS DuckDB read
+  console.group(`🔬 [Data Peek] File: ${fileName} | Slot: ${slotIndex}`);
+  console.log('Total Events Count:', totalEvents);
+  console.log('Is Map Instance:', terrainIndexData instanceof Map);
+  console.log('Map Size:', terrainIndexData?.size ?? 0);
+  if (terrainIndexData && terrainIndexData.size > 0) {
+    const keys = Array.from(terrainIndexData.keys());
+    console.log('Sample Keys (Years):', keys.slice(0, 10));
+    console.log('First Year Entry:', keys[0], '=>', terrainIndexData.get(keys[0]));
+  } else {
+    console.warn('⚠️ terrainIndexData is empty or undefined!');
+  }
+  console.groupEnd();
+
+
   // Guard 2: Dataset integrity check
   if (!terrainIndexData || terrainIndexData.size === 0) {
     throw new Error(

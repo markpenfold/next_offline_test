@@ -24,7 +24,7 @@ export function HowItWorks() {
 
       <div className={classes.sub_subTitle}>
         <Link href={targetUrl} className='brandLink'>
-          {profile ? 'Go to your Omenland' : 'Create a free account to get started'}
+          {profile ? 'Explore' : 'Create a free account to get started'}
         </Link>
       </div>
 

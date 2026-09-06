@@ -1,95 +1,82 @@
-import { MDXRemote } from 'next-mdx-remote/rsc';
-import remarkGfm from 'remark-gfm';
-import matter from 'gray-matter';
+import { marked } from 'marked';
+import fm from 'front-matter';
 import styles from '@/app/styles/markdown.module.css';
 import { SiteNav } from '@/components/identity/SiteNav';
 
+interface Attributes {
+  title?: string;
+  subtitle?: string;
+  heroImage?: string;
+  date?: string;
+}
+
 export default async function AboutPage() {
-  // Read dynamically at runtime and clean trailing slashes
-  const rawDomain = (
-    process.env.NEXT_PUBLIC_R2_SITE_CONTENT_URL || 
-    process.env.R2_ENDPOINT || 
-    ''
-  ).replace(/\/+$/, '');
+  const R2_BASE_URL = 'https://pub-7035fb577eda471c9f2d2e8910da1021.r2.dev/omenland_pages/about';
 
-  const R2_BASE_URL = `${rawDomain}/omenland_pages/about`;
-  const targetUrl = `${R2_BASE_URL}/omenland.md`;
-
-  const mdxComponents = {
-    img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
-      const rawSrc = typeof props.src === 'string' ? props.src : '';
-      const src = rawSrc.startsWith('http') 
-        ? rawSrc 
-        : `${R2_BASE_URL}/${rawSrc.replace(/^\.\//, '')}`;
-        
-      return (
-        <span className={styles.centeredImageWrapper}>
-          <img {...props} src={src} className={styles.markdownImage} alt={props.alt || ''} />
-          {props.alt && <span className={styles.imageCaption}>{props.alt}</span>}
-        </span>
-      );
-    },
+  // Customize marked image rendering
+  const renderer = new marked.Renderer();
+  renderer.image = ({ href, title, text }) => {
+    // Rewrite relative ./ paths to full R2 bucket URLs
+    const isAbsolute = href.startsWith('http://') || href.startsWith('https://');
+    const cleanHref = href.replace(/^\.\//, '');
+    const src = isAbsolute ? href : `${R2_BASE_URL}/${cleanHref}`;
+    
+    return `
+      <span class="${styles.centeredImageWrapper}">
+        <img src="${src}" alt="${text || ''}" crossOrigin="anonymous" class="${styles.markdownImage}" />
+        ${text ? `<span class="${styles.imageCaption}">${text}</span>` : ''}
+      </span>
+    `;
   };
 
+  let htmlContent = '';
+  let attributes: Attributes = {};
+
   try {
-    const res = await fetch(targetUrl, {
-      cache: 'no-store', // Temporarily bypass Vercel Data Cache to force a fresh hit
-    });
+    const res = await fetch(`${R2_BASE_URL}/omenland.md`, { cache: 'no-store' });
+    
+    if (res.ok) {
+      const rawText = await res.text();
+      const { attributes: parsedAttrs, body } = fm<Attributes>(rawText);
+      attributes = parsedAttrs;
 
-    if (!res.ok) {
-      return (
-        <div style={{ color: '#ef4444', padding: '2rem', fontFamily: 'monospace' }}>
-          <h3>R2 Fetch Error (HTTP {res.status})</h3>
-          <p><b>Attempted URL:</b> <code>{targetUrl}</code></p>
-          <p><b>Status Text:</b> {res.statusText}</p>
-        </div>
-      );
+      // Pass custom renderer into marked.parse
+      htmlContent = await marked.parse(body, { renderer });
     }
+  } catch (err) {
+    htmlContent = `<p style="color: red;">Failed to load markdown content.</p>`;
+  }
 
-    const rawText = await res.text();
-    const { data, content } = matter(rawText);
+  const heroUrl = attributes.heroImage 
+    ? `${R2_BASE_URL}/${attributes.heroImage.replace(/^\.\//, '')}`
+    : `${R2_BASE_URL}/hero.png`;
 
-    const heroUrl = data.heroImage
-      ? data.heroImage.startsWith('http')
-        ? data.heroImage
-        : `${R2_BASE_URL}/${data.heroImage.replace(/^\.\//, '')}`
-      : null;
-
-    return (
-
-        <>
-        <SiteNav/>
+  return (
+    <>
+      <SiteNav />
       <div className={`pageContainer darkBackground ${styles.omenlandAboutLayout}`}>
         {heroUrl && (
           <div className={styles.heroWrapper}>
-            <img src={heroUrl} alt={data.title || 'Hero banner'} className={styles.heroImage} />
+            <img 
+              src={heroUrl} 
+              crossOrigin="anonymous" 
+              alt={attributes.title || 'Hero banner'} 
+              className={styles.heroImage} 
+            />
           </div>
         )}
 
         <article className={styles.proseContainer}>
-          {data.title && <h1 className={styles.pageTitle}>{data.title}</h1>}
-          {data.subtitle && <p className={styles.pageSubtitle}>{data.subtitle}</p>}
-          {data.title && <hr className={styles.divider} />}
+          {attributes.title && <h1 className={styles.pageTitle}>{attributes.title}</h1>}
+          {attributes.subtitle && <p className={styles.pageSubtitle}>{attributes.subtitle}</p>}
+          {(attributes.title || attributes.subtitle) && <hr className={styles.divider} />}
 
-          <MDXRemote
-            source={content}
-            options={{
-              mdxOptions: { remarkPlugins: [remarkGfm] },
-            }}
-            components={mdxComponents}
+          <div 
+            className={styles.markdownContent}
+            dangerouslySetInnerHTML={{ __html: htmlContent }} 
           />
         </article>
       </div>
-      </>
-    );
-  } catch (err: unknown) {
-    const error = err as Error;
-    return (
-      <div style={{ color: '#ef4444', padding: '2rem', fontFamily: 'monospace' }}>
-        <h3>Fetch Threw Exception</h3>
-        <p><b>Attempted URL:</b> <code>{targetUrl}</code></p>
-        <p><b>Error Message:</b> {error.message}</p>
-      </div>
-    );
-  }
+    </>
+  );
 }

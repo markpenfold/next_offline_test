@@ -1,64 +1,185 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import { getOPFSFileHandle } from "@/components/data/diskOPFS";
 import { TimelineEvent } from "../omenland/omenTypes";
+import { 
+  getDirectory, 
+  saveToOPFSFolder, 
+  deleteOPFSFile, 
+  getOPFSEntries 
+} from '@/components/data/diskOPFS'; // Adjust path if necessary
 
-
-// 🔒 THE CONCURRENCY LOCKS
+// Module-level singleton handles
 let dbInstance: duckdb.AsyncDuckDB | null = null;
 let initPromise: Promise<duckdb.AsyncDuckDB> | null = null;
 
+const DATABASE_DIR = 'database';
+
 /**
- * Coalesces concurrent boot requests into a single shared execution thread.
+ * Safely resolves installed DuckDB package version.
  */
+function getDuckDBVersion(): string {
+  const version = (duckdb as { PACKAGE_VERSION?: string }).PACKAGE_VERSION;
+  return version || process.env.NEXT_PUBLIC_DUCKDB_VERSION || '1.28.0';
+}
+
+/**
+ * 1. Resolves optimal bundle based on browser capabilities.
+ * Enforces selection of the EH (Enhanced) bundle containing native Parquet support.
+ */
+export async function resolveDuckDBBundle(): Promise<duckdb.DuckDBBundle> {
+  const DUCKDB_BUNDLES = duckdb.getJsDelivrBundles();
+
+  // Try resolving bundle through DuckDB's selector
+  const selected = await duckdb.selectBundle({
+    mvp: DUCKDB_BUNDLES.mvp,
+    eh: DUCKDB_BUNDLES.eh,
+  });
+
+  // Fall back to EH bundle explicitly if selected is undefined or mapped to MVP
+  const bundle = selected && selected.mainModule.includes('duckdb-eh')
+    ? selected
+    : DUCKDB_BUNDLES.eh;
+
+  if (!bundle) {
+    throw new Error('Failed to resolve DuckDB WASM EH bundle.');
+  }
+
+  return bundle as duckdb.DuckDBBundle;
+}
+
+
+
+
+
+
+/**
+ * 2. Caches and retrieves WASM binary from OPFS database/ directory.
+ * Uses typed slices directly to avoid main-thread ArrayBuffer copy overhead.
+ */
+async function getOrUpdateWasmFromOPFS(wasmUrl: string): Promise<string> {
+  const version = getDuckDBVersion();
+  const fileName = wasmUrl.split('/').pop() || 'duckdb.wasm';
+  const targetFileName = `${fileName}-v${version}`;
+
+  const dbDirHandle = await getDirectory(DATABASE_DIR);
+
+  // A. Cache Hit Check
+  try {
+    const fileHandle = await dbDirHandle.getFileHandle(targetFileName, { create: false });
+    const file = await fileHandle.getFile();
+
+    if (file.size === 0) {
+      console.warn(`⚠️ Corrupt 0-byte WASM detected at /${DATABASE_DIR}/${targetFileName}. Deleting...`);
+      await deleteOPFSFile(DATABASE_DIR, targetFileName);
+      throw new DOMException('Corrupt file', 'NotFoundError');
+    }
+
+    console.log(`⚡ DuckDB WASM loaded from OPFS (/${DATABASE_DIR}/${targetFileName}, ${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    const typedFile = file.slice(0, file.size, 'application/wasm');
+    return URL.createObjectURL(typedFile);
+  } catch (err: any) {
+    if (err.name === 'NotFoundError') {
+      console.log(`ℹ️ Cache miss for /${DATABASE_DIR}/${targetFileName}. Downloading from CDN...`);
+    } else {
+      console.warn(`⚠️ OPFS access failed for /${DATABASE_DIR}/${targetFileName}:`, err);
+    }
+  }
+
+  // B. Purge Stale WASM Versions
+  try {
+    const entries = await getOPFSEntries(DATABASE_DIR);
+    for (const { name } of entries) {
+      if (name.startsWith(`${fileName}-v`) && name !== targetFileName) {
+        await deleteOPFSFile(DATABASE_DIR, name);
+      }
+    }
+  } catch (err) {
+    console.warn(`Could not purge old WASM files in /${DATABASE_DIR}:`, err);
+  }
+
+  // C. Download & Persist
+  const response = await fetch(wasmUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch DuckDB WASM binary: ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+
+  await saveToOPFSFolder(DATABASE_DIR, targetFileName, arrayBuffer);
+
+  const wasmBlob = new Blob([arrayBuffer], { type: 'application/wasm' });
+  return URL.createObjectURL(wasmBlob);
+}
+
+/**
+ * 3. Creates worker instance from script text to bypass origin restrictions.
+ */
+async function createWorkerFromScript(workerUrl: string): Promise<{ worker: Worker; workerBlobURL: string }> {
+  const response = await fetch(workerUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch DuckDB worker script: ${response.statusText}`);
+  }
+
+  const workerCode = await response.text();
+  const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+  const workerBlobURL = URL.createObjectURL(workerBlob);
+
+  return {
+    worker: new Worker(workerBlobURL),
+    workerBlobURL,
+  };
+}
+
+
+/**
+ * Instantiates the engine and side-loads the Parquet extension from local OPFS memory.
+ */
+async function instantiateEngine(
+  bundle: duckdb.DuckDBBundle,
+  cachedWasmUrl: string
+): Promise<duckdb.AsyncDuckDB> {
+  const { worker, workerBlobURL } = await createWorkerFromScript(bundle.mainWorker!);
+
+  try {
+    const logger = new duckdb.ConsoleLogger();
+    const db = new duckdb.AsyncDuckDB(logger, worker);
+    await db.instantiate(cachedWasmUrl, bundle.pthreadWorker);
+
+    const conn = await db.connect();
+    await conn.query(`SET autoinstall_known_extensions = false;`);
+    await conn.query(`SET autoload_known_extensions = false;`);
+    await conn.query(`LOAD parquet;`);   // <-- the actual missing piece
+    await conn.close();
+
+    return db;
+  } finally {
+    URL.revokeObjectURL(workerBlobURL);
+  }
+}
+/**
+ * Main Orchestrator: Coalesces concurrent boot requests into a single singleton thread.
+ */
+async function ensureExtensionServiceWorker(): Promise<void> {
+  if (!('serviceWorker' in navigator)) return; // unsupported browser: LOAD just hits the network directly
+  await navigator.serviceWorker.register('/duckdb-sw.js');
+  await navigator.serviceWorker.ready;
+}
+
 export async function getSharedDuckDBEngine(): Promise<duckdb.AsyncDuckDB> {
   if (dbInstance) return dbInstance;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    let blobURL: string | null = null;
-
     try {
-      const DUCKDB_VERSION = "1.28.0";
-      const CDN_BASE = `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${DUCKDB_VERSION}/dist`;
+      await ensureExtensionServiceWorker();           // <-- new, must come first
+      const bundle = await resolveDuckDBBundle();
+      const cachedWasmUrl = await getOrUpdateWasmFromOPFS(bundle.mainModule);
 
-      const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
-        mvp: {
-          mainModule: `${CDN_BASE}/duckdb-mvp.wasm`,
-          mainWorker: `${CDN_BASE}/duckdb-browser-mvp.worker.js`,
-        },
-        eh: {
-          mainModule: `${CDN_BASE}/duckdb-eh.wasm`,
-          mainWorker: `${CDN_BASE}/duckdb-browser-eh.worker.js`,
-        },
-      };
-
-      const bundle = await duckdb.selectBundle(MANUAL_BUNDLES);
-      
-      // Fetch worker code and create Blob URL to bypass CORS
-      const response = await fetch(bundle.mainWorker!);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch DuckDB worker script: ${response.statusText}`);
-      }
-      
-      const workerCode = await response.text();
-      const blob = new Blob([workerCode], { type: "application/javascript" });
-      blobURL = URL.createObjectURL(blob);
-      
-      const worker = new Worker(blobURL);
-      const logger = new duckdb.ConsoleLogger();
-      const db = new duckdb.AsyncDuckDB(logger, worker);
-      
-      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      
-      dbInstance = db;
-      return db;
+      dbInstance = await instantiateEngine(bundle, cachedWasmUrl);
+      return dbInstance;
     } catch (error) {
       initPromise = null;
       throw error;
-    } finally {
-      if (blobURL) {
-        URL.revokeObjectURL(blobURL);
-      }
     }
   })();
 

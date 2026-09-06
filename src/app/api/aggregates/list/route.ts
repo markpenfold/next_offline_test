@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       )
     );
 
+    console.log("RESPONSES: ", objectResponses)
     // 5. Group objects by version directory level to collapse chunked files
     const indexMap = new Map<string, AvailableIndex>();
 
