@@ -45,13 +45,14 @@ export function AppStoreProvider({
     window.addEventListener('pageshow', handlePageShow);
 
     // D. Passive Subscription: React to changes in Connectivity Store if needed
-    const unsubscribeConnectivity = useConnectivityStore.subscribe((state) => {
-      console.log("📡 Connectivity Store state changed to:", state.network);
-      // Synchronize or trigger actions on app-store when connectivity changes:
-      if (state.network === 'online') {
-        store.getState().initializeWorkspace();
+    const unsubscribeConnectivity = useConnectivityStore.subscribe(
+      (state, prevState) => {
+        // Only trigger re-initialization on actual status CHANGES to online
+        if (state.network === 'online' && prevState.network !== 'online') {
+          store.getState().initializeWorkspace();
+        }
       }
-    });
+    );
 
     return () => {
       window.removeEventListener('pageshow', handlePageShow);

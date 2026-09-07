@@ -198,14 +198,18 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         });
 
         // Successfully connected to DB, so mark network as online
-        useConnectivityStore.getState().setNetworkStatus('online');
+        if (useConnectivityStore.getState().network !== 'online') {
+          useConnectivityStore.getState().setNetworkStatus('online');
+        }
         console.log("Client workspace successfully synced with live database source-of-truth.");
 
       } catch (err) {
         console.error("Critical error encountered during live network sync:", err);
         
-        // 1. Notify connectivity store of network failure
-        useConnectivityStore.getState().setNetworkStatus('offline');
+        // 2. Catch/Error case:
+        if (useConnectivityStore.getState().network !== 'offline') {
+          useConnectivityStore.getState().setNetworkStatus('offline');
+        }
 
         // 2. Attempt offline fallback if not already authenticated in memory
         if (get().authStatus !== 'authenticated') {

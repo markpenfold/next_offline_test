@@ -18,7 +18,7 @@ export const useConnectivityStore = create<ConnectivityStore>((set, get) => ({
   network: 'online',
   r2: 'online',
 
-  setNetworkStatus: (status) =>  set({ network: status }),
+  setNetworkStatus: (status) =>  set((state) => state.network === status ? state : { network: status }),
   setR2Status: (status: R2Status) =>  set({ r2: status }),
   checkR2: async () => {
     try {

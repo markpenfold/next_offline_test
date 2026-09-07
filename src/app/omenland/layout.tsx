@@ -23,10 +23,7 @@ export default function OmenlandLayout({
   const { initializeOmenland, isInitialized } = useDATAStore();
   
 
-  // 1. Initialize the App Engine on layout mount
-  useEffect(() => {
-    initializeWorkspace();
-  }, [initializeWorkspace]);
+
 
   // 2. Handle workspace access & offline permissions
   useEffect(() => {
