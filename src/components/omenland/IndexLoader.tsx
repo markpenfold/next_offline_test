@@ -33,7 +33,7 @@ export function IndexLoader() {
   const [opfsMap, setOpfsMap] = useState<Record<string, boolean>>({});
 
   // 🟢 Online Status & Stores
-  const isOnline = const isOnline = useConnectivityStore(
+  const isOnline = useConnectivityStore(
   state => state.network === 'online'
 );
   
