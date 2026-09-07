@@ -276,7 +276,7 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
   refreshDataShards: async () => {
     try {
       const shards = await getLocalOPFSDataShards();
-      console.log("refreshDataShards GETTING SHARDS from OPFS: ", shards)
+      //console.log("refreshDataShards GETTING SHARDS from OPFS: ", shards)
       set({ dataShards: shards });
       return shards;
     } catch (err) {

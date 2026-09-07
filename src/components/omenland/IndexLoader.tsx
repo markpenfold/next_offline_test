@@ -85,7 +85,7 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
 
     // 4. Rebuild the DuckDB currentDataView over all active, mounted shards
     await rebuildDataView(mountedFileNames);
-    console.log("✅ [DuckDB] Synchronized view with active shards:", mountedFileNames);
+    //console.log("✅ [DuckDB] Synchronized view with active shards:", mountedFileNames);
   } catch (err) {
     console.error("🚨 [DuckDB] Failed to rebuild currentDataView:", err);
   }
@@ -106,7 +106,7 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
 
       // 2. 🟢 Scan OPFS /data directory for Parquet shards and auto-update store
       let shardsAvailable = await refreshDataShards();
-      console.log("AVAILABLE SHARDS: ", shardsAvailable)
+      //console.log("AVAILABLE SHARDS: ", shardsAvailable)
 
       if (isMounted) {
         setOpfsMap(Object.fromEntries(checks));

@@ -41,7 +41,7 @@ export async function fetchUserAccounts(
         role: mem.role,
         is_personal: !!acc.is_personal
       };
-      console.log("ACCOUNTS COLLECTED: ", returnValue, typeof(returnValue));
+      //console.log("ACCOUNTS COLLECTED: ", returnValue, typeof(returnValue));
 
       return returnValue;
     })

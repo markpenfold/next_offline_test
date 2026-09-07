@@ -212,7 +212,7 @@ if (activeIndexes && activeIndexes.length > 0) {
       // 2. Resolve expected data shard names (pre_1900 and post_1900)
       // e.g. "index__free__accidents__v1" -> ["free_accidents_pre_1900_v1.parquet", "free_accidents_post_1900_v1.parquet"]
       const expectedShardNames = getExpectedDataShardNames(indexFileName);
-      console.log("XPECTED THESE SHARDS:", expectedShardNames);
+      //console.log("XPECTED THESE SHARDS:", expectedShardNames);
 
       for (const shardFileName of expectedShardNames) {
         // Only attempt to mount shards that actually exist in OPFS /data/
@@ -227,7 +227,7 @@ if (activeIndexes && activeIndexes.length > 0) {
 
     // 3. Rebuild DuckDB view with the successfully mounted shard files
     await rebuildDataView(mountedFileNames);
-    console.log("✅ [DuckDB] Initialized currentDataView at boot with:", mountedFileNames);
+    //console.log("✅ [DuckDB] Initialized currentDataView at boot with:", mountedFileNames);
 
   } catch (err) {
     console.error("🚨 [DuckDB] Failed to initialize DuckDB view at boot:", err);
