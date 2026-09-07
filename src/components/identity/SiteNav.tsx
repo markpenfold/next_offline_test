@@ -9,6 +9,7 @@ import classes from '@/app/styles/sitenav.module.css'
 import { Circle, EllipsisVertical } from 'lucide-react';
 import { AVATAR_BUCKET_URL } from '@/lib/utils/constants';
 import styles from '@/app/styles/text.module.css'
+import { useConnectivityStore } from "@/stores/useConnectivityStore";
 
 // =========================================================
 // 1. THE SITESHIFT BOARD (The "Test" component)
@@ -65,7 +66,9 @@ function PublicSiteNav() {
 // =========================================================
 function AuthenticatedSiteNav() {
   const pathname = usePathname()
-  const isOnline = useAppStore((s) => s.isOnline);
+  const isOnline = useConnectivityStore(
+  state => state.network === 'online'
+);
   const tier = useAppStore((s) => s.tier);
   const profile = useAppStore((s) => s.profile);
   const uID = useAppStore((s) => s.userId);

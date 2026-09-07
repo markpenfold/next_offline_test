@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline'
+import { useConnectivityStore} from '@/stores/useConnectivityStore';
+
 
 export async function updateSession(request: NextRequest) {
 
-  const isOnline = await isSUPAyOnline();
+  const isOnline = useConnectivityStore.getState().network === 'online';
+
   if(!isOnline){
     console.log("proxy detects offline status")
     let supabaseResponse = NextResponse.next({

@@ -129,7 +129,6 @@ export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unkn
 
 export interface AppState {
   authStatus: AuthStatus;
-  isOnline: boolean;
   tier: UserTier;
   userId: string | null;
   profile: UserProfile | null;
@@ -138,10 +137,8 @@ export interface AppState {
   accounts: AccountContext[];
   avatarVersion: string; 
   
-  setIsOnline:(truth:boolean) => void; 
   setAvatarVersion: (version: string) => void; 
   canAccessWorkspace: () => boolean;
-  checkNetwork: () => Promise<boolean>;
   initializeWorkspace: () => Promise<void>;
   loginSuccess: (payload: LoginPayload) => void;
   logout: () => Promise<void>;

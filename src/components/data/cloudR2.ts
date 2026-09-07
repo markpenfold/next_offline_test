@@ -9,9 +9,6 @@ export interface GetShardParams {
   accountId: string;
 }
 
-
-
-
 export interface ShardMeta {
   localFileName: string;
   tier: string;

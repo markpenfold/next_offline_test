@@ -15,7 +15,8 @@ import {
   ProjectConfig, 
   ActiveDataViewIndex 
 } from "@/components/data/dataTypes";
-import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
+import { useConnectivityStore, NetworkStatus } from '@/stores/useConnectivityStore';
+
 
 import { useDATAStore } from "@/stores/useDataStore";
 import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
@@ -25,7 +26,7 @@ import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA
 
 // HELPER: Offline-First Parallel Discovery (Cloud + Disk)
 async function getAllIndexes(accountId: string) {
-  const online = typeof window !== "undefined" ? await isReallyOnline() : true;
+  const isOnline = useConnectivityStore.getState().network === 'online';
 
   // 1. Always scan local OPFS files first (instant local access)
   const [localCacheIndexFiles, opfsIndexes] = await Promise.all([
@@ -42,7 +43,7 @@ async function getAllIndexes(accountId: string) {
   let availableIndexes: AvailableIndex[] = [];
 
   // 2. If online, attempt to fetch remote Cloud R2 catalog
-  if (online) {
+  if (isOnline) {
     try {
       availableIndexes = await fetchAvailableIndexes(accountId);
       console.log(`☁️ Discovered ${availableIndexes.length} remote indexes from Cloud R2.`);
@@ -59,7 +60,7 @@ async function getAllIndexes(accountId: string) {
   return { 
     availableIndexes, 
     localCacheIndexFiles,
-    isOnline: online && availableIndexes !== opfsIndexes 
+    isOnline
   };
 }
 

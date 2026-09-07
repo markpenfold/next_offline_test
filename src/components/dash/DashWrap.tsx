@@ -6,10 +6,13 @@ import { SiteNav } from "@/components/identity/SiteNav"
 import styles from '@/app/styles/dashboard.module.css' 
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import { useConnectivityStore } from "@/stores/useConnectivityStore"
 
 export default function DashWrap({ children }: { children: React.ReactNode }) {
   const authStatus = useAppStore((state) => state.authStatus)
-  const isOnline = useAppStore((state) => state.isOnline)
+  const isOnline = useConnectivityStore(
+  (state) => state.network === 'online'
+  )
   const router = useRouter()
   const pathname = usePathname()
 

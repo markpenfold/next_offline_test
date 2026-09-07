@@ -1,22 +1,22 @@
 // src/stores/app-store.ts
 import { createStore } from 'zustand/vanilla';
-import { isReallyOnline, isSUPAyOnline } from '@/lib/utils/checkOnline';
 import { decodeLeaseJwt } from '@/lib/auth/crypto';
 import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/tl_utils/types';
 import { createClient } from '@/lib/supabase/client';
 import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_queries';
-
+import { useConnectivityStore, NetworkStatus } from '@/stores/useConnectivityStore';
 
 
 const supabase = createClient();
+
 //const SCHEMA_VERSION = 'v2_0_0';
 export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
-  console.log("CreateAppStore RUNS with initial Tier of:",initialTier );
+  console.log("CreateAppStore RUNS with initial Tier of:", initialTier );
 
   return createStore<AppState>()((set, get) => ({
     // Default Initial States
     authStatus: 'unknown',
-    isOnline: true,
+    
     tier: initialTier,
     userId: null,
     profile: null,
@@ -25,8 +25,6 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     accounts: [],
     avatarVersion: '',
 
-    setIsOnline: (truth:boolean)=> set({ isOnline: truth }),
-  
     setAvatarVersion: (version) => set({ avatarVersion: version }),
     
     setActiveAccount: (accChoice: AccountContext) => {
@@ -62,17 +60,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
 
     // Rules engine
     canAccessWorkspace: () => {
-      const { isOnline, tier } = get();
-      return isOnline || (tier !== TIERS.FREE && tier !== TIERS.NONE);
-    },
-
-    // Double checks with API ping whether we are connected
-    checkNetwork: async () => {
-      const online = typeof window !== 'undefined' && navigator.onLine 
-        ? await isSUPAyOnline() 
-        : false;
-      set({ isOnline: online });
-      return online;
+      const isOnline = useConnectivityStore.getState().network === 'online';
+      return isOnline || (get().tier !== TIERS.FREE && get().tier !== TIERS.NONE);
     },
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +74,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       set({ authStatus: 'loading' });
 
       // 1. Check if the device can talk to the internet
-      const online = await get().checkNetwork();
+      const online = useConnectivityStore.getState().network === 'online';
 
       // 2. Load the old state from disk instantly so the UI doesn't stutter
       const successfullyHydrated = get().hydrateFromCache();
@@ -149,11 +138,18 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     // 2. LIVE DATABASE SYNCHRONIZATION (Handles Stripe returns & Auto-Logins from password changes)
     syncFromDatabase: async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          throw sessionError;
+        }
         
-        // If no active auth cookie is detected on the device, nuke local states safely
+        // If no active auth cookie is detected on the device, clear local state safely
         if (!session?.user) {
-          console.log(" No active database session found. Clearing client environment.");
+          console.log("No active database session found. Clearing client environment.");
           get().clearSlate();
           return;
         }
@@ -163,17 +159,13 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         
         // Pull corresponding user accounts from the database
         let fetchedAccounts: AccountContext[] = [];
-        try {
-          fetchedAccounts = await fetchUserAccounts(supabase, user.id);
-          } catch (dbErr) {
-            console.error("Error fetching live database records:", dbErr);
-          }
+        fetchedAccounts = await fetchUserAccounts(supabase, user.id);
 
         const targetActiveAccount = fetchedAccounts[0] || null;
         // Check database value first, then metadata fallback, default to free
         const finalTier = fetchedAccounts[0]?.plan_name || user.user_metadata?.pending_plan || 'free';
 
-        console.log("setting has_avatar to: ", user.user_metadata, !!user.user_metadata?.avatar_url)
+        console.log("setting has_avatar to: ", user.user_metadata, !!user.user_metadata?.avatar_url);
         const formattedProfile = {
           name: user.user_metadata?.name || null,
           username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
@@ -185,7 +177,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         const localCacheState = {
           offlineLeaseJwt: session.access_token,
           profile: formattedProfile,
-          authStatus: 'authenticated',
+          authStatus: 'authenticated' as const,
           tier: finalTier,
           activeAccount: targetActiveAccount,
           accounts: fetchedAccounts
@@ -204,11 +196,34 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           activeAccount: targetActiveAccount,
           authStatus: 'authenticated'
         });
+
+        // Successfully connected to DB, so mark network as online
+        useConnectivityStore.getState().setNetworkStatus('online');
         console.log("Client workspace successfully synced with live database source-of-truth.");
+
       } catch (err) {
         console.error("Critical error encountered during live network sync:", err);
-        set({ isOnline: false });
+        
+        // 1. Notify connectivity store of network failure
+        useConnectivityStore.getState().setNetworkStatus('offline');
+
+        // 2. Attempt offline fallback if not already authenticated in memory
         if (get().authStatus !== 'authenticated') {
+          const cachedLease = localStorage.getItem('jungle_lease_v2');
+          if (cachedLease) {
+            try {
+              const parsed = JSON.parse(cachedLease);
+              set({
+                ...parsed,
+                authStatus: 'authenticated'
+              });
+              console.log("⚡ Offline mode: Restored session from local jungle_lease_v2 cache.");
+              return;
+            } catch (e) {
+              console.error("Failed to parse local lease cache:", e);
+            }
+          }
+          // Nuke state only if there's no valid offline lease to fall back on
           get().clearSlate();
         }
       }
@@ -269,7 +284,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       console.log("🧼 Initiating global application signout...");
       try {
         // If online, tell Supabase to sign out and invalidate server cookies
-        if (get().isOnline) {
+        if (useConnectivityStore.getState().network === 'online') {
           await supabase.auth.signOut();
         }
       } catch (e) {

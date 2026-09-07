@@ -23,6 +23,8 @@ import { useUIStore } from '@/stores/useUIStore';
 import styles from "@/app/styles/omenland.module.css";
 import { formatIndexDisplayName, formatYear } from "@/components/data/dataHelpers";
 import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
+import { useConnectivityStore } from "@/stores/useConnectivityStore";
+
 
 export function IndexLoader() {
   const [draggedSlotIndex, setDraggedSlotIndex] = useState<number | null>(null);
@@ -31,7 +33,10 @@ export function IndexLoader() {
   const [opfsMap, setOpfsMap] = useState<Record<string, boolean>>({});
 
   // 🟢 Online Status & Stores
-  const isOnline = useAppStore((s) => s.isOnline);
+  const isOnline = const isOnline = useConnectivityStore(
+  state => state.network === 'online'
+);
+  
   const setFinderOpen = useUIStore((s) => s.setFinderOpen);
   const activeAccount = useAppStore((s) => s.activeAccount);
   const availableIndexes = useDATAStore((s) => s.availableIndexes);

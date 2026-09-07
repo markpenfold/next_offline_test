@@ -3,7 +3,6 @@ import { startOmenland } from '@/components/data/omenlandInit';
 import { hydrateSingleSlot, sliceWindow, deriveTotalYearSpan } from '@/components/data/dataHelpers';
 import {
   OmenlandInitPayload,
-  OPFSFile,
   AvailableIndex,
   ActiveDataViewIndex,
   AvailableDataShard,
@@ -16,10 +15,7 @@ import {
 } from '@/components/data/diskOPFS';
 import { COLLECTION_COLORS_T6_GREYSCALE, COLLECTION_COLORS_T6 } from '@/lib/utils/col_constants';
 import { getShardsFromIndex } from '@/components/data/cloudR2';
-import {
-  checkFileExists, 
-  saveToOPFSFolder,
-} from '@/components/data/diskOPFS';
+
 import { useUIStore } from '@/stores/useUIStore';
 
 

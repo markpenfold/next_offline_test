@@ -66,6 +66,20 @@ export default async function DashboardPage() {
           </div>
           
         </div>
+
+        <div className={styles.gridCard}>
+          <div className={styles.cardHeader}>
+          <h1 className={styles.AccountCardHeader}>Calling all creators</h1>
+          </div>
+          <div className={styles.cardBody}>
+            <p>Publishers</p>
+            <p>Authors</p>
+            <p>Researchers</p>
+            <p> Join the team! </p>
+            <p>Create and sell your timelines in the upcoming OMENLAND Marketplace</p>
+            <p> Use the Contact Us form, with a subect of 'Join the team'</p>
+          </div>
+        </div>
     </DashWrap>
   );
 }
