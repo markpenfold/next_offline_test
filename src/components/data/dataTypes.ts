@@ -1,14 +1,15 @@
 import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
-export interface AvailableIndex {
-  key:string;
-  fileName: string;
-  category:string;
-  tier: "free" | "pro"; 
-  version:string;    
-  s3Key?: string;        
-  sizeBytes?: number;   
-  handle?: FileSystemFileHandle; 
 
+export interface AvailableIndex {
+  key: string;
+  s3Key?: string;
+  s3Keys: string[];
+  fileName: string;
+  category: string;
+  tier: "free" | "pro";
+  version: string;
+  sizeBytes: number;
+  handle?: FileSystemFileHandle; 
 }
 
 export interface AvailableIndex2 {

@@ -1,21 +1,25 @@
 import { Slot } from '@/stores/useDataStore';
 import { AvailableIndex } from '@/components/data/dataTypes';
-import { 
-COLLECTION_COLORS_T6_GREYSCALE,
-COLLECTION_COLORS_T6,
-COLLECTION_COLORS_P1,
-COLLECTION_COLORS_PONTORMO_FRESCO,
-COLLECTION_COLORS_BAROCCI_16,
-COLLECTION_COLORS_MICHELANGELO_16,
-COLLECTION_COLORS_VELAZQUEZ_16,
-URUSHI_16,
-COLLECTION_COLORS_GOYA_WITCHES_16, } from '@/lib/utils/col_constants';
 import { getSharedDuckDBEngine, loadShardIntoEngine } from "./duckDATA";
+import { getLocalShardNamesFromIndex } from './cloudR2';
 let sharedReadConn: any = null; // Type as duckdb.AsyncDuckDBConnection if exported
 import { getOPFSFileHandle } from '@/components/data/diskOPFS';
 // ============================================================================
 // Types
 // ============================================================================
+
+export interface HydrationResult {
+  slot: Omit<Slot, 'id' | 'color'> & { color?: string };
+  resolvedWindowStartYear: number;
+}
+export type TerrainIndexMap = Map<number, { count: number; uuids: string[] }>;
+
+export interface SliceResult {
+  /** 1024-element normalized/raw float array directly streamed to GPU VBO */
+  buffer: Float32Array;
+  /** Lookup map matching `year` -> array of event UUIDs in that bucket */
+  uuidMap: Map<number, string[]>;
+}
 
 
 export function formatIndexDisplayName(category = "", version = "v1"): string {
@@ -30,21 +34,8 @@ export function formatIndexDisplayName(category = "", version = "v1"): string {
 }
 
 export function getExpectedDataShardNames(indexFileName: string): string[] {
-  // Input examples: "index__free__accidents__v1.json" or "index__pro__conspiracy_ufo__v1"
-  const cleanBase = indexFileName
-    .replace(/^index__/, "")
-    .replace(/\.json$/, "")
-    .replace(/\.parquet$/, "");
-
-  const parts = cleanBase.split("__");
-  if (parts.length < 3) return [];
-
-  const [tier, category, version] = parts;
-
-  return [
-    `${tier}_${category}_pre_1900_${version}.parquet`,
-    `${tier}_${category}_post_1900_${version}.parquet`,
-  ];
+  const shards = getLocalShardNamesFromIndex(indexFileName);
+  return shards.map((shard) => shard.localFileName);
 }
 
 export function formatYear(year?: number, isGeologicalTime?: boolean): string {
@@ -64,14 +55,6 @@ export function formatYear(year?: number, isGeologicalTime?: boolean): string {
   return roundedYear < 0 ? `${Math.abs(roundedYear).toLocaleString()} BC` : `${roundedYear} AD`;
 }
 
-export type TerrainIndexMap = Map<number, { count: number; uuids: string[] }>;
-
-export interface SliceResult {
-  /** 1024-element normalized/raw float array directly streamed to GPU VBO */
-  buffer: Float32Array;
-  /** Lookup map matching `year` -> array of event UUIDs in that bucket */
-  uuidMap: Map<number, string[]>;
-}
 
 // ============================================================================
 // Helper: sliceWindow
@@ -174,10 +157,6 @@ export async function runQuery(sql: string) {
 }
 
 
-export interface HydrationResult {
-  slot: Omit<Slot, 'id' | 'color'> & { color?: string };
-  resolvedWindowStartYear: number;
-}
 
 /**
  * Reads a single index Parquet file from DuckDB VFS 

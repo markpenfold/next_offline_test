@@ -164,12 +164,19 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
     const entries = await getOPFSEntries("indexes");
 
     for (const { name, handle } of entries) {
-      if (name.endsWith('.parquet') && name.startsWith('index__')) {
+      // Ignore non-parquet files and temporary compaction shards
+      if (!name.endsWith('.parquet') || name.startsWith('_temp_')) {
+        continue;
+      }
+
+      if (name.startsWith('index__')) {
         const parts = name.replace('.parquet', '').split('__');
         
         const tier = (parts[1] as "free" | "pro") || 'free';
         const cat = parts[2] || 'unknown';
-        const version = parts[4] || 'v1';
+        // Fallback checks for version positioning depending on naming scheme
+        const rawVersion = parts.length >= 5 ? parts[4] : parts[3] || 'v1';
+        const version = rawVersion.replace(/^version=/, '');
         
         const file = await handle.getFile();
 
@@ -180,6 +187,7 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
           category: cat,
           version,
           sizeBytes: file.size,
+          s3Keys: [], // Empty array for local OPFS files (no remote download needed)
           handle,
         });
       }
@@ -193,7 +201,6 @@ export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promis
     return [];
   }
 }
-
 
 export async function getLocalOPFSDataShardsA(): Promise<AvailableDataShard[]> {
 

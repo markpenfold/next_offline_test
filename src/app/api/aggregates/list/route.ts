@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { createClient } from "@/lib/supabase/server";
 import { checkMembershipAndAccess } from "@/lib/supabase/queries";
 import { normalizeTier } from "@/lib/utils/general";
 
+/*
+This route is called by fetchAvailableIndexes(accountId: string)
+Found in CloudR2.ts
+This, in turn is called by async function getAllIndexes(accountId: string) 
+Found in OmenlandInit.ts
+*/
 export interface AvailableIndex {
   key: string;
   fileName: string;
@@ -25,7 +31,70 @@ const r2 = new S3Client({
   },
 });
 
-const BUCKET_NAME = process.env.R2_INDEX_BUCKET_NAME || "indexes";
+const BUCKET_FREE = process.env.R2_INDEX_FREE_BUCKET || "index-free";
+const BUCKET_PRO = process.env.R2_INDEX_PRO_BUCKET || "index-pro";
+
+// Helper: Parse key path into standard AvailableIndex object
+function parseKeyToAvailableIndex(
+  key: string,
+  tier: "free" | "pro",
+  sizeBytes: number
+): AvailableIndex | null {
+  if (key.endsWith("/") || key === "manifest.json") return null;
+
+  const parts = key.split("/").filter(Boolean);
+  const catPart = parts.find((p) => p.startsWith("master_category="));
+  const verPart = parts.find((p) => p.startsWith("version=") || p.match(/^v\d+$/i));
+
+  if (!catPart || !verPart) return null;
+
+  const category = catPart.replace(/^master_category=/, "");
+  const version = verPart.replace(/^version=/, "");
+
+  return {
+    key,
+    fileName: `${category}_${version}.parquet`,
+    category,
+    tier,
+    version,
+    s3Key: key,
+    sizeBytes,
+  };
+}
+
+// Helper: Attempt to load and parse a pre-computed manifest.json from a bucket
+async function tryFetchManifest(
+  bucket: string,
+  tier: "free" | "pro"
+): Promise<AvailableIndex[] | null> {
+  try {
+    const command = new GetObjectCommand({ Bucket: bucket, Key: "manifest.json" });
+    const response = await r2.send(command);
+    const bodyText = await response.Body?.transformToString();
+    if (!bodyText) return null;
+
+    const parsed = JSON.parse(bodyText);
+
+    // Handle manifest object payload ({ bucket, files: [{ key, size_bytes }] })
+    if (parsed && Array.isArray(parsed.files)) {
+      const items: AvailableIndex[] = [];
+      for (const file of parsed.files) {
+        const indexObj = parseKeyToAvailableIndex(file.key, tier, file.size_bytes || 0);
+        if (indexObj) items.push(indexObj);
+      }
+      return items;
+    }
+
+    // Direct Array Fallback
+    if (Array.isArray(parsed)) {
+      return parsed as AvailableIndex[];
+    }
+
+    return null;
+  } catch {
+    return null; // Silent catch -> triggers dynamic scanning fallback
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,76 +120,71 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedTier = normalizeTier(rawAccessTier);
-    const prefixesToScan = ["free/"];
-    if (normalizedTier === "pro") prefixesToScan.push("pro/");
 
-    // 4. Fetch objects recursively under accessible tier folders
+    // Build bucket query targets based on access level
+    const bucketsToFetch: Array<{ bucket: string; tier: "free" | "pro" }> = [
+      { bucket: BUCKET_FREE, tier: "free" },
+    ];
+
+    if (normalizedTier === "pro") {
+      bucketsToFetch.push({ bucket: BUCKET_PRO, tier: "pro" });
+    }
+
+    // =========================================================================
+    // PRIMARY ATTACK: Try loading pre-compiled manifest files (~30ms)
+    // =========================================================================
+    const manifestResults = await Promise.all(
+      bucketsToFetch.map(({ bucket, tier }) => tryFetchManifest(bucket, tier))
+    );
+
+    const hasAllManifests = manifestResults.every((res) => res !== null);
+
+    if (hasAllManifests) {
+      const combinedIndexes = manifestResults.flat() as AvailableIndex[];
+      return NextResponse.json({
+        activeTier: normalizedTier,
+        bucketsUsed: bucketsToFetch.map((b) => b.bucket),
+        source: "manifest",
+        indexes: combinedIndexes,
+      });
+    }
+
+    // =========================================================================
+    // FALLBACK ATTACK: Recursive ListObjectsV2 bucket scanning (~5s)
+    // =========================================================================
+    console.warn("⚠️ [R2 Manifest Miss] Falling back to recursive bucket scanning...");
+
     const objectResponses = await Promise.all(
-      prefixesToScan.map((prefix) =>
-        r2.send(
-          new ListObjectsV2Command({
-            Bucket: BUCKET_NAME,
-            Prefix: prefix,
-          })
-        )
+      bucketsToFetch.map(({ bucket, tier }) =>
+        r2
+          .send(new ListObjectsV2Command({ Bucket: bucket }))
+          .then((res) => ({ res, bucket, tier }))
       )
     );
 
-    console.log("RESPONSES: ", objectResponses)
-    // 5. Group objects by version directory level to collapse chunked files
     const indexMap = new Map<string, AvailableIndex>();
 
-    for (const res of objectResponses) {
+    for (const { res, tier } of objectResponses) {
       for (const obj of res.Contents || []) {
-        if (!obj.Key || obj.Key.endsWith("/")) continue;
+        if (!obj.Key) continue;
 
-        const parts = obj.Key.split("/").filter(Boolean);
+        const indexObj = parseKeyToAvailableIndex(obj.Key, tier, obj.Size || 0);
+        if (!indexObj) continue;
 
-        // Find the folder segment containing the version
-        const versionIndex = parts.findIndex(
-          (p) => p.startsWith("version=") || p.match(/^v\d+$/i)
-        );
-
-        if (versionIndex === -1) continue; // Skip files outside a version scope
-
-        // Truncate path up to the version directory level
-        const versionFolderPath = parts.slice(0, versionIndex + 1).join("/") + "/";
-
-        const tier = (normalizeTier(parts[0]) === "pro" ? "pro" : "free") as "free" | "pro";
-
-        const categoryPart = parts.find((p) => p.startsWith("master_category=")) || parts[1] || "";
-        const category = categoryPart.replace(/^master_category=/, "");
-
-        const versionRaw = parts[versionIndex];
-        const version = versionRaw.replace(/^version=/, "");
-
-        // Dedup key based on version folder path
-        const mapKey = versionFolderPath;
-
-        if (!indexMap.has(mapKey)) {
-          indexMap.set(mapKey, {
-            key: mapKey,
-            fileName: `${category}_${version}.parquet`,
-            category,
-            tier,
-            version,
-            s3Key: versionFolderPath,
-            sizeBytes: obj.Size || 0,
-          });
+        if (!indexMap.has(indexObj.key)) {
+          indexMap.set(indexObj.key, indexObj);
         } else {
-          // Sum up bytes across all parquet chunks in this version directory
-          const existing = indexMap.get(mapKey)!;
+          const existing = indexMap.get(indexObj.key)!;
           existing.sizeBytes = (existing.sizeBytes || 0) + (obj.Size || 0);
         }
       }
     }
 
-    const indexes = Array.from(indexMap.values());
-
     return NextResponse.json({
       activeTier: normalizedTier,
-      bucketUsed: BUCKET_NAME,
-      indexes,
+      bucketsUsed: bucketsToFetch.map((b) => b.bucket),
+      source: "live_scan",
+      indexes: Array.from(indexMap.values()),
     });
 
   } catch (error: any) {

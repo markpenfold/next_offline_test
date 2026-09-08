@@ -13,7 +13,8 @@ const r2 = new S3Client({
   },
 });
 
-const BUCKET_NAME = process.env.R2_INDEX_BUCKET_NAME || "indexes";
+const BUCKET_FREE = process.env.R2_INDEX_FREE_BUCKET || "index-free";
+const BUCKET_PRO = process.env.R2_INDEX_PRO_BUCKET || "index-pro";
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,18 +26,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 2. Extract structured request parameters
+    // 2. Extract parameters (supports explicit s3Key or fallback construction)
     const body = await req.json().catch(() => ({}));
-    const { accountId, category, tier = "free", version = "v1" } = body;
+    const { accountId, category, tier = "free", version = "v1", s3Key, key } = body;
 
-    if (!accountId || !category) {
+    if (!accountId || (!category && !s3Key && !key)) {
       return NextResponse.json(
-        { error: "Missing required parameters: accountId and category are required" }, 
+        { error: "Missing required parameters: accountId and category or s3Key are required" },
         { status: 400 }
       );
     }
 
-    // 3. Verify user's account membership & normalized entitlement
+    // 3. Verify user's account membership & access tier
     const rawAccessTier = await checkMembershipAndAccess(user.id, accountId);
     if (!rawAccessTier || typeof rawAccessTier !== "string") {
       return NextResponse.json(
@@ -45,10 +46,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userTier = normalizeTier(rawAccessTier); // Guaranteed "free" | "pro"
-    const requestedTier = normalizeTier(tier);     // Guaranteed "free" | "pro"
+    const userTier = normalizeTier(rawAccessTier);
+    const requestedTier = normalizeTier(tier);
 
-    // 4. 🔒 GUARD: Prevent free users from requesting pro files
+    // 4. Guard: Prevent free users from requesting pro files
     if (requestedTier === "pro" && userTier !== "pro") {
       return NextResponse.json(
         { error: "Forbidden: Pro tier account required to download this index" },
@@ -56,15 +57,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Construct the ONE and ONLY true R2 key
-    const targetKey = `${requestedTier}/master_category=${category}/${version}/index.parquet`;
+    // 5. Select target bucket and build Hive key
+    const targetBucket = requestedTier === "pro" ? BUCKET_PRO : BUCKET_FREE;
+    const cleanVersion = version.replace(/^version=/, "");
+    const targetKey = s3Key || key || `master_category=${category}/version=${cleanVersion}/index.parquet`;
 
-    console.log(`Fetching R2 Object: "${targetKey}" from bucket "${BUCKET_NAME}"`);
+    console.log(`Fetching R2 Object: "${targetKey}" from bucket "${targetBucket}"`);
 
     // 6. Stream binary response from R2
     const s3Response = await r2.send(
       new GetObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: targetBucket,
         Key: targetKey,
       })
     );
@@ -77,10 +80,11 @@ export async function POST(req: NextRequest) {
     }
 
     const stream = s3Response.Body.transformToWebStream();
+    const fileName = targetKey.split("/").pop() || `${category}_${cleanVersion}.parquet`;
 
     const headers = new Headers({
       "Content-Type": "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${category}_${version}.parquet"`,
+      "Content-Disposition": `attachment; filename="${fileName}"`,
       "Cache-Control": "private, no-transform",
     });
 

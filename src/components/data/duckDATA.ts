@@ -48,10 +48,6 @@ export async function resolveDuckDBBundle(): Promise<duckdb.DuckDBBundle> {
 }
 
 
-
-
-
-
 /**
  * 2. Caches and retrieves WASM binary from OPFS database/ directory.
  * Uses typed slices directly to avoid main-thread ArrayBuffer copy overhead.
@@ -336,7 +332,7 @@ export async function queryEventsByYear(
     const rows = result.toArray().map((r) => r.toJSON());
     await conn.close();
 
-    console.log(`📊 [DuckDB] Raw rows returned from query (${rows.length}):`, rows);
+    //console.log(`📊 [DuckDB] Raw rows returned from query (${rows.length}):`, rows);
 
     const formattedEvents: TimelineEvent[] = rows.map((row: any) => ({
       _id: String(row.id || `${row.master_category || 'event'}-${row.year}-${Math.random()}`),
