@@ -10,11 +10,11 @@ const r2 = new S3Client({
   },
 });
 
-const BUCKET_NAME = process.env.R2_INDEX_BUCKET_NAME || "indexes";
+const BUCKET_NAME = process.env.R2_FREE_INDEX_BUCKET_NAME || "index-free";
 
 export async function GET(req: NextRequest) {
   try {
-    const targetKey = "free/r2health.txt";
+    const targetKey = "manifest.json";
     // HeadObjectCommand checks if the file exists without downloading the content
     await r2.send(
       new HeadObjectCommand({

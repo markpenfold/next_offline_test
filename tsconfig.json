@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
 , "src/components/terrain/urushiChan.js"  ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "workers"]
 }
