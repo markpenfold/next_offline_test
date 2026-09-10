@@ -60,10 +60,10 @@ export interface UserProfile {
   username: string | null;
   has_avatar: boolean; 
   email: string;
-  full_name:string| null;
-  follow: [];
-  bio:string| null;
-  display_name:string| null;
+  full_name?:string| null;
+  follow?: [];
+  bio?:string| null;
+  display_name?:string| null;
 }
 
 export interface LoginPayload {
