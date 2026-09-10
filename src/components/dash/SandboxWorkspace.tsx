@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useAppStore } from "@/providers/AppStoreProvider";
 import { useConnectivityStore } from "@/stores/useConnectivityStore";
 import styles from '@/app/styles/dashboard.module.css';
-
+import { Box } from 'lucide-react';
 export function SandboxWorkspace() {
   // 1. Auth & Profile State from AppStore
   const tier = useAppStore((s) => s.tier);
@@ -56,8 +56,18 @@ export function SandboxWorkspace() {
     setBlocks((prev) => [...prev, randomColor]);
   };
 
-  return (
-    <>
+
+      return (
+    <div className={styles.gridCard}>
+      {/* Matching Card Header */}
+      <div className={styles.cardHeader}>
+        <div className={styles.headerTitleGroup}>
+        <Box size={21} strokeWidth={1.8} className={styles.headerIcon} />
+        <h1 className={styles.AccountCardHeader}>Sandbox</h1>
+        </div>
+      </div>
+        <div className={styles.cardBody}>
+            
       <p className={styles.detailText}>
         Account: {activeAccount?.id || profile?.username || 'Guest'}
       </p>
@@ -81,14 +91,7 @@ export function SandboxWorkspace() {
         <button
           onClick={addBlock}
           disabled={checking}
-          style={{
-            padding: '12px',
-            fontWeight: 'bold',
-            backgroundColor: checking ? '#94a3b8' : hasAccessCurrently ? '#10b981' : '#64748b',
-            color: 'white',
-            border: 'none',
-            cursor: checking ? 'not-allowed' : 'pointer',
-          }}
+          className='fullButtonGreen btn'
         >
           {checking ? "⏳ Verifying Link..." : "Simulate work event"}
         </button>
@@ -115,6 +118,9 @@ export function SandboxWorkspace() {
           </div>
         )}
       </div>
-    </>
-  );
+        </div>
+      <div className={styles.cardFooter}></div>
+    </div>
+  )
 }
+

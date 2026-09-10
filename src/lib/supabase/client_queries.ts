@@ -56,8 +56,32 @@ export async function getProfileFromUserId (uID:string){
   
   const { data: profile } = await supabase
     .from('profiles') // Ensure this matches your table name
-    .select('id, full_name, has_avatar, username, updated_at')
+    .select('id, full_name, display_name, bio, follow, has_avatar, username, updated_at')
     .eq('id', uID)
     .single()
   return profile;
+}
+
+export async function updateProfile(
+  userId: string,
+  updates: { display_name?: string; bio?: string; follow?: string[] }
+) {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating profile:', error)
+    throw error
+  }
+
+  return data
 }

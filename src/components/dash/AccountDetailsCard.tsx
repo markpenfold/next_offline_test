@@ -2,6 +2,8 @@
 
 import { useAppStore } from "@/providers/AppStoreProvider"
 import styles from '@/app/styles/dashboard.module.css'
+import { Ticket } from 'lucide-react';
+
 
 export default function AccountDetailsCard() {
   const profile = useAppStore((s) => s.profile)
@@ -22,7 +24,15 @@ export default function AccountDetailsCard() {
 
   return (
     
-<>
+<div className={styles.gridCard}>
+        <div className={styles.cardHeader}>
+          <div className={styles.headerTitleGroup}>
+        <Ticket size={21} strokeWidth={1.8} className={styles.headerIcon} />
+      <h1 className={styles.AccountCardHeader}>Account Details</h1>
+      </div>
+      </div>
+      <div className={styles.cardBody}>
+    
       {/* =========================================================
           🟢 THE INTERACTIVE HOT-SWAP DROPDOWN
           Only renders if the user belongs to more than 1 workspace
@@ -60,6 +70,11 @@ export default function AccountDetailsCard() {
         <p><strong>Subscription Status:</strong> {currentAccount.subscription_status || 'Active'}</p>
         <p><strong>Account Owner:</strong> {profile.email || 'N/A'}</p>
         
+        
+      </div>
+
+      </div>
+      <div className={styles.cardFooter}>
         {/* Dynamic Contextual Privilege Badge */}
         <div className={styles.privilegeNotice}>
           {currentAccount.role === 'owner' ? (
@@ -69,6 +84,6 @@ export default function AccountDetailsCard() {
           )}
         </div>
       </div>
-  </>
+      </div>
   )
 }

@@ -13,7 +13,6 @@ export default function OmenPage() {
   return (
     <OmenWrap>
       <ModalManager />
-      <div className={styles.pageContainer}>
         {/* Top Workspace Row */}
         <div className={styles.topWorkspaceRow}>
           <div className={styles.quarter_section}>
@@ -46,7 +45,7 @@ export default function OmenPage() {
             
         </div>
 
-      </div>
+    
     </OmenWrap>
   );
 }

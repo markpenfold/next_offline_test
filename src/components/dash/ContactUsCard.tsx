@@ -1,10 +1,10 @@
-
 'use client'
 
 import { useState } from 'react'
 import DOMPurify from 'dompurify'
 import { useAppStore } from "@/providers/AppStoreProvider"
 import styles from '@/app/styles/dashboard.module.css'
+import { Send } from 'lucide-react';
 
 export function ContactUsCard() {
   const [subject, setSubject] = useState('')
@@ -14,13 +14,10 @@ export function ContactUsCard() {
   const profile = useAppStore((s) => s.profile)
   const activeAccount = useAppStore((s) => s.activeAccount)
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setStatus('submitting')
     setErrorMessage('')
-
-    // Read latest store state at submission time
 
     const cleanSubject = DOMPurify.sanitize(subject.trim())
     const cleanBody = DOMPurify.sanitize(body.trim())
@@ -38,7 +35,6 @@ export function ContactUsCard() {
         body: JSON.stringify({
           subject: cleanSubject,
           body: cleanBody,
-          // Append hidden metadata to payload
           userInfo: {
             email: profile?.email || 'N/A',
             username: profile?.username || profile?.name || 'N/A',
@@ -61,50 +57,95 @@ export function ContactUsCard() {
   }
 
   return (
-<div className={styles.wideCard}>
-      {status === 'success' ? (
-        <div className={styles.privilegeNotice}>
-          <span className={styles.ownerTextTag}>🟢 Message sent! We'll be in touch soon.</span>
+    <div className={styles.gridCard}>
+      <div className={styles.cardHeader}>
+        <div className={styles.headerTitleGroup}>
+        <Send size={21} strokeWidth={1.8} className={styles.headerIcon} />
+        <h1 className={styles.AccountCardHeader}>Contact Us</h1>
         </div>
-      ) : (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label htmlFor="subject" style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-              Subject
-            </label>
-            <input
-              id="subject"
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="How can we help?"
-              required
-              style={{ width: '100%', padding: '0.5rem', background:'rgba(242,242,242,0.8)' }}
-            />
+      </div>
+
+      <form onSubmit={handleSubmit} className={styles.cardForm}>
+        <div className={styles.cardBody}>
+          <div className={styles.profileFieldsGroup}>
+            {/* Subject Field */}
+            <div className={styles.fieldBlock}>
+              <div className={styles.inputLine}>
+                <div className={styles.labelCol}>
+                  <label htmlFor="subject" className={styles.fieldLabel}>
+                    Subject
+                  </label>
+                </div>
+                <input
+                  id="subject"
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="How can we help?"
+                  required
+                  className={styles.textInput}
+                />
+              </div>
+            </div>
+
+            {/* Message Field */}
+            <div className={styles.fieldBlock}>
+              <div className={styles.inputLine}>
+                <div className={styles.labelCol}>
+                  <label htmlFor="body" className={styles.fieldLabel}>
+                    Message
+                  </label>
+                  <span className={styles.fieldHelpText}>
+                    Describe your issue or feedback
+                  </span>
+                </div>
+                <textarea
+                  id="body"
+                  rows={5}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Tell us what's on your mind..."
+                  required
+                  className={styles.textareaInput}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pinned Card Footer */}
+        <div className={styles.cardFooter}>
+          <div className={styles.globalSaveRow}>
+            <div className={styles.commitNote}>
+
+            </div>
+            <button
+              type="submit"
+              disabled={status === 'submitting'}
+              className="fullButtonGreen btn"
+            >
+              {status === 'submitting' ? 'Sending...' : 'Send Message'}
+            </button>
           </div>
 
-          <div>
-            <label htmlFor="body" style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-              Message
-            </label>
-            <textarea
-              id="body"
-              rows={5}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Describe your issue or feedback..."
-              required
-              style={{ width: '100%', padding: '0.5rem', background:'rgba(242,242,242,0.8)' }}
-            />
-          </div>
+          {/* Feedback Messages */}
+          {status === 'success' && (
+            <div className={styles.statusRow}>
+              <span className={styles.successMsg}>
+                🟢 Message sent! We'll be in touch soon.
+              </span>
+            </div>
+          )}
 
-          {errorMessage && <p style={{ color: 'red', margin: 0 }}>{errorMessage}</p>}
-
-          <button type="submit" disabled={status === 'submitting'} style={{ padding: '0.5rem 1rem', alignSelf: 'flex-start' , background:'var(--green)', color:'var(--background)'}}>
-            {status === 'submitting' ? 'Sending...' : 'Send Message'}
-          </button>
-        </form>
-      )}
+          {status === 'error' && errorMessage && (
+            <div className={styles.statusRow}>
+              <span className={styles.errorMsg}>
+                {errorMessage}
+              </span>
+            </div>
+          )}
+        </div>
+      </form>
     </div>
   )
 }

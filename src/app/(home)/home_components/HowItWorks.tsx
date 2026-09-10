@@ -20,12 +20,14 @@ export function HowItWorks() {
 
   return (
     <div className={classes.section}>
-      <div className={classes.subTitle}>How it works</div>
+      <div className={classes.subTitle}>How this world works</div>
 
       <div className={classes.sub_subTitle}>
         <Link href={targetUrl} className='brandLink'>
-          {profile ? 'Explore' : 'Create a free account to get started'}
+          Explore Now
         </Link>
+        
+        
       </div>
 
       <div className={classes.oneTwoThree}>

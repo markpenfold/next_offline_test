@@ -3,30 +3,40 @@
 
 import React from "react";
 import styles from "@/app/styles/footer.module.css";
+import Link from 'next/link'
+
 
 interface FooterProps {
   children?: React.ReactNode;
   copyrightText?: string;
 }
 
-export const Footer: React.FC<FooterProps> = ({
+export function Footer({
   children,
   copyrightText = `© ${new Date().getFullYear()} Omenland. All rights reserved.`,
-}) => {
+}: FooterProps) {
   return (
     <footer className={styles.footerContainer}>
+      
+      
+      
+      
+      
       <div className={styles.footerInner}>
-        {/* 4-Column Grid Container */}
-        <div className={styles.footerGrid}>
-          <div className={styles.pt2}>
-              <p className={styles.pt2}>Contact</p>
-              <p className={styles.pt2}>About</p>
-              <p className={styles.pt2}>User guide</p>
-              <p className={styles.pt2}>Pricing</p>
-                      </div>
+        {/* Optional top slot */}
+        {children && <div className={styles.footerGrid}>{children}</div>}
+
+        {/* Centered Navigation Links (Above Border) */}
+        <div className={styles.footerNav}>
+          <Link href="/contact" className={styles.footerLink}>Contact</Link>
+          <Link href="/about" className={styles.footerLink}>About</Link>
+          <Link href="/docs" className={styles.footerLink}>User guide</Link>
+          <Link href="/pricing" className={styles.footerLink}>Pricing</Link>
+          <Link href="/pricing" className={styles.footerLink}>Sign Up</Link>
+          <Link href="/blog" className={styles.footerLink}>Blog</Link>
         </div>
 
-        {/* Bottom Bar */}
+        {/* Bottom Bar with Left-Aligned Copyright (Below Border) */}
         {copyrightText && (
           <div className={styles.footerBottom}>
             <p className={styles.copyrightText}>{copyrightText}</p>
@@ -35,6 +45,4 @@ export const Footer: React.FC<FooterProps> = ({
       </div>
     </footer>
   );
-};
-
-export default Footer;
+}

@@ -64,7 +64,7 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims()
 
   const user = data?.claims
-  // we wan the unauthenticated user to have access to these rountes 
+  // we want the unauthenticated user to have access to these rountes 
   // all other routes are effectively private 
   if (
     !user &&

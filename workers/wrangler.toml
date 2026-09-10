@@ -1,0 +1,12 @@
+name = "omenland-blog-engine"
+main = "index.ts"
+compatibility_date = "2026-09-01"
+
+routes = [
+  { pattern = "*.omen.land/*", zone_name = "omen.land" }
+]
+
+[[r2_buckets]]
+binding = "USER_CONTENT"
+bucket_name = "user-content"
+

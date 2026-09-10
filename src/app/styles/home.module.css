@@ -40,6 +40,8 @@
 }
 
 
+
+
 @media (max-width: 600px) {
   .oneTwoThree {
     grid-template-columns: 1fr;
@@ -54,19 +56,8 @@
   }
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  align-items: center; /* Center children horizontally */
-  justify-content: center;
-  width: 100%;
-  position: relative;
-}
 
-.spacer {
-  height: 30px;
-  width: 100%;
-}
+
 
 .middle {
   margin-left: 150px;
@@ -163,14 +154,12 @@
 /* Fluid headline — Scaled to be more sensible on mobile */
 /* 2.5rem (~40px) minimum to 6.75rem maximum */
 .omenland {
-  font-size: clamp(2.5rem, 10vw, 6.75rem); 
+  font-size: 10vw; 
   font-weight: 500;
   text-align: center;
   width: 100%;
   line-height: 1.1;
 
-  /* Remove white-space: nowrap if you want it to wrap on tiny screens, 
-     otherwise keep it but keep the min clamp value low */
 }
 
 
@@ -193,7 +182,7 @@
   top: 0;
   right: 0;
   padding: 10px;
-  font-size: clamp(0.65rem, 1.8vw, 1rem); /* shrinks on mobile */
+  font-size: 1.8vw; /* shrinks on mobile */
 }
 
 
@@ -212,22 +201,9 @@
   background-color: blue;
 }
 
-.sectionLight {
-  background: var(--background);
-  color: var(--foreground);
-}
-
-.sectionDark {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  background: var(--foreground);
-  color: var(--background);
-}
-
 /* Fluid subtitle — scales from 28px on mobile to 64px on desktop */
 .subTitle {
-  font-size: clamp(1.75rem, 5vw, 4rem);
+  font-size: 6vw;
   margin-left: auto;
   margin-right: auto;
   font-weight: 500;
@@ -237,7 +213,7 @@
 
 /* Fluid subtitle — scales from 28px on mobile to 64px on desktop */
 .sub_subTitle {
-  font-size: clamp(1.25rem, 3vw, 2rem);
+  font-size: 3vw;
   margin-left: auto;
   margin-right: auto;
   font-weight: 300;
@@ -246,12 +222,31 @@
   color: var(--red);
 }
 
+.HugeSubTitle{  
+  font-size: 9vw;
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.HugeSub_subTitle {
+  font-size: 5vw;
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--feint);
+}
+
 /* Fix the intro text widths */
 .intro {
   text-align: center;
   max-width: 100%; /* Prevents lines from being too long on desktop */
   margin: 0 auto;
-  font-size: clamp(1rem, 2vw, 1.1rem);
+  font-size: 2vw;
   padding: 0 20px;
 }
 
@@ -262,6 +257,25 @@
   padding-right: 0;
   margin-left: 0;
   margin-right: 0;
+  margin-top: -24px;
+}
+
+/* Absolute container sitting over the image */
+.textOverlay {
+  position: absolute;
+  top: 40%; /* Adjust vertical positioning */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  text-align: center;
+  width: 100%;
+  pointer-events: none; /* Allows user interactions to pass through to terrain */
+}
+
+.filmie img {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 

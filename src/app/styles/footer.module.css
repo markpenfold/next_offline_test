@@ -1,56 +1,63 @@
-/* ==========================================================================
-   FOOTER COMPONENT STYLES
-   ========================================================================== */
-
 .footerContainer {
+  margin-top: auto;
   width: 100%;
-  background-color: var(--foreground);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--feint);
-  font-size: 0.775rem;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  min-height: 400px;
+  color: ivory;
+  min-height: 300px;
+  /* Add flexbox to stretch children vertically */
+  display: flex;
+  flex-direction: column;
+  background:var(--foreground);
 }
 
 .footerInner {
-  margin: 0 auto;
-  padding: 2.5rem 1.5rem 1.5rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  padding: 32px 24px 20px 24px;
+  box-sizing: border-box;
+  width: 100%; /* Ensures inner container spans full width */
+  
+  /* Pushes content down to the bottom of .footerContainer */
+  margin-top: auto;
 }
 
-/* 4-Column Grid Layout */
-.footerGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 2rem;
-  width: 100%;
-}
-
-.footerColumn {
+/* Links grouped in the center above the line */
+.footerNav {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-width: 0; /* Prevents overflow inside grid items */
-}
-
-/* Bottom Bar */
-.footerBottom {
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: 32px;
+  width: 100%;
+  padding-bottom: 20px;
+  
+}
+
+.footerLink {
+  color: ivory;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 300;
+  transition: opacity 0.2s ease;
+  padding-right:24px;
+
+}
+
+.footerLink:hover {
+  opacity: 0.75;
+}
+
+/* Border line spanning full width, copyright aligned to the left */
+.footerBottom {
+  width: 100%;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .copyrightText {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #6b7280;
+  margin:  auto;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
 }
-
 /* Responsive Stacking */
 @media (max-width: 1024px) {
   .footerGrid {

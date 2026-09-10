@@ -6,6 +6,7 @@ import styles from '@/app/styles/dashboard.module.css'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { useConnectivityStore } from "@/stores/useConnectivityStore"
+import {Footer} from '@/components/omenland/Footer';
 
 export default function DashWrap({ children }: { children: React.ReactNode }) {
   const authStatus = useAppStore((state) => state.authStatus)
@@ -53,6 +54,7 @@ export default function DashWrap({ children }: { children: React.ReactNode }) {
         <div className={styles.dashboardGrid}>
           {children}
         </div>
+        <Footer />
       </div>
     </>
   )

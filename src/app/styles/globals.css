@@ -1,109 +1,184 @@
-/* Minimal CSS Reset */
+/* 1. Universal Box-Sizing & Reset */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+/* 2. Global CSS Variables */
 :root {
-  --background: rgb(245, 245, 245, 0.949);
-  --background_b: rgb(235, 235, 235, 0.949);
-  --foreground: rgb(30, 30, 3, 0.949);
-  --foreground_b: rgb(41, 41, 41, 0.949);
-  --darkie_a: rgba(32, 27, 25, 0.949);
-  --red: rgb(162, 5, 5, 0.949);
-  --green: rgb(27, 99, 116, 0.949);
-  --blue: rgb(65, 105, 225, 0.949);
-  --window_bar: rgba(64, 58, 57, 0.949);
-  --feint: rgba(203, 197, 197, 0.949);
+  /* Light Mode Colors (Using modern alpha syntax) */
+  --background: rgb(245 245 245 / 0.95);
+  --background_b: rgb(235 235 235 / 0.95);
+  --foreground: rgb(30 30 3 / 0.95);
+  --foreground_b: rgb(41 41 41 / 0.95);
+  
+  --dark_omen: rgb(51 51 51);
+  --darkie_a: rgb(32 27 25 / 0.95);
+  --red: rgb(162 5 5 / 0.95);
+  --green: rgb(27 99 116 / 0.95);
+  --blue: rgb(65 105 225 / 0.95);
+  --window_bar: rgb(64 58 57 / 0.95);
+  --feint: rgb(203 197 197 / 0.95);
 }
 
+/* Dark Mode Overrides */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
+    --background_b: #171717;
     --foreground: #ededed;
+    --foreground_b: #a3a3a3;
   }
 }
 
+/* 3. Base HTML Elements */
 html, body {
+  min-width: 320px;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 code, pre, .mono-text {
   font-family: var(--font-geist-mono), monospace;
 }
 
+/* 4. Core Layout Container */
 .pageContainer {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-height: 100vh;
-  box-sizing: border-box;
-  overflow-x: hidden;
+  min-width: 0; /* Prevents flex children from overflowing horizontally */
 }
 
+.section {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center children horizontally */
+  justify-content: center;
+  width: 100%;
+  position: relative;
+    padding-top:24px;
+  padding-bottom:48px;
+}
+
+.sectionDark {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--foreground);
+  color: var(--background);
+  padding-top:24px;
+  padding-bottom:48px;
+}
+
+
+/* 5. Utility Classes & Components */
 .darkBackground {
   background: var(--foreground);
-}
-:root {
-  --background: rgb(245,245,245, 0.949);
-  --background_b: rgb(235,235,235, 0.949);
-  --foreground: rgb(30,30,3, 0.9490);
-  --foreground_b: rgb(41,41,41, 0.949);
-  --darkie_a:rgba(32, 27, 25, 0.949);
-  --red:rgb(162, 5, 5, 0.949);
-  --green:rgb(27, 99, 116, 0.949);
-  --blue:rgb(65,105,225, 0.949);
-  --window_bar: rgba(64, 58, 57, 0.949);
-  --feint:rgba(203, 197, 197, 0.949);
-  
-}
-
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html, body {
-  background: var(--background);
-  color: var(--foreground);
-  /* This makes Geist Sans the default font for everything */
-  font-family: var(--font-geist-sans), sans-serif;
-  overflow-y: auto;
-  /* Optional: Ensures smooth text rendering */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code, pre, .mono-text {
-  /* Automatically maps mono elements to Geist Mono */
-  font-family: var(--font-geist-mono), monospace;
-}
-
-.pageContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-height: 100vh;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-.darkBackground {
-  background:var(--foreground);
-  color:var(--background);
+  color: var(--background);
 }
 
 .brandLink {
+  font-size: 1.3125rem; /* 21px equivalent */
   font-weight: 400;
   text-decoration: none;
   color: var(--foreground);
-  font-size: 21px;
+}
+
+.brandLinkSmall {
+  font-size: 1rem;
+  font-weight: 400;
+  text-decoration: none;
+  color: var(--foreground);
+}
+
+/* Base Button Styles (Avoids repetitive code) */
+.btn {
+  padding: 8px 16px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+/* Base Button Setup (Ensure smooth transitions) */
+.btn, 
+.hollowButtonRed, 
+.hollowButtonGreen, 
+.fullButtonGreen, 
+.fullButtonRed {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+/* Base Active/Press State for All Buttons */
+.hollowButtonRed:active, 
+.hollowButtonGreen:active, 
+.fullButtonGreen:active, 
+.fullButtonRed:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* 1. Hollow Red Button */
+.hollowButtonRed {
+  background-color: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+
+.hollowButtonRed:hover {
+  /* Subtle tinted background fill on hover */
+  background-color: rgb(162 5 5 / 0.1);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+/* 2. Hollow Green Button */
+.hollowButtonGreen {
+  background-color: #ffffff;
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+
+.hollowButtonGreen:hover {
+  /* Subtle green tint fill on hover */
+  background-color: rgb(27 99 116 / 0.08);
+  color: var(--green);
+  border-color: var(--green);
+}
+
+/* 3. Solid Green Button */
+.fullButtonGreen {
+  background-color: var(--green);
+  color: #ffffff;
+  border: 1px solid var(--green);
+}
+
+.fullButtonGreen:hover {
+  /* Slight lift + subtle darkening/brightness boost */
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(27 99 116 / 0.25);
+}
+
+/* 4. Solid Red Button */
+.fullButtonRed {
+  background-color: var(--red);
+  color: #ffffff;
+  border: 1px solid var(--red);
+}
+
+.fullButtonRed:hover {
+  /* Slight lift + subtle glow/shadow */
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(162 5 5 / 0.25);
 }

@@ -1,6 +1,5 @@
 /* 📄 src/app/styles/dashboard.module.css */
 
-
 .loadingContainer {
   padding: 40px;
   text-align: center;
@@ -10,52 +9,153 @@
 
 .dashboardGrid {
   display: flex;
-  flex-wrap: wrap; /* Allows cards to wrap to the next line when a row fills up */
-  gap: 24px; /* Standard spacing between cards vertically and horizontally */
+  flex-direction: column;
+  gap: 24px;
   width: 100%;
   margin-top: 16px;
   box-sizing: border-box;
-  align-items: stretch; /* Magic line: forces all cards in a row to match height */
-  padding:24px;
+  padding: 24px;
 }
 
-/* 🟢 The Reusable Component Card Base */
+/* Each row creates a 4-column sub-grid */
+.dashboardRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  width: 100%;
+  align-items: stretch; /* Forces all cards in a row to match height */
+}
+
+/* Card base */
 .gridCard {
-  /* Flex items shrink & grow based on content width */
-  flex: 0 0 auto; 
-  /* Sets an optional minimum width so narrow content doesn't crush the card */
-  min-width: 200px; 
+  width: 100%;
+  height: 100%; /* Spans full height of the CSS Grid row track */
   background-color: #ffffff;
   border: 1px solid var(--background);
   border-radius: 12px;
-  
   box-sizing: border-box;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: 16px;
   transition: transform 0.2s ease, border-color 0.2s ease;
-  
-  /* ⚠️ Note: Do NOT add 'height: 100%' or 'margin-right' here. 
-     'align-items: stretch' on the parent handles equal heights, 
-     and 'gap' on the parent handles row/column spacing cleanly. */
+  overflow: hidden;
+  grid-column: span 1; /* Default size */
+}
+
+/* 🔵 Column Span Modifiers */
+.span1 { grid-column: span 1; }
+.span2 { grid-column: span 2; }
+.span3 { grid-column: span 3; }
+.span4 { grid-column: span 4; }
+
+/* Responsive safety: collapse into single column stack on mobile screens */
+@media (max-width: 900px) {
+  .dashboardRow {
+    grid-template-columns: 1fr;
+  }
+  .gridCard, .span1, .span2, .span3, .span4 {
+    grid-column: span 1;
+  }
 }
 
 .wideCard {
-  min-width: 550px;
+  grid-column: span 2;
 }
 
+/* Header Container */
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: var(--dark_omen);
+  border-bottom: 1px solid var(--foreground);
+  border-top-left-radius: 11px;
+  border-top-right-radius: 11px;
+  padding: 12px 16px;
+  color: ivory;
+  box-sizing: border-box;
+}
+
+/* Grouping Icon + Title on the left */
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerIcon {
+  color: ivory;
+  flex-shrink: 0;
+  display: block;
+}
+
+.cardHeader > h1,
+.AccountCardHeader {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: ivory;
+  margin: 0;
+  line-height: 1;
+}
+
+/* Form Container inside Card (Ensures flex chain passes through forms) */
+.cardForm {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+}
+
+/* Allow cardBody to grow and absorb all available vertical space */
 .cardBody {
-  padding:24px;
+  flex: 1 1 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Pinned Dark Footer Band */
+.cardFooter {
+  margin-top: auto; /* Pushes the footer flush to the bottom edge */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: ivory;
+  color: var(--dark_omen);
+  border-top: 2px solid var(--dark_omen);
+  border-bottom-left-radius: 11px;
+  border-bottom-right-radius: 11px;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+/* Buttons and Global Actions inside Footer */
+.globalSaveRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
 }
 
 
-.gridCard:hover {
-  border-color: rgba(0, 0, 0, 0.2);
+
+.commitNote strong {
+  font-size: 13px;
+  color: var(--dark_omen);
 }
 
+.statusRow {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
 
+/* Workspace Switch & Selector Elements */
 .switchButton {
   display: flex;
   align-items: center;
@@ -75,7 +175,6 @@
   color: #fff;
 }
 
-/* Selector Grid Layout */
 .sectionTitle {
   font-size: 1.5rem;
   font-weight: 600;
@@ -113,25 +212,6 @@
   transform: translateY(-2px);
 }
 
-.cardHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 100%;
-  background: var(--feint);
-  border-bottom: var(--foreground) 1px;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  padding-right: 24px;
-}
-.cardHeader > h1 {
-  font-size: 1.0rem;
-  padding: 8px;
-  padding-left: 24px;
-  font-family:sans-serif;
-  font-weight: 600;
-}
-
 .cardInfoGroup {
   display: flex;
   align-items: center;
@@ -146,7 +226,6 @@
 .ownerIcon { color: #000; }
 .teamIcon { color: #666; }
 
-/* Badges */
 .badge {
   font-size: 0.65rem;
   font-weight: 700;
@@ -167,18 +246,6 @@
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.cardFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: #666;
-  margin-top: 24px;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-  padding-top: 12px;
-}
-
-/* Active Detail Space Styles */
 .activeWorkspaceArea {
   width: 100%;
 }
@@ -193,8 +260,6 @@
 }
 
 .privilegeNotice {
-  margin-top: 20px;
-  padding: 12px 16px;
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -204,29 +269,16 @@
 .teamText { color: #004085; background: #cce5ff; margin: 0; padding: 10px; border-radius: 4px; }
 .loadingText { font-weight: 500; color: #666; }
 
-
-
-/* =========================================================
-   AVATAR UPLOAD MODULE (Move to dashboard.module.css)
-   ========================================================= */
-
+/* Avatar Upload Module */
 .avatarWorkspace {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex: 1 1 auto;
   font-family: sans-serif;
   letter-spacing: 0.1em;
-  padding: 40px 20px;
-}
-
-.uploader {
-  padding: 4px;
-}
-
-.uploadBox {
-  padding: 8px;
-  padding-bottom: 24px;
+  padding: 20px 0;
 }
 
 .dropZone {
@@ -249,8 +301,8 @@
 }
 
 .circleWrapper {
-  width: 240px;
-  height: 240px;
+  width: 200px;
+  height: 200px;
   border: 4px solid var(--foreground);
   border-radius: 50%;
   overflow: hidden;
@@ -259,7 +311,6 @@
   transition: all 0.2s ease;
 }
 
-/* Lights up stark black when an image is physically dragged over it */
 .dragging .circleWrapper {
   border-color: var(--background);
   background-color: var(--background);
@@ -273,7 +324,6 @@
   display: block;
 }
 
-/* Minimal hover overlay text */
 .overlay {
   position: absolute;
   top: 0;
@@ -297,31 +347,90 @@
   padding: 6px 12px;
 }
 
-/* Sharp, flat typography action button */
-.actionButton {
-  margin-top: 24px;
-  background-color: var(--foreground);
-  color: var(--background);
-  border: none;
-  padding: 12px 24px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  width: 240px;
+/* Form & Input Layouts */
+.blogLinkRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-.actionButton:hover {
-  background-color: #222222;
+.blogLinkText {
+  font-size: 15px;
+  color: #111111;
 }
 
-.actionButton:disabled {
-  background-color: #a1a1aa;
-  cursor: not-allowed;
+.profileFieldsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
 }
 
-.loading_label {
-  padding: 4px;
+.fieldBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.inputLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.labelCol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 170px;
+  flex-shrink: 0;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: bold;
+  color: #111111;
+}
+
+.textInput {
+  flex: 1;
+  width: 100%;
+  border: 1px solid #767676;
+  border-radius: 2px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #000000;
+  outline: none;
+}
+
+.textareaInput {
+  width: 100%;
+  border: 1px solid #767676;
+  border-radius: 2px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: monospace;
+  resize: vertical;
+  background: #ffffff;
+  color: #000000;
+  outline: none;
+}
+
+.charCounter,
+.fieldHelpText {
+  display: block;
+  font-size: 11px;
+  color: #666666;
+  line-height: 1.3;
+}
+
+.btnRow {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
 }

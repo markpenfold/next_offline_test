@@ -16,80 +16,50 @@ export default async function HomePage() {
     <div className={classes.navholder}>
       <SiteNav />
     </div>
-<div  className={classes.spacer}></div>
-    <div className={classes.section}>
+
+    <div className="section">
         <div className={`${classes.omenland}`}>OMENLAND</div>
     </div>
     
-    <div className={classes.section}>
+    <div className="section">
         <P5Canvas />
     </div>
         
-    <div  className={classes.spacer}></div>
-    <div  className={classes.spacer}></div>
+    
+    
 
 
-<div  className={`${classes.sectionDark}`}>
-
-      <div  className={classes.spacer}></div>
-      <div  className={classes.spacer}></div>
-      <div  className={classes.spacer}></div>
-  
-  <div className={classes.oneTwoOne}>
-      <div  className={classes.spacer}></div>
+<div className="sectionDark">
     <div className={classes.subTitle}>History in the making</div>
-    <div></div>
-  </div>
 
   <div className={classes.central}>
     <div className={classes.intro}>
       <p>OMENLAND gives you the tools to go deep into recorded history and wrestle meaning from the chaos</p>
     </div>
-        <QuoteBox />
-  </div>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-  </div>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-
-  <HowItWorks />
-
-      <div  className={classes.spacer}></div>
-      <div  className={classes.spacer}></div>
-      <div  className={classes.spacer}></div>
-      <div  className={classes.spacer}></div>
-
-
-<div  className={classes.sectionDark}>
-      <div  className={classes.spacer}></div>
-      <div  className={classes.spacer}></div>
+    <QuoteBox />
+  </div>   
+</div>
         
-    <div className={classes.subTitle}>Here be dragons</div>
-    <h2 className={classes.sub_subTitle}>Explore OMENLAND</h2>
+<HowItWorks />
 
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-  
-    <div className={classes.filmie}>
-        <img src='./terrain.png' />
-    </div>
+<div className="sectionDark">
+  {/* Text floating on top */}
+  <div className={classes.textOverlay}>
+    <div className={classes.HugeSubTitle}>Here be dragons</div>
+  </div>
+
+  {/* Image behind */}
+  <div className={classes.filmie}>
+    <img src="./terrain.png" alt="Terrain" />
+  </div>
 </div>
 
-<div  className={classes.sectionDark}>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-        <div  className={classes.spacer}></div>
-</div>
 
-<div  className={classes.section}>
+<div className="sectionDark">
     <Footer />
 </div>
 
 
-    </div>
+</div>
   );
 }
