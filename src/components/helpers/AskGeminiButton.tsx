@@ -103,9 +103,29 @@ export function AskGeminiButton() {
 
     setActivePromptMode(mode);
 
-    const targetUrl = `https://aistudio.google.com/prompts/new_chat?prompt=${encodeURIComponent(
+    const targetUrl = `https://aistudio.google.com/prompts/new_chat?model=gemini-2.5-flash&prompt=${encodeURIComponent(
       promptText
     )}`;
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleLaunchPerplexity = (mode: "basic" | "advanced") => {
+  const promptText = mode === "advanced" ? generateAdvancedPrompt() : generateBasicPrompt();
+  if (!promptText) return;
+
+  // Uses Perplexity search endpoint which auto-submits
+  const targetUrl = `https://www.perplexity.ai/search/?q=${encodeURIComponent(promptText)}`;
+  
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
+};
+
+  const handleLaunchChatGPT = (mode: "basic" | "advanced") => {
+    const promptText = mode === "advanced" ? generateAdvancedPrompt() : generateBasicPrompt();
+    if (!promptText) return;
+
+    // Pre-fills ChatGPT prompt box (Optionally set model=gpt-4o)
+    const targetUrl = `https://chatgpt.com/?model=gpt-4o&q=${encodeURIComponent(promptText)}`;
+    
     window.open(targetUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -122,7 +142,7 @@ export function AskGeminiButton() {
 
   return (
     <div className={styles.timelineBuilderWrapper}>
-      <WindowBar title="Ask Gemini" icon={<Brain size={14} />}>
+      <WindowBar title="Ask AI" icon={<Brain size={14} />}>
         <span className={styles.statusText}>
           {isDisabled
             ? "Add events to your timeline to enable analysis."
@@ -134,16 +154,16 @@ export function AskGeminiButton() {
         <div className={styles.actionRow}>
           <div className={styles.launchGroup}>
             <p className={styles.gemini_instruct}>
-              Send your timeline and causal relationships to Gemini for analysis
+              Send your timeline and causal relationships for AI analysis
             </p>
 
             <div className={styles.launchButtonGroup}>
               {/* Standard Launch Button */}
               <button
-                onClick={() => handleLaunchGemini("basic")}
+                onClick={() => handleLaunchPerplexity("basic")}
                 disabled={isDisabled}
                 className={styles.launchButton}
-                title="Launch Gemini with standard timeline"
+                title="Launch Perplexity with standard timeline"
               >
                 <Sparkles size={16} />
                 Timeline Prompt
@@ -151,11 +171,11 @@ export function AskGeminiButton() {
 
               {/* Advanced Graph Launch Button */}
               <button
-                onClick={() => handleLaunchGemini("advanced")}
+                onClick={() => handleLaunchChatGPT("advanced")}
                 disabled={isDisabled}
                 className={styles.launchButton}
                 style={{ backgroundColor: "#8b5cf6" }}
-                title="Launch Gemini with full event relationships, weights, and notes"
+                title="Launch ChatGPT with full event relationships, weights, and notes"
               >
                 <Network size={16} />
                 Graph & Link Prompt
