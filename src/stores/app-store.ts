@@ -146,7 +146,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         if (sessionError) {
           throw sessionError;
         }
-        
+      
         // If no active auth cookie is detected on the device, clear local state safely
         if (!session?.user) {
           console.log("No active database session found. Clearing client environment.");
@@ -171,6 +171,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
           has_avatar: uProfile?.has_avatar || false,
           email: user.email || '',
+          display_name: uProfile?.display_name || '',
+          bio: uProfile?.bio || '',
         };
 
         // Construct pristine brand-new lease object from scratch

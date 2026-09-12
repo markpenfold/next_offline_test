@@ -12,6 +12,10 @@
   min-height: 60px;
 }
 
+.navElipsis {
+  color:var(--red);
+}
+
 .linksGroup {
   display: flex;
   align-items: center;

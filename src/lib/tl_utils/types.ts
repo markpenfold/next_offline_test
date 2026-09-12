@@ -20,11 +20,12 @@ export interface ProfileRecord {
   full_name: string | null;
   username: string;
   has_avatar: boolean;
+  display_name?:string;
 }
 
 export interface Account {
   id: string;
-  name: string | null;
+  name: string;
   plan_name: UserTier; // 🌟 Upgraded from string to strict UserTier
   subscription_status: string;
   is_personal: boolean;
@@ -48,11 +49,12 @@ export interface MembershipRecord {
 
 export interface AccountContext {
   id: string;
-  name: string | null;
+  name: string;
   plan_name: UserTier;         
   subscription_status: string; 
-  role: string;
   is_personal: boolean;
+  role: 'owner' | 'member';
+  can_publish: boolean;
 }
 
 export interface UserProfile {

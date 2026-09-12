@@ -56,7 +56,7 @@ export default function ob1Sketch(p, displaySize = 750,  onComplete) {
     let settingsX = generateSettings();
     settingsX.bristles = generateBristleConfigRANDOM(settingsX.numBristles);
     brush = new OmenBrush(settingsX);
-    drawPerfectO(CANVAS_SIZE/2,CANVAS_SIZE/2, 300);
+    //drawPerfectO(CANVAS_SIZE/2,CANVAS_SIZE/2, 300);
     numGestures = p.random(1,6);
     generateSymbols(numGestures);
   };
@@ -64,6 +64,7 @@ export default function ob1Sketch(p, displaySize = 750,  onComplete) {
 
 
   p.draw = () => {
+    
     if (currentPathIndex >= paths.length) {
       p.noLoop();
       onComplete?.(); 
@@ -71,6 +72,9 @@ export default function ob1Sketch(p, displaySize = 750,  onComplete) {
     }
 
     if (!brush.active && currentPathIndex < paths.length) {
+      if (currentPathIndex === 0) {
+      drawPerfectO(CANVAS_SIZE / 2, CANVAS_SIZE / 2, 300);
+    }
       let pt = paths[currentPathIndex][0];
       brush.begin(pt.x, pt.y);
       pathIndex = 0;

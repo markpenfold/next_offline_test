@@ -54,7 +54,7 @@ function PublicSiteNav() {
       <div className={classes.linksGroup}>
         <Link href="/" className={classes.brandLink}><Circle size={32} strokeWidth={3} /></Link>
         <Link href="/login" className={classes.brandLink}>Login</Link>
-        <Link href="/pricing" className={classes.brandLink}>Pricing</Link>
+        <Link href="/pricing" className={classes.brandLink}>Signup</Link>
         <Link href="/about" className={classes.brandLink}>About</Link>
       </div>
     </nav>
@@ -94,6 +94,8 @@ function AuthenticatedSiteNav() {
         return { title: 'Settings', subtitle: 'Manage account preferences' }
       case '/about':
         return { title: 'About', subtitle: 'Territorial divination' }
+      case '/dash/editor':
+        return { title: 'Writer', subtitle: 'Feel the draft and do it anyway' }
       default:
         return null
     }

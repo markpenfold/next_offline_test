@@ -6,10 +6,9 @@ import { parseLocalDataShardFileName } from "./cloudR2";
 // 1. CORE DIRECTORY & FILE PRIMITIVES
 // ============================================================================
 
-/**
- * Get or create a specific directory path in OPFS.
- * Supports relative paths like "savedProjects/acc_123"
- */
+// Get or create a specific directory path in OPFS.
+//Supports relative paths like "savedProjects/acc_123"
+ 
 export async function getDirectory(dirName: string): Promise<FileSystemDirectoryHandle> {
   let currentHandle = await navigator.storage.getDirectory();
   const segments = dirName.split("/").filter((s) => s.length > 0);
@@ -21,9 +20,7 @@ export async function getDirectory(dirName: string): Promise<FileSystemDirectory
   return currentHandle;
 }
 
-/**
- * Checks if a specific file exists within an OPFS directory
- */
+//Checks if a specific file exists within an OPFS directory
 export async function checkFileExists(dirName: string, fileName: string): Promise<boolean> {
   try {
     const dirHandle = await getDirectory(dirName);
@@ -34,9 +31,7 @@ export async function checkFileExists(dirName: string, fileName: string): Promis
   }
 }
 
-/**
- * Fetches a single FileSystemFileHandle for DuckDB VFS mounting
- */
+//Fetches a single FileSystemFileHandle for DuckDB VFS mounting
 export async function getOPFSFileHandle(
   dirName: string, 
   fileName: string
@@ -50,9 +45,7 @@ export async function getOPFSFileHandle(
   }
 }
 
-/**
- * Returns all (name + file handle) entries in a specified OPFS folder
- */
+//Returns all (name + file handle) entries in a specified OPFS folder
 export async function getOPFSEntries(
   dirName: string
 ): Promise<Array<{ name: string; handle: FileSystemFileHandle }>> {
@@ -79,9 +72,7 @@ export async function getOPFSEntries(
 // 2. READ / WRITE / DELETE ACTIONS
 // ============================================================================
 
-/**
- * Atomic write into an OPFS folder (uses transaction abort protection)
- */
+//Atomic write into an OPFS folder (uses transaction abort protection)
 export async function saveToOPFSFolder(
   dirName: string, 
   fileName: string,
@@ -109,26 +100,50 @@ export async function saveToOPFSFolder(
   }
 }
 
-/**
- * Reads text or binary buffers from OPFS
- */
-export async function readFromOPFSFolder(
+export type OPFSReadType = 'text' | 'json' | 'arrayBuffer' | 'blob' | 'dataUrl' | 'stream'
+
+export async function readFromOPFSFolder<T = any>(
   dirName: string,
   fileName: string,
-  asType: 'text' | 'arrayBuffer' = 'text'
-): Promise<string | ArrayBuffer> {
+  asType: OPFSReadType = 'text'
+): Promise<T | null> {
   try {
-    const dirHandle = await getDirectory(dirName);
-    const fileHandle = await dirHandle.getFileHandle(fileName, { create: false });
-    const file = await fileHandle.getFile();
-    
-    return asType === 'text' ? await file.text() : await file.arrayBuffer();
-  } catch (err) {
-    console.error(`❌ OPFS Read Error [/${dirName}/${fileName}]:`, err);
-    throw err; 
+    const dirHandle = await getDirectory(dirName)
+    const fileHandle = await dirHandle.getFileHandle(fileName, { create: false })
+    const file = await fileHandle.getFile()
+
+    switch (asType) {
+      case 'json': {
+        const text = await file.text()
+        return text ? JSON.parse(text) : null
+      }
+      case 'blob':
+        return file as unknown as T
+      case 'arrayBuffer':
+        return (await file.arrayBuffer()) as unknown as T
+      case 'stream':
+        return file.stream() as unknown as T
+      case 'dataUrl':
+        return new Promise<T>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as unknown as T)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+      case 'text':
+      default:
+        return (await file.text()) as unknown as T
+    }
+  } catch (err: any) {
+    // Gracefully handle uninitialized files/drafts without logging errors
+    if (err.name === 'NotFoundError') {
+      return null
+    }
+
+    console.error(`❌ OPFS Read Error [/${dirName}/${fileName}]:`, err)
+    throw err
   }
 }
-
 export async function deleteOPFSFile(dirName: string, fileName: string): Promise<boolean> {
   try {
     const dirHandle = await getDirectory(dirName);
@@ -153,9 +168,7 @@ export async function wipeOPFSFolder(dirName: string): Promise<boolean> {
   }
 }
 
-/**
- * Scans local OPFS index files, extracting schemas for initialization
- */
+//Scans local OPFS index files, extracting schemas for initialization
 export async function getLocalOPFSIndexes(onLog?: (msg: string) => void): Promise<AvailableIndex[]> {
   const log = (msg: string) => onLog?.(msg);
   const foundIndexes: AvailableIndex[] = [];
@@ -305,7 +318,8 @@ function resolveProjectFileName(projectName?: string | null): string {
   return projectName.endsWith(".json") ? projectName : `${projectName}.json`;
 }
 
-export async function loadProject(
+/** 
+export async function loadProjectX(
   accountId: string, 
   projectName?: string | null
 ): Promise<ProjectConfig | null> {
@@ -321,6 +335,23 @@ export async function loadProject(
   } catch (err) {
     console.warn(`Could not load project/session context [${projectName || "session"}]`, err);
     return null;
+  }
+}*/
+
+
+export async function loadProject(
+  accountId: string, 
+  projectName?: string | null
+): Promise<ProjectConfig | null> {
+  try {
+    const dirPath = `savedProjects/${accountId}`
+    const fileName = resolveProjectFileName(projectName)
+    
+    // Direct call handles existence check + JSON parsing in one step
+    return await readFromOPFSFolder<ProjectConfig>(dirPath, fileName, 'json')
+  } catch (err) {
+    console.warn(`Could not load project/session context [${projectName || "session"}]`, err)
+    return null
   }
 }
 
@@ -369,6 +400,110 @@ export async function getSavedProjects(
     return [];
   }
 }
+
+// ============================================================================
+// 5. PUBLISHING & DRAFT MANAGEMENT
+// ============================================================================
+
+/**
+ * Saves a draft image asset into OPFS under /publishing/drafts/<draftId>/media/
+ */
+export async function saveDraftMedia(
+  draftId: string,
+  fileName: string,
+  blob: Blob
+): Promise<string> {
+  const dirPath = `publishing/drafts/${draftId}/media`
+  await saveToOPFSFolder(dirPath, fileName, blob)
+  
+  // Return the path reference
+  return `${dirPath}/${fileName}`
+}
+
+/**
+ * Retrieves a File handle for an image stored in a draft folder
+ */
+export async function getDraftMediaFile(
+  draftId: string,
+  fileName: string
+): Promise<File | null> {
+  const dirPath = `publishing/drafts/${draftId}/media`
+  const handle = await getOPFSFileHandle(dirPath, fileName)
+  if (!handle) return null
+  return await handle.getFile()
+}
+
+/**
+ * Sweeps a draft's HTML, extracts all inline `blob:` URLs, uploads their
+ * corresponding binary files from OPFS to R2, and replaces the blob links
+ * with permanent CDN URLs.
+ */
+export async function processAndUploadDraftMedia(
+  draftId: string,
+  accountId: string,
+  accountSlug: string,
+  postSlug: string,
+  htmlContent: string,
+  blobToFilenameMap: Map<string, string> // Map<blobUrl, originalFileName>
+): Promise<string> {
+  let updatedHtml = htmlContent
+
+  for (const [blobUrl, fileName] of blobToFilenameMap.entries()) {
+    if (!updatedHtml.includes(blobUrl)) continue
+
+    // 1. Load the binary file from OPFS
+    const file = await getDraftMediaFile(draftId, fileName)
+    if (!file) continue
+
+    // 2. Prepare FormData payload for /api/upload
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('accountId', accountId)
+    formData.append('accountSlug', accountSlug)
+    formData.append('postSlug', postSlug)
+
+    // 3. Upload to Cloudflare R2
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to upload ${fileName} during publishing process.`)
+    }
+
+    const { url: publicCdnUrl } = await response.json()
+
+    // 4. Swap the local blob URL with the permanent R2 CDN URL
+    updatedHtml = updatedHtml.replaceAll(blobUrl, publicCdnUrl)
+  }
+
+  return updatedHtml
+}
+
+/**
+ * Cleans up local draft files once publishing succeeds
+ */
+export async function deleteDraftFolder(draftId: string): Promise<boolean> {
+  return await wipeOPFSFolder(`publishing/drafts/${draftId}`)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ============================================================================
 // 4. GPU STATUS PERSISTENCE

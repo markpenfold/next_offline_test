@@ -2,14 +2,37 @@ import { NextResponse } from "next/server";
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client, BUCKET_NAME } from "@/lib/blog/r2";
 import { renderFullPage } from "@/lib/blog/template";
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
-  try {
-    const { accountSlug, postSlug, title, contentHtml } = await request.json();
+  const supabase = await createClient();
 
-    if (!accountSlug || !postSlug || !title || !contentHtml) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  // 1. Verify token & session via Supabase Auth
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+
+  try {
+    const { accountId, accountSlug, postSlug, title, contentHtml } = await request.json()
+
+    if (!accountSlug  ) {
+      return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 });
     }
+    if (!postSlug ) {
+      return NextResponse.json({ error: "Missing postSlug" }, { status: 400 });
+    }
+    if (!title ) {
+      return NextResponse.json({ error: "Missing title" }, { status: 400 });
+    }
+     if (!contentHtml) {
+      return NextResponse.json({ error: "Missing contentHtml " }, { status: 400 });
+    }
+     if (!accountId) {
+      return NextResponse.json({ error: "Missing accountId " }, { status: 400 });
+    }
+
 
     // 1. Fetch existing manifest or start fresh
     const manifestKey = `${accountSlug}/manifest.json`;

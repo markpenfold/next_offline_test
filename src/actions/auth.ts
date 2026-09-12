@@ -118,7 +118,26 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
     }
   })
 
-  if (error) return { error: error.message };
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  ///////////////// AS MUCH ERROR DETAIL AS YOU CAN HANDLE //////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////////////////
+  if (error) {
+    const message = error.message.toLowerCase()
+
+    // 1. Catch Unique Constraint Violations (Trigger / DB Errors)
+    if (message.includes('accounts_account_name_key') || message.includes('account name')) {
+      return { error: "That account name is already taken. Please choose another." }
+    }
+    if (message.includes('profiles_username_key') || message.includes('username')) {
+      return { error: "That username is already taken. Please try another." }
+    }
+    if (message.includes('already registered') || message.includes('user_already_exists')) {
+      return { error: "An account with this email already exists." }
+    }
+
+    // Fallback for unexpected errors
+    return { error: error.message }
+  }
 
   ///////////////////////////////////////////////////////////////////////////////
   /// Now we want to get a stripe ID for the user+Account ///////////////////////

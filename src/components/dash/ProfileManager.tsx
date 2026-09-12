@@ -4,19 +4,23 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore } from "@/providers/AppStoreProvider"
 import { updateProfile } from '@/lib/supabase/client_queries'
-import { UserPen } from 'lucide-react';
+import { UserPen, Check, X } from 'lucide-react'
 import styles from '@/app/styles/dashboard.module.css'
+import { createClient } from '@/lib/supabase/client'
 
 export function ProfileManager() {
   const router = useRouter()
   const profile = useAppStore((s) => s.profile)
   const activeAccount = useAppStore((s) => s.activeAccount)
+  const syncFromDatabase = useAppStore((s) => s.syncFromDatabase)
 
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [followInput, setFollowInput] = useState('')
   const [savingField, setSavingField] = useState<string | null>(null)
-  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  
+  // Track field-specific status: { display_name: 'success', bio: 'error', ... }
+  const [fieldStatuses, setFieldStatuses] = useState<Record<string, 'success' | 'error' | null>>({})
 
   useEffect(() => {
     if (profile) {
@@ -33,24 +37,57 @@ export function ProfileManager() {
     fieldKey: string
   ) {
     setSavingField(fieldKey)
-    setStatusMsg(null)
+    // Clear status for this specific field when attempting save
+    setFieldStatuses(prev => ({ ...prev, [fieldKey]: null }))
 
     try {
-      const userId = (profile as { id?: string }).id
+      const supabase = createClient()
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
 
+      if (authError || !user) {
+        throw new Error('Authentication required. Please sign in again.')
+      }
+
+      const userId = user.id
       if (!userId) {
         throw new Error('User ID is missing from profile.')
       }
 
-      await updateProfile(userId, updates)
+      if (!activeAccount) {
+        throw new Error('No active account selected.')
+      }
 
-      setStatusMsg({ type: 'success', text: 'Profile updated successfully!' })
+      if (!activeAccount.can_publish) {
+        throw new Error('You do not have permission to modify settings for this account.')
+      }
+
+      await updateProfile(userId, activeAccount, updates)
+      await syncFromDatabase()
+
+      // Mark success for the field (or all fields if "SAVE ALL" was clicked)
+      if (fieldKey === 'all') {
+        setFieldStatuses({
+          display_name: 'success',
+          bio: 'success',
+          follow: 'success',
+          all: 'success',
+        })
+      } else {
+        setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'success' }))
+      }
+
       router.refresh()
     } catch (error: any) {
-      setStatusMsg({
-        type: 'error',
-        text: error?.message || 'Failed to update profile.',
-      })
+      if (fieldKey === 'all') {
+        setFieldStatuses({
+          display_name: 'error',
+          bio: 'error',
+          follow: 'error',
+          all: 'error',
+        })
+      } else {
+        setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'error' }))
+      }
     } finally {
       setSavingField(null)
     }
@@ -89,22 +126,30 @@ export function ProfileManager() {
     )
   }
 
+  const renderStatusIcon = (fieldKey: string) => {
+    const status = fieldStatuses[fieldKey]
+    if (status === 'success') {
+      return <Check size={20} className="text-emerald-500 stroke-[2.5]" style={{ color: '#10b981' }} />
+    }
+    if (status === 'error') {
+      return <X size={20} className="text-rose-500 stroke-[2.5]" style={{ color: '#f43f5e' }} />
+    }
+    return null
+  }
+
   return (
     <div className={`${styles.gridCard} ${styles.wideCard}`}>
-      {/* Matching Card Header */}
       <div className={styles.cardHeader}>
         <div className={styles.headerTitleGroup}>
-        <UserPen size={21} strokeWidth={1.8} className={styles.headerIcon} />
-        <h1 className={styles.AccountCardHeader}>Profile Settings</h1>
+          <UserPen size={21} strokeWidth={1.8} className={styles.headerIcon} />
+          <h1 className={styles.AccountCardHeader}>Profile Settings</h1>
         </div>
       </div>
 
       <form onSubmit={handleSaveAll} className={styles.cardForm}>
-        {/* Main Card Body */}
         <div className={styles.cardBody}>
-          
-
           <div className={styles.profileFieldsGroup}>
+            
             {/* Display Name */}
             <div className={styles.fieldBlock}>
               <div className={styles.inputLine}>
@@ -114,13 +159,17 @@ export function ProfileManager() {
                 <input
                   type="text"
                   value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  onChange={(e) => {
+                    setDisplayName(e.target.value)
+                    setFieldStatuses(prev => ({ ...prev, display_name: null }))
+                  }}
                   placeholder="e.g., Marko Polo"
                   className={styles.textInput}
                   required
                 />
               </div>
-              <div className={styles.btnRow}>
+              <div className={styles.btnRow} style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                {renderStatusIcon('display_name')}
                 <button
                   type="button"
                   onClick={handleSaveDisplayName}
@@ -144,13 +193,17 @@ export function ProfileManager() {
                 <textarea
                   rows={3}
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  onChange={(e) => {
+                    setBio(e.target.value)
+                    setFieldStatuses(prev => ({ ...prev, bio: null }))
+                  }}
                   placeholder="Explorer, writer, and edge architecture enthusiast..."
                   className={styles.textareaInput}
                   maxLength={160}
                 />
               </div>
-              <div className={styles.btnRow}>
+              <div className={styles.btnRow} style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                {renderStatusIcon('bio')}
                 <button
                   type="button"
                   onClick={handleSaveBio}
@@ -174,12 +227,16 @@ export function ProfileManager() {
                 <input
                   type="text"
                   value={followInput}
-                  onChange={(e) => setFollowInput(e.target.value)}
+                  onChange={(e) => {
+                    setFollowInput(e.target.value)
+                    setFieldStatuses(prev => ({ ...prev, follow: null }))
+                  }}
                   placeholder="e.g., @alice, @bob, @carol"
                   className={styles.textInput}
                 />
               </div>
-              <div className={styles.btnRow}>
+              <div className={styles.btnRow} style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                {renderStatusIcon('follow')}
                 <button
                   type="button"
                   onClick={handleSaveFollow}
@@ -193,35 +250,24 @@ export function ProfileManager() {
           </div>
         </div>
 
-        {/* Matching Card Footer Band */}
+        {/* Card Footer Band */}
         <div className={styles.cardFooter}>
           <div className={styles.globalSaveRow}>
             <div className={styles.commitNote}>
               <strong>Commit all changes</strong>
               <span className={styles.fieldHelpText}>Refresh your browser for changes to take effect</span>
             </div>
-            <button
-              type="submit"
-              disabled={savingField !== null}
-              className="fullButtonGreen btn marginRight12"
-            >
-              {savingField === 'all' ? 'Updating...' : 'SAVE ALL'}
-            </button>
-          </div>
-
-          {statusMsg && (
-            <div className={styles.statusRow}>
-              <span
-                className={
-                  statusMsg.type === 'success'
-                    ? styles.successMsg
-                    : styles.errorMsg
-                }
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {renderStatusIcon('all')}
+              <button
+                type="submit"
+                disabled={savingField !== null}
+                className="fullButtonGreen btn marginRight12"
               >
-                {statusMsg.text}
-              </span>
+                {savingField === 'all' ? 'Updating...' : 'SAVE ALL'}
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </form>
     </div>

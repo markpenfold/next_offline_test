@@ -1,0 +1,33 @@
+/* Newsprint Multi-Column Flow */
+.newsprintColumns {
+  column-count: 2;
+  column-gap: 32px;
+  line-height: 1.6;
+}
+
+/* Split-Screen Magazine Layout */
+.splitGrid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+.splitSidebar {
+  padding: 40px;
+  border-right: 2px solid var(--dark_omen, #111);
+}
+
+.stickyWrapper {
+  position: sticky;
+  top: 40px;
+}
+
+/* Mobile responsive collapse */
+@media (max-width: 768px) {
+  .newsprintColumns {
+    column-count: 1;
+  }
+  .splitGrid {
+    grid-template-columns: 1fr;
+  }
+}

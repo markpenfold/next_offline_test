@@ -7,12 +7,13 @@
   display: flex;
   flex-direction: column;
   background:var(--foreground);
+  
 }
 
 .footerInner {
   display: flex;
   flex-direction: column;
-  padding: 32px 24px 20px 24px;
+  padding: 32px px 20px 24px;
   box-sizing: border-box;
   width: 100%; /* Ensures inner container spans full width */
   
@@ -49,7 +50,7 @@
 .footerBottom {
   width: 100%;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-top: 1px dotted var(--red);
 }
 
 .copyrightText {

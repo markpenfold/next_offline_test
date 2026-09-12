@@ -12,6 +12,7 @@ export async function fetchUserAccounts(
     .from('memberships')
     .select(`
       role,
+      can_publish,
       accounts (
         id,
         name,
@@ -39,7 +40,8 @@ export async function fetchUserAccounts(
         plan_name: (acc.plan_name?.toLowerCase() || 'free') as UserTier,
         subscription_status: acc.subscription_status,
         role: mem.role,
-        is_personal: !!acc.is_personal
+        is_personal: !!acc.is_personal,
+        can_publish: mem.can_publish,
       };
       //console.log("ACCOUNTS COLLECTED: ", returnValue, typeof(returnValue));
 
@@ -48,11 +50,10 @@ export async function fetchUserAccounts(
     .filter((acc): acc is AccountContext => acc !== null);
 }
 
-
 // Using 'cache' ensures that if you call this 3 times in 
 // one request, it only hits the database ONCE.
 export async function getProfileFromUserId (uID:string){
-  const supabase = await createClient()
+  const supabase = createClient()
   
   const { data: profile } = await supabase
     .from('profiles') // Ensure this matches your table name
@@ -62,21 +63,36 @@ export async function getProfileFromUserId (uID:string){
   return profile;
 }
 
+
 export async function updateProfile(
   userId: string,
+  activeAccount: AccountContext,
   updates: { display_name?: string; bio?: string; follow?: string[] }
 ) {
   const supabase = createClient()
 
+  // 1. Authenticate user session directly
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    throw new Error('Unauthorized: No valid session found.')
+  }
+
+  // 2. Prevent user ID spoofing
+  if (user.id !== userId) {
+    throw new Error('Unauthorized: User ID mismatch.')
+  }
+
+  // 3. Authorization check
+  if (!activeAccount.can_publish) {
+    throw new Error('Forbidden: Publishing privileges required.')
+  }
+
+  // 4. Perform update on profiles table ONLY
   const { data, error } = await supabase
     .from('profiles')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', userId)
+    .update(updates)
+    .eq('id', user.id)
     .select()
-    .single()
 
   if (error) {
     console.error('Error updating profile:', error)
@@ -84,4 +100,23 @@ export async function updateProfile(
   }
 
   return data
+}
+
+// 
+export async function checkPublishingPermissions(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  accountId: string
+): Promise<boolean> {
+  try {
+    const userAccounts = await fetchUserAccounts(supabase, userId)
+    const targetAccount = userAccounts.find((acc) => acc.id === accountId)
+
+    if (!targetAccount) return false
+
+    return targetAccount.can_publish
+  } catch (err) {
+    console.error('Failed to verify publishing permission:', err)
+    return false
+  }
 }

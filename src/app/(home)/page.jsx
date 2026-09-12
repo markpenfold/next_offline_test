@@ -55,9 +55,7 @@ export default async function HomePage() {
 </div>
 
 
-<div className="sectionDark">
     <Footer />
-</div>
 
 
 </div>

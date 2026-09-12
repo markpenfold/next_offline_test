@@ -69,7 +69,8 @@ export default function AccountDetailsCard() {
         <p><strong>Plan Details:</strong> {currentAccount.plan_name.toUpperCase()}</p>
         <p><strong>Subscription Status:</strong> {currentAccount.subscription_status || 'Active'}</p>
         <p><strong>Account Owner:</strong> {profile.email || 'N/A'}</p>
-        
+        <p><strong>Display Name:</strong> {profile.display_name || 'N/A'}</p>
+        <p><strong>Bio:</strong> {profile.bio || 'Superstes'}</p>
         
       </div>
 

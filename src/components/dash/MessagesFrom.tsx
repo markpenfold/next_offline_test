@@ -31,7 +31,7 @@ export function MessagesFrom() {
     
   
   return (
-    <div className={styles.gridCard}>
+    <div className={`${styles.gridCard} pinkNewsprint`}>
       {/* Matching Card Header */}
       <div className={styles.cardHeader}>
         <div className={styles.headerTitleGroup}>

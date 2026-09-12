@@ -20,7 +20,7 @@ const GraphModel = () => {
             <span className={styles.windowBarIcon}>
               <Share2 size={14} />
             </span>
-            <span className={styles.windowBarTitle}>GraphTHING</span>
+            <span className={styles.windowBarTitle}>GraphVIEW</span>
            
           </div>
         }

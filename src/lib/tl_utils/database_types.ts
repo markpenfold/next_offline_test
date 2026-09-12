@@ -133,16 +133,19 @@ export type Database = {
       memberships: {
         Row: {
           account_id: string
+          can_publish: boolean
           role: string
           user_id: string
         }
         Insert: {
           account_id: string
+          can_publish?: boolean
           role?: string
           user_id: string
         }
         Update: {
           account_id?: string
+          can_publish?: boolean
           role?: string
           user_id?: string
         }

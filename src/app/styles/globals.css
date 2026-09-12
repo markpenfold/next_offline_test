@@ -12,7 +12,9 @@
   --background_b: rgb(235 235 235 / 0.95);
   --foreground: rgb(30 30 3 / 0.95);
   --foreground_b: rgb(41 41 41 / 0.95);
-  
+  --blue_grey: rgb(88 97 102);
+  --mark_grey:rgb(71,71,71);
+  --dark_blue_grey:rgb(63,67,78);
   --dark_omen: rgb(51 51 51);
   --darkie_a: rgb(32 27 25 / 0.95);
   --red: rgb(162 5 5 / 0.95);
@@ -63,8 +65,6 @@ code, pre, .mono-text {
   justify-content: center;
   width: 100%;
   position: relative;
-    padding-top:24px;
-  padding-bottom:48px;
 }
 
 .sectionDark {
@@ -74,9 +74,15 @@ code, pre, .mono-text {
   background: var(--foreground);
   color: var(--background);
   padding-top:24px;
-  padding-bottom:48px;
 }
 
+.paddingTop24 {
+  padding-top:24px;
+}
+
+.paddingBottom48 {
+  padding-bottom:48px;
+}
 
 /* 5. Utility Classes & Components */
 .darkBackground {
@@ -181,4 +187,43 @@ code, pre, .mono-text {
   filter: brightness(1.1);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgb(162 5 5 / 0.25);
+}
+
+
+
+/* Reusable Pink Newsprint Paper Utility Class */
+.pinkNewsprint {
+  position: relative; /* Container context for the noise pseudo-element */
+  background-color: #f3dfd1; 
+  
+  /* Directional paper grain & organic pulp specks */
+  background-image: 
+    repeating-linear-gradient(
+      0deg,
+      rgba(120, 80, 60, 0.03) 0px,
+      rgba(120, 80, 60, 0.03) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    radial-gradient(circle at 15% 25%, rgba(90, 50, 30, 0.06) 1px, transparent 1px),
+    radial-gradient(circle at 82% 40%, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+    radial-gradient(circle at 45% 75%, rgba(110, 60, 40, 0.05) 1px, transparent 1px);
+  background-size: 100% 3px, 24px 24px, 18px 18px, 30px 30px;
+  
+  color: var(--dark_omen, #111111);
+  overflow: hidden; /* Clips the noise overlay to the element's border-radius */
+}
+
+/* Micro-grain noise overlay applied to anything using .pinkNewsprint */
+.pinkNewsprint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='newsprintNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23newsprintNoise)'/%3E%3C/svg%3E");
+  
+  /* Inherit border-radius dynamically from the parent container */
+  border-radius: inherit;
 }

@@ -45,6 +45,7 @@ export function RecentWork() {
         <span className={styles.blogLinkText}>
           Your blog space is live at: <strong>{activeAccount?.name}.omen.land</strong>
         </span>
+        
         <Link 
           href={`https://${activeAccount?.name}.omen.land`} 
           target="_blank" 
@@ -53,7 +54,9 @@ export function RecentWork() {
           <button type="button" className="hollowButtonGreen btn">Let's go!</button>
         </Link>
       </div>
-      <div>YO</div>
+      <span className={styles.blogLinkText}>
+      <Link  href='dash/editor' > LET'S WRITE!</Link>
+      </span>
       <div>YO</div>
       <div>YO</div>
     </div>

@@ -50,7 +50,7 @@ export default function DashWrap({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SiteNav />
-      <div className={styles.pageContainer}>
+      <div className="pageContainer">
         <div className={styles.dashboardGrid}>
           {children}
         </div>
