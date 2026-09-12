@@ -37,7 +37,7 @@ export function ContactUsCard() {
           body: cleanBody,
           userInfo: {
             email: profile?.email || 'N/A',
-            username: profile?.username || profile?.name || 'N/A',
+            username: profile?.username || profile?.full_name || 'N/A',
             tier: activeAccount?.plan_name?.toUpperCase() || 'FREE',
             workspaceId: activeAccount?.id || 'N/A',
             workspaceName: activeAccount?.name || 'N/A',
