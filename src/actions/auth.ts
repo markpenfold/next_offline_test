@@ -254,21 +254,12 @@ async function getUserDetails(user: User, supabase: SupabaseClient<Database>)
       .single(),
       
     supabase
-      .from('memberships')
-      .select(`
-        account_id,
-        role,
-        accounts (
-          id,
-          name,
-          plan_name,
-          subscription_status,
-          is_personal,
-          can_publish
-        )
-      `)
-      .eq('user_id', user.id)
-  ]);
+          .from('memberships')
+          .select('account_id, role, can_publish, accounts(id, name, plan_name, subscription_status, is_personal)')
+          .eq('user_id', user.id)
+      ]);
+  console.log("RAW MEMBERSHIPS DATA:", JSON.stringify(membershipsResult.data, null, 2));
+  console.log("RAW MEMBERSHIPS ERROR:", membershipsResult.error);
 
   // NO hardcoded return type signature in the function header!
   // TypeScript will automatically infer the exact, perfectly accurate return shape

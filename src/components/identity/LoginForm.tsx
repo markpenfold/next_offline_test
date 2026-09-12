@@ -1,7 +1,7 @@
 // 📄 src/components/auth/LoginForm.tsx
 'use client'
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/actions/auth';
 import { Eye, EyeOff } from 'lucide-react';
@@ -15,21 +15,29 @@ export function LoginForm() {
   const [isVisible, setIsVisible] = useState(false);
   const loginSuccess = useAppStore((s) => s.loginSuccess);
 
+  const authStatus = useAppStore((state) => state.authStatus)
+
+  useEffect(() => {
+    // If the user navigates to /login while already logged in (or hydrated), redirect to /dash cleanly
+    if (authStatus === 'authenticated') {
+      router.replace('/dash')
+    }
+  }, [authStatus, router])
+
   const handleSubmit = async (formData: FormData) => {
     if (isPending) return; // Stop multi-click double execution dead in its tracks!
- 
+    
     setError(null); 
-
+    
     startTransition(async () => {
       const result = await login(formData);
       
-
       if (!result.success || !result.payload) {
         setError(result.error || "Authentication failed.");
         return;
       }
 
-      // 1. 🎯 THE UNIFIED CACHE: Only cache if valid credentials/token are generated
+      // 1.  Only cache if valid credentials/token are generated
       if (result.payload.token) {
         console.log("Login recieved this payload:", result.payload)
         loginSuccess(result.payload);

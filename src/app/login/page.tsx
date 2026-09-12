@@ -16,19 +16,18 @@ export default async function LoginPage({ searchParams }: LoginProps) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // 1. If already logged in, send them straight to the main dashboard entrypoint
-  if (user) {
-    console.log("USER:", user, 'return to dash!')
-    redirect('/dash')
-  }
+//  if (user) {
+  //  console.log("USER:", user, 'return to dash!')
+  //  redirect('/dash')
+  //}
 
   const { message, verified } = await searchParams
 
 
    return (
     <><SiteNav />
-  <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
+      <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
     
-
     {verified === 'true' ? (
       <div className={classes.warning_banner}>
         <h3>Email confirmed! Please Sign in to continue.</h3>

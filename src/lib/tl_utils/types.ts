@@ -152,6 +152,7 @@ export interface AppState {
   activeAccount: AccountContext | null;
   accounts: AccountContext[];
   avatarVersion: string; 
+  isInitialized:boolean;
   
   setAvatarVersion: (version: string) => void; 
   canAccessWorkspace: () => boolean;

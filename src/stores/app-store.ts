@@ -4,7 +4,7 @@ import { decodeLeaseJwt } from '@/lib/auth/crypto';
 import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, UserProfile} from '@/lib/tl_utils/types';
 import { createClient } from '@/lib/supabase/client';
 import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_queries';
-import { useConnectivityStore, NetworkStatus } from '@/stores/useConnectivityStore';
+import { useConnectivityStore} from '@/stores/useConnectivityStore';
 
 
 const supabase = createClient();
@@ -16,7 +16,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
   return createStore<AppState>()((set, get) => ({
     // Default Initial States
     authStatus: 'unknown',
-    
+    isInitialized: false,
     tier: initialTier,
     userId: null,
     profile: null,
@@ -138,23 +138,32 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     // 2. LIVE DATABASE SYNCHRONIZATION (Handles Stripe returns & Auto-Logins from password changes)
     syncFromDatabase: async () => {
       try {
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
+        const [userRes, sessionRes] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.auth.getSession()
+        ]);
 
-        if (sessionError) {
-          throw sessionError;
-        }
-      
-        // If no active auth cookie is detected on the device, clear local state safely
-        if (!session?.user) {
-          console.log("No active database session found. Clearing client environment.");
+        const user = userRes.data?.user;
+        const token = sessionRes.data?.session?.access_token;
+        const session = sessionRes.data?.session;
+
+        // Something went badly wrong with the authentication ////
+        if (userRes.error || !user || !token) {
+          console.log("Invalid or missing session/JWT. Clearing local state...");
+          localStorage.removeItem('jungle_lease_v2');
+          set({ 
+            authStatus: 'unauthenticated',
+            offlineLeaseJwt: null 
+          });
+          
           get().clearSlate();
           return;
-        }
+          }
 
-        const user = session.user;
+        // AUTH SUCCESS FROM HERE ///////////////////////////////
+        // The supabase calls succeeded. Let's get your lease set up
+        // 3. Get session token for offline lease storage
+
         const uProfile = await getProfileFromUserId(user.id);
         
         // Pull corresponding user accounts from the database
@@ -178,7 +187,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
 
         // Construct pristine brand-new lease object from scratch
         const localCacheState = {
-          offlineLeaseJwt: session.access_token,
+          offlineLeaseJwt: token,
           profile: formattedProfile,
           authStatus: 'authenticated' as const,
           tier: finalTier,
@@ -191,7 +200,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         
         // Update live memory store values
         set({
-          offlineLeaseJwt: session.access_token,
+          offlineLeaseJwt: token,
           userId: user.id,
           tier: finalTier,
           profile: formattedProfile,
@@ -204,10 +213,10 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         if (useConnectivityStore.getState().network !== 'online') {
           useConnectivityStore.getState().setNetworkStatus('online');
         }
-        console.log("Client workspace successfully synced with live database source-of-truth.");
+          console.log("Client workspace successfully synced with live database source-of-truth.");
 
-      } catch (err) {
-        console.error("Critical error encountered during live network sync:", err);
+        } catch (err) {
+          console.error("Critical error encountered during live network sync:", err);
         
         // 2. Catch/Error case:
         if (useConnectivityStore.getState().network !== 'offline') {
@@ -215,20 +224,13 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         }
 
         // 2. Attempt offline fallback if not already authenticated in memory
+        // Fall back to local cache if not already authenticated
         if (get().authStatus !== 'authenticated') {
-          const cachedLease = localStorage.getItem('jungle_lease_v2');
-          if (cachedLease) {
-            try {
-              const parsed = JSON.parse(cachedLease);
-              set({
-                ...parsed,
-                authStatus: 'authenticated'
-              });
-              console.log("⚡ Offline mode: Restored session from local jungle_lease_v2 cache.");
-              return;
-            } catch (e) {
-              console.error("Failed to parse local lease cache:", e);
-            }
+          const isHydrated = get().hydrateFromCache();
+          
+          if (isHydrated) {
+            console.log("⚡ Offline mode: Restored session from local jungle_lease_v2 cache.");
+            return;
           }
           // Nuke state only if there's no valid offline lease to fall back on
           get().clearSlate();
@@ -250,7 +252,19 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         bio: payload.user.bio,
       };
 
+
       const activeAccount = payload.accounts[0] || null;
+
+      set({
+        offlineLeaseJwt: payload.token,
+        userId: payload.user.id,
+        profile: formattedProfile,
+        tier: payload.tier,
+        activeAccount: activeAccount,
+        accounts: payload.accounts,
+        authStatus: 'authenticated'
+      });
+
 
       const localCacheState = {
         offlineLeaseJwt: payload.token,
@@ -263,15 +277,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
 
       localStorage.setItem('jungle_lease_v2', JSON.stringify(localCacheState));
       
-      set({
-        offlineLeaseJwt: payload.token,
-        userId: payload.user.id,
-        profile: formattedProfile,
-        tier: payload.tier,
-        activeAccount: activeAccount, 
-        accounts: payload.accounts,
-        authStatus: 'authenticated'
-      });
+      
     },
 
     // 4. THE LOCAL DATA WIPE

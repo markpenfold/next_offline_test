@@ -446,13 +446,13 @@ interface SessionDetailsResult {
 // Define what a membership object looks like from your database query
 interface DatabaseMembership {
   role: string;
+  can_publish: boolean;
   accounts: {
     id: string;
     name: string;
     plan_name?: string | null;
     subscription_status?: string | null;
     is_personal?: boolean | null;
-    can_publish: boolean;
   } | null | unknown; // accounts can be an object, null, or unknown before filtering
 }
 
@@ -508,7 +508,7 @@ export async function generateUserSessionPayload(
         subscription_status: acc.subscription_status || 'none',
         role: mem.role as "owner" | "member",
         is_personal: !!acc.is_personal,
-        can_publish: acc.can_publish,
+        can_publish: !!mem.can_publish,
       };
     })
     .sort((a, b) => {
