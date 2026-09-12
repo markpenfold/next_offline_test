@@ -58,28 +58,38 @@ export interface AccountContext {
 }
 
 export interface UserProfile {
-  name: string | null;
-  username: string | null;
-  has_avatar: boolean; 
-  email: string;
-  full_name?:string| null;
-  follow?: [];
-  bio?:string| null;
-  display_name?:string| null;
+  id: string;                      // NON-NULLABLE
+  username: string;                // NON-NULLABLE
+  email: string;                   // NON-NULLABLE
+  full_name: string | null;        // NULLABLE
+  display_name: string | null;     // NULLABLE
+  bio: string | null;              // NULLABLE
+  avatar_url?: string | null;      // NULLABLE
+  location?: string | null;        // NULLABLE
+  age?: number | null;             // NULLABLE
+  has_avatar?: boolean | null;     // NULLABLE
+  follow?: string[] | null;        // NULLABLE (text[])
+  updated_at?: string | null;      // NULLABLE
 }
+
+
 
 export interface LoginPayload {
   token: string;
   tier: UserTier;
   user: {
     id: string;
-    email: string | null;
-    name: string | null;
-    username: string;
+    email: string;                 // NON-NULLABLE
+    username: string;              // NON-NULLABLE
+    full_name: string | null;           // Maps from full_name
     hasAvatar: boolean;
+    bio: string | null;
+    display_name: string | null;
   };
   accounts: AccountContext[];
 }
+
+
 
 export interface LoginResult {
   success: boolean;

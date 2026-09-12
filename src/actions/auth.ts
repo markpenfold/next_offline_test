@@ -34,13 +34,13 @@ export async function login(formData: FormData): Promise<LoginResult> {
   if (authError || !authData.user) {
     return { success: false, error: 'Invalid credentials' }
   }
-  const user = authData.user
 
   // 2. Query supabase for details
-  const [profileResult, membershipsResult] = await getUserDetails(user, supabase);
-  
+  const [profileResult, membershipsResult] = await getUserDetails(authData.user, supabase);
+
   // 3. Delegate the entire payload generation and validation to an external function
   return await generateUserSessionPayload(authData.user, profileResult, membershipsResult);
+
 }
 
 
@@ -249,7 +249,7 @@ async function getUserDetails(user: User, supabase: SupabaseClient<Database>)
   const [profileResult, membershipsResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, username, has_avatar')
+      .select('id, username, email, full_name, display_name, bio, has_avatar')
       .eq('id', user.id)
       .single(),
       
@@ -263,7 +263,8 @@ async function getUserDetails(user: User, supabase: SupabaseClient<Database>)
           name,
           plan_name,
           subscription_status,
-          is_personal
+          is_personal,
+          can_publish
         )
       `)
       .eq('user_id', user.id)

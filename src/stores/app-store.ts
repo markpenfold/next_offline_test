@@ -1,7 +1,7 @@
 // src/stores/app-store.ts
 import { createStore } from 'zustand/vanilla';
 import { decodeLeaseJwt } from '@/lib/auth/crypto';
-import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, } from '@/lib/tl_utils/types';
+import { type UserTier, TIERS, AccountContext, AppState, LoginPayload, UserProfile} from '@/lib/tl_utils/types';
 import { createClient } from '@/lib/supabase/client';
 import { fetchUserAccounts, getProfileFromUserId } from '@/lib/supabase/client_queries';
 import { useConnectivityStore, NetworkStatus } from '@/stores/useConnectivityStore';
@@ -165,14 +165,15 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         // Check database value first, then metadata fallback, default to free
         const finalTier = fetchedAccounts[0]?.plan_name || user.user_metadata?.pending_plan || 'free';
 
-        console.log("setting has_avatar to: ", user.user_metadata, !!user.user_metadata?.avatar_url);
-        const formattedProfile = {
-          name: user.user_metadata?.name || null,
-          username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+        //console.log("setting has_avatar to: ", user.user_metadata, !!user.user_metadata?.avatar_url);
+        const formattedProfile: UserProfile = {
+          id: user.id,
+          full_name: uProfile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || null,
+          username: uProfile?.username || user.user_metadata?.username || user.email?.split('@')[0] || 'user',
           has_avatar: uProfile?.has_avatar || false,
           email: user.email || '',
-          display_name: uProfile?.display_name || '',
-          bio: uProfile?.bio || '',
+          display_name: uProfile?.display_name || null,
+          bio: uProfile?.bio || null,
         };
 
         // Construct pristine brand-new lease object from scratch
@@ -237,13 +238,16 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
 
     // 3. EXPLICIT INTERCEPT HANDLER (Called when user types credentials into standard forms)
     loginSuccess: (payload: LoginPayload) => {
-      console.log("Explicit login caught. Writing custom payload to memory...",  payload.user.name, "has avatar:", payload.user.hasAvatar );
+      console.log("Explicit login caught. Writing custom payload to memory...",  payload.user.full_name, "has avatar:", payload.user.hasAvatar );
 
-      const formattedProfile = {
-        name: payload.user.name,
+      const formattedProfile: UserProfile = {
+        id: payload.user.id,
+        full_name: payload.user.full_name,
         username: payload.user.username,
         has_avatar: payload.user.hasAvatar,
-        email: payload.user.email || '',
+        email: payload.user.email,
+        display_name: payload.user.display_name,
+        bio: payload.user.bio,
       };
 
       const activeAccount = payload.accounts[0] || null;

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { cache } from 'react'
 import {createAdminClient} from '@/lib/supabase/admin'
-import { type  AccountContext, type LoginResult, type UserTier, TIERS } from '@/lib/tl_utils/types'
+import { type  AccountContext, type LoginResult, type UserTier, TIERS, UserProfile } from '@/lib/tl_utils/types'
 import { generateOfflineLeaseJwt } from '@/lib/auth/crypto'
 import { Database, Tables } from '@/lib/tl_utils/database_types'
 import { SupabaseClient, QueryData } from '@supabase/supabase-js'
@@ -437,6 +437,8 @@ interface SessionDetailsResult {
       name: string;
       username: string;
       hasAvatar: boolean;
+      bio:string | null;
+      display_name:string | null;
     };
   };
 }
@@ -450,12 +452,13 @@ interface DatabaseMembership {
     plan_name?: string | null;
     subscription_status?: string | null;
     is_personal?: boolean | null;
+    can_publish: boolean;
   } | null | unknown; // accounts can be an object, null, or unknown before filtering
 }
 
 export async function generateUserSessionPayload(
   user: any,
-  profileResult: { data: any; error: any },
+  profileResult: { data: UserProfile | null; error: any },
   membershipsResult: { data: DatabaseMembership[] | null; error: any } 
 ): Promise<LoginResult> {
   const { data: profile, error: profileError } = profileResult;
@@ -469,11 +472,13 @@ export async function generateUserSessionPayload(
   }
 
   const userPayload = {
-    id: profile.id,
+    id: user.id,
     email: user.email || null,
-    name: profile.full_name,
+    full_name: profile.full_name,
     username: profile.username,
-    hasAvatar: !!profile.has_avatar
+    hasAvatar: !!profile.has_avatar,
+    bio:profile.bio,
+    display_name:profile.display_name,
   };
 
   if (memberships.length === 0) {
@@ -501,8 +506,9 @@ export async function generateUserSessionPayload(
         name: acc.name,
         plan_name: (acc.plan_name?.toLowerCase() || TIERS.FREE) as UserTier,
         subscription_status: acc.subscription_status || 'none',
-        role: mem.role,
-        is_personal: !!acc.is_personal 
+        role: mem.role as "owner" | "member",
+        is_personal: !!acc.is_personal,
+        can_publish: acc.can_publish,
       };
     })
     .sort((a, b) => {

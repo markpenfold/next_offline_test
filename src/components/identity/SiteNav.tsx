@@ -79,7 +79,7 @@ function AuthenticatedSiteNav() {
   const avatarUrl = uID ? `${AVATAR_BUCKET_URL}/${uID}/avatar.png?v=${avatarVersion}` : null
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  const welcomeName = profile?.name || profile?.username || 'explorer'
+  const welcomeName = profile?.display_name || profile?.full_name || profile?.username || 'explorer'
 
 // ROUTE-BASED HEADER TITLE & SUBTITLE SWITCH
   const getHeaderInfo = () => {
