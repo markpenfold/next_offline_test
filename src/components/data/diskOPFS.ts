@@ -614,7 +614,7 @@ export async function uploadDraftMediaToR2(
       updatedHtml = updatedHtml.replaceAll(blobUrlEntry[0], data.url)
     }
   }
-
+  console.log("UPDATED HTML: ", updatedHtml.length, updatedHtml)
   return updatedHtml
 }
 
@@ -658,7 +658,64 @@ export async function moveDraftToPublished(draftId: string, finalSlug: string): 
 }
 
 
+export interface ManifestEntry {
+  postSlug: string
+  title: string
+  publishedAt: string
+  updatedAt: string
+}
 
+/**
+ * Scans published articles on R2, generates an updated manifest.json, 
+ * uploads it to R2, and returns the updated manifest list.
+ */
+export async function syncAndUploadManifest(userContext: {
+  accountId: string
+  accountSlug: string
+}): Promise<ManifestEntry[]> {
+  const res = await fetch('/api/manifest/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userContext),
+  })
+
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Failed to sync manifest with R2')
+
+  return data.manifest as ManifestEntry[]
+}
+
+/**
+ * Compares the R2 manifest against the local /publishing/published/ directory in OPFS.
+ * Removes local folders that no longer exist in the published manifest.
+ */
+export async function reconcileLocalPublishedWithManifest(manifest: ManifestEntry[]): Promise<void> {
+  try {
+    const publishedFolder = await getDirectory('publishing/published')
+    const publishedEntries = await getOPFSEntries('publishing/published')
+    const manifestSlugs = new Set(manifest.map((m) => m.postSlug))
+
+    for (const { name, handle } of publishedEntries) {
+      if ((handle as FileSystemHandle).kind === 'directory' && !manifestSlugs.has(name)) {
+        await publishedFolder.removeEntry(name, { recursive: true })
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to reconcile local published directory with remote manifest:', err)
+  }
+}
+
+/**
+ * Removes a published article folder from OPFS local storage.
+ */
+export async function removeLocalPublishedPost(postSlug: string): Promise<void> {
+  try {
+    const publishedFolder = await getDirectory('publishing/published')
+    await publishedFolder.removeEntry(postSlug, { recursive: true })
+  } catch (err) {
+    console.warn(`Local published post [${postSlug}] not found or already deleted from OPFS:`, err)
+  }
+}
 
 
 

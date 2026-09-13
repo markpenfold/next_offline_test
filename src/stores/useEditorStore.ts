@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { saveDraft, loadDraft, TemplateId } from '@/components/blog/blogHelpers'
-import { getOPFSPosts, LocalPostEntry, uploadDraftMediaToR2, moveDraftToPublished, } from "@/components/data/diskOPFS" // import your new scanner utility
+import { ManifestEntry, removeLocalPublishedPost, reconcileLocalPublishedWithManifest, syncAndUploadManifest, getOPFSPosts, LocalPostEntry, uploadDraftMediaToR2, moveDraftToPublished, } from "@/components/data/diskOPFS" // import your new scanner utility
 
 interface UserContext {
   userId: string
@@ -38,6 +38,11 @@ interface EditorState {
   loadExistingDraft: (draftId: string) => Promise<string | null>
   saveCurrentDraft: (userContext: UserContext, htmlContent: string) => Promise<boolean>
   publishDraft: (userContext: UserContext, htmlContent: string) => Promise<{ success: boolean; postSlug?: string; error?: string }>
+
+  updateManifest: (userContext: { accountId: string; accountSlug: string }) => Promise<ManifestEntry[] | null>
+  unpublishPost: (userContext: { accountId: string; accountSlug: string }, postSlug: string) => Promise<{ success: boolean; error?: string }>
+  deletePost: (userContext: { accountId: string; accountSlug: string }, postSlug: string) => Promise<{ success: boolean; error?: string }>
+
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -135,68 +140,154 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return success
   },
 
-  publishDraft: async (userContext, htmlContent) => {
-  const { draftId, title, customSlug, blobMap, saveCurrentDraft, initializeNewDraft, fetchAvailableDrafts } = get()
 
-  if (!userContext.accountSlug) {
-    return { success: false, error: 'Account slug is required for publishing.' }
-  }
 
-  const finalSlug = customSlug.trim() || title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
-  if (!finalSlug) {
-    return { success: false, error: 'A title or custom slug is required to publish.' }
-  }
-
-  set({ isPublishing: true })
-
-  try {
-    // 1. Sync local draft state first
-    await saveCurrentDraft(userContext, htmlContent)
-
-    // 2. Upload media to R2 and update CDN links in HTML
-    const finalHtmlContent = await uploadDraftMediaToR2(
-      draftId,
-      { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
-      finalSlug,
-      blobMap,
-      htmlContent
-    )
-
-    // 3. Commit published post to Database
-    const publishRes = await fetch('/api/publish', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        accountId: userContext.accountId,
-        accountSlug: userContext.accountSlug,
-        postSlug: finalSlug,
-        title,
-        htmlContent: finalHtmlContent,
-      }),
-    })
-
-    if (!publishRes.ok) {
-      const err = await publishRes.json()
-      throw new Error(err.error || 'Failed to save published post to database')
-    }
-
-    // 4. Move OPFS folder from /drafts/ to /published/
+/**
+   * Scans R2 articles, uploads an updated manifest.json, and syncs local /published/ directory.
+   */
+  updateManifest: async (userContext) => {
     try {
-      await moveDraftToPublished(draftId, finalSlug)
-    } catch (moveErr) {
-      console.warn('Post published, but moving OPFS draft failed:', moveErr)
+      const manifest = await syncAndUploadManifest(userContext)
+      await reconcileLocalPublishedWithManifest(manifest)
+      return manifest
+    } catch (err: any) {
+      console.error('Failed to update manifest:', err)
+      return null
+    }
+  },
+
+  /**
+   * Unpublishes a post (removes from public site / DB / R2, returns status to unpublished),
+   * updates manifest, and removes it from local /published/ storage.
+   */
+  unpublishPost: async (userContext, postSlug) => {
+    try {
+      const res = await fetch('/api/unpublish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: userContext.accountId,
+          accountSlug: userContext.accountSlug,
+          postSlug,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to unpublish post from server.')
+      }
+
+      // Cleanup local OPFS published copy
+      await removeLocalPublishedPost(postSlug)
+
+      // Sync updated R2 manifest and reconcile local state
+      await get().updateManifest(userContext)
+      await get().fetchAvailableDrafts()
+
+      return { success: true }
+    } catch (err: any) {
+      console.error('Failed to unpublish post:', err)
+      return { success: false, error: err.message }
+    }
+  },
+
+  /**
+   * Permanently deletes a post across DB, R2 bucket media, manifest, and OPFS storage.
+   */
+  deletePost: async (userContext, postSlug) => {
+    try {
+      const res = await fetch('/api/delete-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: userContext.accountId,
+          accountSlug: userContext.accountSlug,
+          postSlug,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to delete post.')
+      }
+
+      // Cleanup local OPFS copy
+      await removeLocalPublishedPost(postSlug)
+
+      // Sync updated R2 manifest and reconcile local state
+      await get().updateManifest(userContext)
+      await get().fetchAvailableDrafts()
+
+      return { success: true }
+    } catch (err: any) {
+      console.error('Failed to delete post:', err)
+      return { success: false, error: err.message }
+    }
+  },
+
+  /**
+   * Updated publishDraft action now triggering updateManifest upon completion
+   */
+  publishDraft: async (userContext, htmlContent) => {
+    const { draftId, title, customSlug, blobMap, saveCurrentDraft, initializeNewDraft, fetchAvailableDrafts, updateManifest } = get()
+
+    if (!userContext.accountSlug) {
+      return { success: false, error: 'Account slug is required for publishing.' }
     }
 
-    // 5. Reset store and sync draft list
-    initializeNewDraft()
-    fetchAvailableDrafts()
+    const finalSlug = customSlug.trim() || title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
+    if (!finalSlug) {
+      return { success: false, error: 'A title or custom slug is required to publish.' }
+    }
 
-    return { success: true, postSlug: finalSlug }
-  } catch (err: any) {
-    console.error('Publishing pipeline failed:', err)
-    return { success: false, error: err.message }
-  } finally {
-    set({ isPublishing: false })
+    set({ isPublishing: true })
+
+    try {
+      await saveCurrentDraft(userContext, htmlContent)
+
+      const finalHtmlContent = await uploadDraftMediaToR2(
+        draftId,
+        { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
+        finalSlug,
+        blobMap,
+        htmlContent
+      )
+
+      const publishRes = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: userContext.accountId,
+          accountSlug: userContext.accountSlug,
+          postSlug: finalSlug,
+          title,
+          contentHtml: finalHtmlContent,
+        }),
+      })
+
+      if (!publishRes.ok) {
+        const err = await publishRes.json()
+        throw new Error(err.error || 'Failed to save published post to database')
+      }
+
+      try {
+        await moveDraftToPublished(draftId, finalSlug)
+      } catch (moveErr) {
+        console.warn('Post published, but moving OPFS draft failed:', moveErr)
+      }
+
+      // Trigger manifest sync across R2 and OPFS
+      await updateManifest({ accountId: userContext.accountId, accountSlug: userContext.accountSlug })
+
+      initializeNewDraft()
+      fetchAvailableDrafts()
+
+      return { success: true, postSlug: finalSlug }
+    } catch (err: any) {
+      console.error('Publishing pipeline failed:', err)
+      return { success: false, error: err.message }
+    } finally {
+      set({ isPublishing: false })
+    }
   }
-}
 }))
