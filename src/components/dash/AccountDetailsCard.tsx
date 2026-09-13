@@ -64,13 +64,14 @@ export default function AccountDetailsCard() {
           CORE WORKSPACE METRICS & DATA
          ========================================================= */}
       <div className={styles.cardContent}>
-        <h3><strong>Workspace:</strong> {currentAccount.name}</h3>
+        <h3><strong>Account Name:</strong> {currentAccount.name}</h3>
         <p><strong>Account ID:</strong> {currentAccount.id}</p>
         <p><strong>Plan Details:</strong> {currentAccount.plan_name.toUpperCase()}</p>
         <p><strong>Subscription Status:</strong> {currentAccount.subscription_status || 'Active'}</p>
         <p><strong>Account Owner:</strong> {profile.email || 'N/A'}</p>
         <p><strong>Display Name:</strong> {profile.display_name || 'N/A'}</p>
         <p><strong>Bio:</strong> {profile.bio || 'Superstes'}</p>
+
         
       </div>
 

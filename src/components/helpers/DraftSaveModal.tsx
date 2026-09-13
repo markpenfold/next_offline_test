@@ -19,7 +19,7 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
   const title = useEditorStore((state) => state.title);
   const setTitle = useEditorStore((state) => state.setTitle);
   const setDraftId = useEditorStore((state) => state.setDraftId);
-  const persistCurrentDraft = useEditorStore((state) => state.persistCurrentDraft);
+  const saveCurrentDraft = useEditorStore((state) => state.saveCurrentDraft);
 
   const [draftName, setDraftName] = useState("");
   const [existingDrafts, setExistingDrafts] = useState<string[]>([]);
@@ -46,7 +46,7 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
   const slugifiedId = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const nameExists = existingDrafts.includes(slugifiedId);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.SubmitEvent) => {
     e.preventDefault();
     if (!trimmedName || !user || !activeAccount?.id || !editor) return;
 
@@ -58,7 +58,7 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
       setTitle(trimmedName);
       setDraftId(slugifiedId);
 
-      const success = await persistCurrentDraft(
+      const success = await saveCurrentDraft(
         { userId: user, accountId: activeAccount.id },
         editor.getHTML()
       );

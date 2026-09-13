@@ -2,78 +2,44 @@
 
 import React, { useEffect, useState } from "react";
 import { useEditorStore } from "@/stores/useEditorStore";
-import { getOPFSEntries } from "@/components/data/diskOPFS";
 import styles from "./helpers.module.css";
 
-interface SavedDraftItem {
-  id: string;
-  title: string;
-  updatedAt?: string;
-}
-
 export function DraftFinderModal({ editor }: { editor: any }) {
+  // Pull state and actions directly from the store
   const isDrawerOpen = useEditorStore((state) => state.isDrawerOpen);
   const setIsDrawerOpen = useEditorStore((state) => state.setIsDrawerOpen);
+  const availableDrafts = useEditorStore((state) => state.availableDrafts);
+  const isLoadingDrafts = useEditorStore((state) => state.isLoadingDrafts);
+  const fetchAvailableDrafts = useEditorStore((state) => state.fetchAvailableDrafts);
   const loadExistingDraft = useEditorStore((state) => state.loadExistingDraft);
 
-  const [drafts, setDrafts] = useState<SavedDraftItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [loadingDraftId, setLoadingDraftId] = useState<string | null>(null);
 
   const handleClose = () => setIsDrawerOpen(false);
 
-  // Scan OPFS directory for saved drafts when modal opens
+  // Fetch drafts via store when the modal opens
   useEffect(() => {
-    if (!isDrawerOpen) return;
-
-    let isMounted = true;
-    setIsLoading(true);
-
-    async function fetchDrafts() {
-        try {
-            const entries = await getOPFSEntries("publishing/drafts");
-            const list: SavedDraftItem[] = [];
-
-            for (const entry of entries) {
-            // Cast entry.handle to FileSystemHandle to access .kind safely
-            const handle = entry.handle as FileSystemHandle;
-
-            if (handle.kind === "directory") {
-                list.push({
-                id: entry.name,
-                title: entry.name, // Fallback to folder ID/name
-                });
-            }
-            }
-
-            if (isMounted) setDrafts(list);
-        } catch (err) {
-            console.error("Failed to read drafts from OPFS:", err);
-        } finally {
-            if (isMounted) setIsLoading(false);
-        }
-        }
-
-    fetchDrafts();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isDrawerOpen]);
+    if (isDrawerOpen) {
+      fetchAvailableDrafts((purgedSlug) => {
+        console.warn(`[OPFS Cleanup] Automatically purged broken draft: ${purgedSlug}`);
+      });
+    }
+  }, [isDrawerOpen, fetchAvailableDrafts]);
 
   if (!isDrawerOpen) return null;
 
-  const filteredDrafts = drafts.filter(
+  // Filter drafts by human-readable title or directory slug
+  const filteredDrafts = availableDrafts.filter(
     (d) =>
       d.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.id.toLowerCase().includes(searchTerm.toLowerCase())
+      d.slug.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSelect = async (draftId: string) => {
+  const handleSelect = async (slug: string) => {
     try {
-      setLoadingDraftId(draftId);
-      const htmlContent = await loadExistingDraft(draftId);
+      setLoadingDraftId(slug);
+      const htmlContent = await loadExistingDraft(slug);
       if (htmlContent && editor) {
         editor.commands.setContent(htmlContent);
       }
@@ -123,7 +89,7 @@ export function DraftFinderModal({ editor }: { editor: any }) {
 
         {/* Draft List */}
         <div className={styles.projectList}>
-          {isLoading ? (
+          {isLoadingDrafts ? (
             <div className={styles.emptyState}>
               <div className={styles.spinner} />
               <span>Scanning OPFS drafts...</span>
@@ -135,8 +101,8 @@ export function DraftFinderModal({ editor }: { editor: any }) {
           ) : (
             filteredDrafts.map((draft) => (
               <div
-                key={draft.id}
-                onClick={() => handleSelect(draft.id)}
+                key={draft.slug}
+                onClick={() => handleSelect(draft.slug)}
                 className={styles.projectCard}
               >
                 <div className={styles.projectInfo}>
@@ -144,7 +110,7 @@ export function DraftFinderModal({ editor }: { editor: any }) {
                 </div>
 
                 <button className={styles.loadButton}>
-                  {loadingDraftId === draft.id ? (
+                  {loadingDraftId === draft.slug ? (
                     <div className={styles.spinner} />
                   ) : (
                     "Load"

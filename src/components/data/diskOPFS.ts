@@ -433,11 +433,9 @@ export async function getDraftMediaFile(
   return await handle.getFile()
 }
 
-/**
- * Sweeps a draft's HTML, extracts all inline `blob:` URLs, uploads their
- * corresponding binary files from OPFS to R2, and replaces the blob links
- * with permanent CDN URLs.
- */
+/*  Sweeps a draft's HTML, extracts all inline `blob:` URLs, uploads their
+ *  corresponding binary files from OPFS to R2, and replaces the blob links
+ *  with permanent CDN URLs.*/
 export async function processAndUploadDraftMedia(
   draftId: string,
   accountId: string,
@@ -481,12 +479,199 @@ export async function processAndUploadDraftMedia(
   return updatedHtml
 }
 
-/**
- * Cleans up local draft files once publishing succeeds
- */
+// Cleans up local draft files once publishing succeeds
 export async function deleteDraftFolder(draftId: string): Promise<boolean> {
   return await wipeOPFSFolder(`publishing/drafts/${draftId}`)
 }
+
+export interface LocalPostEntry {
+  slug: string;             // Subdirectory name (e.g., "thingy")
+  title: string;            // Extracted from draft.json or fallback to slug
+  updatedAt: string;        // Modified timestamp
+  dirHandle: FileSystemDirectoryHandle;
+}
+
+export async function reconcileDraftFolder(
+  parentDir: FileSystemDirectoryHandle,
+  subDir: FileSystemDirectoryHandle,
+  onPurgeNotice?: (slug: string) => void
+): Promise<LocalPostEntry | null> {
+  const slug = subDir.name;
+
+  // Check if content.html exists
+  let hasContent = false;
+  try {
+    await subDir.getFileHandle("content.html");
+    hasContent = true;
+  } catch {
+    hasContent = false;
+  }
+
+  // If content exists, repair draft.json
+  if (hasContent) {
+    const repairedMetadata = {
+      title: `Recovered (${slug})`,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      const jsonHandle = await subDir.getFileHandle("draft.json", { create: true });
+      const writable = await jsonHandle.createWritable();
+      await writable.write(JSON.stringify(repairedMetadata, null, 2));
+      await writable.close();
+
+      return {
+        slug,
+        title: repairedMetadata.title,
+        updatedAt: repairedMetadata.updatedAt,
+        dirHandle: subDir,
+      };
+    } catch (err) {
+      console.error(`Failed to repair draft.json for ${slug}:`, err);
+    }
+  }
+
+  // Otherwise, destroy unrecoverable folder
+  try {
+    await parentDir.removeEntry(slug, { recursive: true });
+    onPurgeNotice?.(slug);
+  } catch (err) {
+    console.error(`Failed to purge unrecoverable directory ${slug}:`, err);
+  }
+
+  return null;
+}
+
+export async function getOPFSPosts(
+  folderPath: 'publishing/drafts' | 'publishing/published',
+  onPurgeNotice?: (slug: string) => void
+): Promise<LocalPostEntry[]> {
+  const dirHandle = await getDirectory(folderPath);
+  const posts: LocalPostEntry[] = [];
+
+  const dirIterable = dirHandle as FileSystemDirectoryHandle & {
+    values(): AsyncIterable<FileSystemHandle>;
+  };
+
+  for await (const entry of dirIterable.values()) {
+    if (entry.kind !== "directory") continue;
+
+    const subDir = entry as FileSystemDirectoryHandle;
+
+    try {
+      // 1. Happy path: Read valid draft.json
+      const jsonHandle = await subDir.getFileHandle("draft.json");
+      const file = await jsonHandle.getFile();
+      const metadata = JSON.parse(await file.text());
+
+      posts.push({
+        slug: subDir.name,
+        title: metadata.title || subDir.name,
+        updatedAt: metadata.updatedAt || new Date(file.lastModified).toISOString(),
+        dirHandle: subDir,
+      });
+    } catch {
+      // 2. Delegate broken/incomplete folders to the reconciler
+      const recoveredPost = await reconcileDraftFolder(dirHandle, subDir, onPurgeNotice);
+      if (recoveredPost) {
+        posts.push(recoveredPost);
+      }
+    }
+  }
+
+  return posts;
+}
+
+
+/**
+ * Uploads local media files from OPFS to R2 CDN and replaces local blob URLs in HTML.
+ */
+export async function uploadDraftMediaToR2(
+  draftId: string,
+  userContext: { accountId: string; accountSlug: string },
+  finalSlug: string,
+  blobMap: Record<string, string>,
+  htmlContent: string
+): Promise<string> {
+  const mediaEntries = await getOPFSEntries(`publishing/drafts/${draftId}/media`)
+  let updatedHtml = htmlContent
+
+  for (const { name, handle } of mediaEntries) {
+    const file = await handle.getFile()
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('accountId', userContext.accountId)
+    formData.append('accountSlug', userContext.accountSlug)
+    formData.append('postSlug', finalSlug)
+
+    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (!res.ok) throw new Error(`Upload failed for ${name}: ${data.error}`)
+
+    const blobUrlEntry = Object.entries(blobMap).find(([_, mappedName]) => mappedName === name)
+    if (blobUrlEntry) {
+      updatedHtml = updatedHtml.replaceAll(blobUrlEntry[0], data.url)
+    }
+  }
+
+  return updatedHtml
+}
+
+/**
+ * Recursively copies an entire directory inside OPFS.
+ */
+export async function copyOPFSDirectory(
+  src: FileSystemDirectoryHandle, 
+  dest: FileSystemDirectoryHandle
+): Promise<void> {
+  const iterable = src as FileSystemDirectoryHandle & {
+    values(): AsyncIterable<FileSystemHandle>
+  }
+  
+  for await (const entry of iterable.values()) {
+    if (entry.kind === 'file') {
+      const file = await (entry as FileSystemFileHandle).getFile()
+      const newFileHandle = await dest.getFileHandle(entry.name, { create: true })
+      const writable = await newFileHandle.createWritable()
+      await writable.write(file)
+      await writable.close()
+    } else if (entry.kind === 'directory') {
+      const subDest = await dest.getDirectoryHandle(entry.name, { create: true })
+      await copyOPFSDirectory(entry as FileSystemDirectoryHandle, subDest)
+    }
+  }
+}
+
+/**
+ * Moves a draft folder from /publishing/drafts/{draftId} to /publishing/published/{finalSlug}
+ */
+export async function moveDraftToPublished(draftId: string, finalSlug: string): Promise<void> {
+  const draftsFolder = await getDirectory('publishing/drafts')
+  const publishedFolder = await getDirectory('publishing/published')
+
+  const sourceDir = await draftsFolder.getDirectoryHandle(draftId)
+  const targetDir = await publishedFolder.getDirectoryHandle(finalSlug, { create: true })
+
+  await copyOPFSDirectory(sourceDir, targetDir)
+  await draftsFolder.removeEntry(draftId, { recursive: true })
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

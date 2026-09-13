@@ -22,7 +22,6 @@ import styles from '@/app/styles/editor.module.css'
 import { convertToWebP } from './blogHelpers'
 import { saveDraftMedia } from '@/components/data/diskOPFS'
 import { useEditorStore } from '@/stores/useEditorStore'
-import { TemplateId } from '@/components/blog/blogHelpers'
 import { useAppStore } from '@/providers/AppStoreProvider'
 import { TEMPLATE_OPTIONS } from './templates/TemplateOptions'
 
@@ -30,15 +29,8 @@ import { TEMPLATE_OPTIONS } from './templates/TemplateOptions'
 import { DraftSaveModal } from '@/components/helpers/DraftSaveModal'
 import { DraftFinderModal } from '@/components/helpers/DraftFinderModal'
 
-
 interface WritingToolProps {
   initialDraftId?: string
-}
-
-interface TemplateOption {
-  id: TemplateId
-  name: string
-  diagram: React.ReactNode
 }
 
 export function WritingTool({ initialDraftId }: WritingToolProps) {
@@ -216,7 +208,6 @@ export function WritingTool({ initialDraftId }: WritingToolProps) {
             <span>New</span>
           </button>
 
-          {/* OPEN BUTTON -> Triggers DraftFinderModal via Zustand */}
           <button 
             type="button" 
             onClick={() => setIsDrawerOpen(true)} 
@@ -268,7 +259,6 @@ export function WritingTool({ initialDraftId }: WritingToolProps) {
         </div>
 
         <div className={styles.headerRight}>
-          {/* SAVE BUTTON -> Triggers DraftSaveModal */}
           <button 
             type="button" 
             onClick={() => setIsSaveModalOpen(true)} 
@@ -370,7 +360,7 @@ export function WritingTool({ initialDraftId }: WritingToolProps) {
           <div className={styles.titleWrapper}>
             <input
               type="text"
-              placeholder="Post subtitle..."
+              placeholder="[OPTIONAL] Post subtitle..."
               value={subTitle}
               onChange={(e) => setSubTitle(e.target.value)}
               className={styles.subTitleInput}
