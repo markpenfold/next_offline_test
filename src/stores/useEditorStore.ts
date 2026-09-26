@@ -1,6 +1,17 @@
 import { create } from 'zustand'
 import { saveDraft, loadDraft, TemplateId } from '@/components/blog/blogHelpers'
-import { ManifestEntry, removeLocalPublishedPost, reconcileLocalPublishedWithManifest, syncAndUploadManifest, getOPFSPosts, LocalPostEntry, uploadDraftMediaToR2, moveDraftToPublished, } from "@/components/data/diskOPFS" // import your new scanner utility
+import { 
+  LocalPostEntry,
+  ManifestEntry, 
+  removeLocalPublishedPost, 
+  reconcileLocalPublishedWithManifest, 
+  syncAndUploadManifest, 
+  getOPFSPosts, 
+  uploadDraftMediaToR2, 
+  moveDraftToPublished 
+} from "@/components/data/diskOPFS"
+
+export type ActiveTab = 'editor' | 'drafts' | 'published'
 
 interface UserContext {
   userId: string
@@ -9,6 +20,10 @@ interface UserContext {
 }
 
 interface EditorState {
+  // --- NAVIGATION & VIEW ---
+  activeTab: ActiveTab
+  setActiveTab: (tab: ActiveTab) => void
+
   // --- STATE PROPERTIES ---
   draftId: string
   title: string
@@ -19,9 +34,11 @@ interface EditorState {
   isPublishing: boolean
   isLoadingDrafts: boolean
   availableDrafts: LocalPostEntry[]
+  availablePublished: LocalPostEntry[]
   blobMap: Record<string, string>
   isDrawerOpen: boolean
   templateId: TemplateId
+  showToolbar: boolean
 
   // --- SYNCHRONOUS ACTIONS ---
   setDraftId: (id: string) => void
@@ -31,9 +48,12 @@ interface EditorState {
   setTemplateId: (id: TemplateId) => void
   registerBlob: (blobUrl: string, fileName: string) => void
   setIsDrawerOpen: (open: boolean) => void
+  setShowToolbar: (open: boolean) => void
+  toggleToolbar: () => void
 
-  // --- ASYNC DRAFT MANAGEMENT ACTIONS ---
+  // --- ASYNC ACTIONS ---
   fetchAvailableDrafts: (onPurgeNotice?: (slug: string) => void) => Promise<void>
+  fetchAvailablePublished: () => Promise<void>
   initializeNewDraft: () => void
   loadExistingDraft: (draftId: string) => Promise<string | null>
   saveCurrentDraft: (userContext: UserContext, htmlContent: string) => Promise<boolean>
@@ -42,10 +62,13 @@ interface EditorState {
   updateManifest: (userContext: { accountId: string; accountSlug: string }) => Promise<ManifestEntry[] | null>
   unpublishPost: (userContext: { accountId: string; accountSlug: string }, postSlug: string) => Promise<{ success: boolean; error?: string }>
   deletePost: (userContext: { accountId: string; accountSlug: string }, postSlug: string) => Promise<{ success: boolean; error?: string }>
-
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
+  // Navigation
+  activeTab: 'editor',
+  setActiveTab: (activeTab) => set({ activeTab }),
+
   // Initial State
   draftId: 'temp-draft',
   title: '',
@@ -56,9 +79,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isPublishing: false,
   isLoadingDrafts: false,
   availableDrafts: [],
+  availablePublished: [],
   blobMap: {},
   isDrawerOpen: false,
   templateId: 'simple-blog',
+  showToolbar: false,
 
   setDraftId: (id) => set({ draftId: id }),
   setTitle: (title) => set({ title, isDirty: true }),
@@ -67,31 +92,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTemplateId: (templateId) => set({ templateId, isDirty: true }),
   setIsDrawerOpen: (open) => set({ isDrawerOpen: open }),
 
+  setShowToolbar: (open) => set({ showToolbar: open }),
+  toggleToolbar: () => set((state) => ({ showToolbar: !state.showToolbar })),
+
   registerBlob: (blobUrl, fileName) =>
     set((state) => ({
       blobMap: { ...state.blobMap, [blobUrl]: fileName },
       isDirty: true,
     })),
 
-  /**
-   * Scans OPFS using the recursive scanner. Automatically repairs incomplete JSON
-   * or purges empty/unrepairable folders, populating `availableDrafts`.
-   */
   fetchAvailableDrafts: async (onPurgeNotice) => {
     set({ isLoadingDrafts: true })
     try {
-      const drafts = await getOPFSPosts('publishing/drafts', onPurgeNotice)
+      const drafts = await getOPFSPosts('publishing/drafts', onPurgeNotice) //
       set({ availableDrafts: drafts })
     } catch (err) {
-      console.error('Failed to fetch drafts from OPFS:', err)
+      console.error('Failed to fetch OPFS drafts:', err)
       set({ availableDrafts: [] })
     } finally {
       set({ isLoadingDrafts: false })
     }
   },
 
+  fetchAvailablePublished: async () => {
+    try {
+      const published = await getOPFSPosts('publishing/published') //
+      set({ availablePublished: published })
+    } catch (err) {
+      console.error('Failed to fetch OPFS published posts:', err)
+      set({ availablePublished: [] })
+    }
+  },
+
   initializeNewDraft: () => {
     set({
+      activeTab: 'editor',
       draftId: crypto.randomUUID(),
       title: '',
       subTitle: '',
@@ -106,6 +141,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!data) return null
 
     set({
+      activeTab: 'editor',
       draftId: data.metadata.id || draftId,
       title: data.metadata.title,
       subTitle: data.metadata.subTitle || '',
@@ -134,21 +170,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     )
 
     set({ isSaving: false, isDirty: false })
-
-    // Refresh draft list so the modal reflects title or modified updates immediately
-    get().fetchAvailableDrafts()
+    await get().fetchAvailableDrafts()
     return success
   },
 
-
-
-/**
-   * Scans R2 articles, uploads an updated manifest.json, and syncs local /published/ directory.
-   */
   updateManifest: async (userContext) => {
     try {
-      const manifest = await syncAndUploadManifest(userContext)
-      await reconcileLocalPublishedWithManifest(manifest)
+      const manifest = await syncAndUploadManifest(userContext) //
+      await reconcileLocalPublishedWithManifest(manifest) //
+      await get().fetchAvailablePublished()
       return manifest
     } catch (err: any) {
       console.error('Failed to update manifest:', err)
@@ -156,10 +186,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  /**
-   * Unpublishes a post (removes from public site / DB / R2, returns status to unpublished),
-   * updates manifest, and removes it from local /published/ storage.
-   */
   unpublishPost: async (userContext, postSlug) => {
     try {
       const res = await fetch('/api/unpublish', {
@@ -174,15 +200,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error || 'Failed to unpublish post from server.')
+        throw new Error(err.error || 'Failed to unpublish post from R2.')
       }
 
-      // Cleanup local OPFS published copy
-      await removeLocalPublishedPost(postSlug)
-
-      // Sync updated R2 manifest and reconcile local state
+      await removeLocalPublishedPost(postSlug) //
       await get().updateManifest(userContext)
       await get().fetchAvailableDrafts()
+      await get().fetchAvailablePublished()
 
       return { success: true }
     } catch (err: any) {
@@ -191,9 +215,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  /**
-   * Permanently deletes a post across DB, R2 bucket media, manifest, and OPFS storage.
-   */
   deletePost: async (userContext, postSlug) => {
     try {
       const res = await fetch('/api/delete-post', {
@@ -211,12 +232,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         throw new Error(err.error || 'Failed to delete post.')
       }
 
-      // Cleanup local OPFS copy
-      await removeLocalPublishedPost(postSlug)
-
-      // Sync updated R2 manifest and reconcile local state
+      await removeLocalPublishedPost(postSlug) //
       await get().updateManifest(userContext)
       await get().fetchAvailableDrafts()
+      await get().fetchAvailablePublished()
 
       return { success: true }
     } catch (err: any) {
@@ -225,11 +244,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  /**
-   * Updated publishDraft action now triggering updateManifest upon completion
-   */
   publishDraft: async (userContext, htmlContent) => {
-    const { draftId, title, customSlug, blobMap, saveCurrentDraft, initializeNewDraft, fetchAvailableDrafts, updateManifest } = get()
+    const { draftId, title, customSlug, blobMap, saveCurrentDraft, initializeNewDraft, fetchAvailableDrafts, fetchAvailablePublished, updateManifest } = get()
 
     if (!userContext.accountSlug) {
       return { success: false, error: 'Account slug is required for publishing.' }
@@ -245,7 +261,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     try {
       await saveCurrentDraft(userContext, htmlContent)
 
-      const finalHtmlContent = await uploadDraftMediaToR2(
+      const finalHtmlContent = await uploadDraftMediaToR2( //
         draftId,
         { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
         finalSlug,
@@ -267,20 +283,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       if (!publishRes.ok) {
         const err = await publishRes.json()
-        throw new Error(err.error || 'Failed to save published post to database')
+        throw new Error(err.error || 'Failed to publish post to R2 storage')
       }
 
       try {
-        await moveDraftToPublished(draftId, finalSlug)
+        await moveDraftToPublished(draftId, finalSlug) //
       } catch (moveErr) {
-        console.warn('Post published, but moving OPFS draft failed:', moveErr)
+        console.warn('Post published to R2, but moving local OPFS draft failed:', moveErr)
       }
 
-      // Trigger manifest sync across R2 and OPFS
       await updateManifest({ accountId: userContext.accountId, accountSlug: userContext.accountSlug })
 
       initializeNewDraft()
-      fetchAvailableDrafts()
+      await fetchAvailableDrafts()
+      await fetchAvailablePublished()
 
       return { success: true, postSlug: finalSlug }
     } catch (err: any) {
@@ -289,5 +305,5 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } finally {
       set({ isPublishing: false })
     }
-  }
+  },
 }))

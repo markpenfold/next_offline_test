@@ -189,14 +189,21 @@ export async function requestPasswordReset(prevState: any, formData: FormData) {
   console.log('Server received email:', email); // Check your terminal for this!
   const supabase = await createClient()
   // Get the site URL dynamically so it works in localhost and production
-  const origin = (await headers()).get('origin')
+ // 1. Get host directly (e.g. "localhost:3000")
+  const headerList = await headers()
+  const host = headerList.get('host') 
+  const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
 
+  // 2. Build explicit origin
+  const origin = `${protocol}://${host}`
   const validated = forgotPasswordSchema.safeParse({ email: email });
 
   //local zod test for input failed so...
   if (!validated.success) {
     return { error: validated.error.issues[0].message };
   }
+
+  console.log('Sending reset link with redirectTo:', `${origin}/auth/callback?next=/update-password`)
 
   // now send to supabase, and await return value
   const { error } = await supabase.auth.resetPasswordForEmail(email, {

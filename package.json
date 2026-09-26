@@ -25,9 +25,11 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "@tiptap/extension-image": "^3.31.3",
+    "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/suggestion": "^3.31.3",
     "@vercel/analytics": "^2.0.1",
     "dompurify": "^3.4.14",
     "front-matter": "^4.0.2",
@@ -50,6 +52,7 @@
     "stripe": "^22.2.0",
     "three": "^0.185.1",
     "three-spritetext": "^1.10.0",
+    "tippy.js": "^6.3.7",
     "zustand": "^5.0.14"
   },
   "devDependencies": {

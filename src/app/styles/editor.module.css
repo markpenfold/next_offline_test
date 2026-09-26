@@ -1,25 +1,162 @@
-/* Container & Structural Layout */
-.editorContainer {
+/* ==========================================================================
+   1. APP LAYOUT & SIDEBAR (Outline-Style Structure)
+   ========================================================================== */
+.appLayout {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #ffffff;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1a1a1a;
+}
+
+/* Sidebar Styling */
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  height: 100%;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 900px;
-  margin: 32px auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  background-color: #ffffff;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  justify-content: space-between;
+  padding: 1rem;
+  z-index: 10;
+}
+
+.sidebarTop {
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* Tight, consistent vertical stack */
+}
+/* Main Canvas Container */
+.mainCanvas {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff; /* White background flush to edge */
   overflow: hidden;
 }
 
-/* Header Action Bar */
-.editorHeader {
+.canvasWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+
+.workspaceHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #1e293b;
+  padding: 0 4px;
+  margin-bottom: 4px;
+}
+
+.workspaceAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background-color: #0f172a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* + New Document Button */
+.newDraftBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+}
+
+.newDraftBtn:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #000000;
+}
+
+/* Navigation directly below New Document */
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.navItem {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px 12px 24px;
-  background-color: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.navItem:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.navActive {
+  background-color: #e2e8f0;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.navCount {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 12px;
+}
+
+/* ==========================================================================
+   2. HEADER & TOOLBAR CONTROLS
+   ========================================================================== */
+
+.editorHeader {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 2rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .headerLeft,
@@ -51,12 +188,20 @@
   border-color: #94a3b8;
 }
 
+.actionBtnActive {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.publishBtn,
 .saveBtn {
   background-color: #0f172a;
   color: #ffffff;
   border-color: #0f172a;
 }
 
+.publishBtn:hover,
 .saveBtn:hover {
   background-color: #1e293b;
   color: #ffffff;
@@ -65,12 +210,15 @@
 
 /* Formatting Controls Toolbar */
 .editorToolbar {
+  position: sticky;
+  top: 57px;
+  z-index: 15;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 12px 24px 12px 24px;
+  gap: 0.25rem;
+  padding: 0.5rem 2rem;
   background-color: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .toolBtn {
@@ -115,23 +263,84 @@
   border-bottom: 1px solid #fee2e2;
 }
 
-/* Typing Canvas Surface */
+/* ==========================================================================
+   3. CANVAS & INPUT FIELDS
+   ========================================================================== */
+   /* Main Canvas Container - Adds surrounding padding */
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background-color: #ffffff;
+  padding: 40px 60px; /* Adjust top/bottom and left/right padding */
+}
+
+/* Editor Centered Document Canvas */
+.editorContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Keeps the sheet aligned left */
+  padding: 0;
+  overflow-y: auto;
+  background-color: #ffffff;
+}
+
+
 .canvasContainer {
-  min-height: 450px;
-  background-color: rgba(221, 219, 219, 0.3);
+  flex: 1;
+  width: 100%;
+  min-height: 500px;
+  background-color: transparent;
   cursor: text;
 }
 
-/* Tiptap ProseMirror Scoped Styles */
-.editorCanvas :global(.ProseMirror) {
-  min-height: 900px;
+/* Title & Content Inputs */
+.titleInput {
+  width: 100%;
+  border: none;
   outline: none;
-  font-family:var(--font-geist-sans), sans-serif;
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #111827;
+  background: transparent;
+  margin-bottom: 0.75rem;
+  padding: 0;
+}
+
+.titleInput::placeholder {
+  color: #9ca3af;
+}
+.subTitleInput {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: #4b5563;
+  background: transparent;
+  margin-bottom: 2rem;
+  padding: 0;
+}
+
+.subTitleInput::placeholder {
+  color: #d1d5db;
+}
+
+/* ==========================================================================
+   4. TIPTAP PROSEMIRROR SCOPED STYLES
+   ========================================================================== */
+.editorCanvas :global(.ProseMirror) {
+  min-height: 600px;
+  outline: none;
+  font-family: var(--font-geist-sans), sans-serif;
   font-size: 16px;
   line-height: 1.7;
   color: #334155;
-  background-color: rgba(255,255,250,1);
-  padding: 12px;
+  background-color: transparent;
+  padding: 12px 0;
 }
 
 .editorCanvas :global(.ProseMirror p.is-editor-empty:first-child::before) {
@@ -178,17 +387,9 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Utilities */
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-
+/* ==========================================================================
+   5. TEMPLATE POPOVERS & LAYOUT CANVASES
+   ========================================================================== */
 .templateSelectorWrapper {
   display: flex;
   align-items: center;
@@ -208,28 +409,28 @@
   outline: none;
 }
 
-/* Canvas Layout Wrappers */
+/* Paper Sheet extending full length to the bottom */
 .canvasFrame {
-  transition: all 0.25s ease-in-out;
-  padding: 12px 0px 0px 0px;
-
-  min-height: 900px;
+  width: 100%;
+  max-width: 1000px; /* Constrains line length for comfortable reading */
+  min-height: 100%;  /* Ensures it stretches down to the bottom edge */
+  background-color: #ffffff;
+  padding: 3rem 4rem; /* Internal padding so text never touches the edges */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 1. Simple Blog Layout Canvas */
 .canvasSimpleBlog {
   width: 100%;
   margin: 0 auto;
 }
 
-/* 2. Newsprint Layout Canvas (Pink Texture Applied) */
 .canvasNewsprint {
   width: 100%;
   margin: 0 auto;
-  
 }
 
-/* 3. Split Screen Layout Canvas */
 .canvasSplitScreen {
   max-width: 1000px;
   margin: 0 auto;
@@ -238,15 +439,12 @@
   gap: 24px;
 }
 
-/* 4. Super Clean Minimalist Canvas */
 .canvasSuperClean {
   width: 100%;
   margin: 0 auto;
   background: transparent;
 }
 
-
-/* Template Dropdown Popover */
 .templateDropdownContainer {
   position: relative;
 }
@@ -285,7 +483,6 @@
   height: 100%;
 }
 
-/* Popover Panel */
 .templateMenuPopover {
   position: absolute;
   top: calc(100% + 6px);
@@ -348,18 +545,50 @@
   text-align: center;
 }
 
-.titleInput {
-  padding:24px;
-  margin-bottom: 12px;
-  border:none;
-  width:100%;
-  font-size: 36px;
+/* Utilities */
+.spin {
+  animation: spin 1s linear infinite;
 }
 
-.subTitleInput {
-    padding:24px;
-  margin-bottom: 12px;
-  border:none;
-  width:100%;
-  font-size: 18px;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Slash Command Menu Popup */
+.slashMenuContainer {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 0.25rem;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.slashMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background-color: transparent;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #1f2937;
+  transition: background-color 0.15s ease;
+}
+
+.slashMenuItem:hover,
+.slashMenuItemActive {
+  background-color: #f3f4f6;
+}
+
+.slashMenuEmpty {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #9ca3af;
 }
