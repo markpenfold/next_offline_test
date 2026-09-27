@@ -43,11 +43,11 @@ export function RecentWork() {
     <div className={styles.cardBody}>
       <div className={styles.blogLinkRow}>
         <span className={styles.blogLinkText}>
-          Your blog space is live at: <strong>{activeAccount?.name}.omen.land</strong>
+          Your blog space is live at: <strong>{activeAccount?.account_slug}.omen.land</strong>
         </span>
         
         <Link 
-          href={`https://${activeAccount?.name}.omen.land`} 
+          href={`https://${activeAccount?.account_slug}.omen.land`} 
           target="_blank" 
           rel="noopener noreferrer"
         >

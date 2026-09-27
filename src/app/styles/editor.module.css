@@ -332,6 +332,17 @@
 /* ==========================================================================
    4. TIPTAP PROSEMIRROR SCOPED STYLES
    ========================================================================== */
+   /* Global Tiptap Canvas Inline Images */
+.editorCanvas :global(img) {
+  max-width: 100%;
+  height: auto;
+  max-height: 600px;
+  object-fit: contain; /* Prevents inline body images from cropping */
+  display: block;
+  margin: 1.5rem auto;
+  border-radius: 0.375rem;
+}
+
 .editorCanvas :global(.ProseMirror) {
   min-height: 600px;
   outline: none;
@@ -591,4 +602,70 @@
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   color: #9ca3af;
+}
+
+
+/* Hero Cover Slot */
+/* Hero Cover Container - Edge to Edge across paper width */
+.heroSlot {
+  width: calc(100% + 8rem); /* Spans across internal canvas padding (4rem left + 4rem right) */
+  margin-left: -4rem;
+  margin-top: -3rem;        /* Snaps flush to top edge of paper */
+  margin-bottom: 2rem;
+}
+
+.heroWrapper {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+.heroImage {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover; /* Fills full canvas width proportionally */
+}
+.removeHeroBtn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  padding: 0.35rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.removeHeroBtn:hover {
+  background-color: rgba(0, 0, 0, 0.85);
+}
+
+.heroPlaceholder {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #9ca3af;
+  background-color: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.heroPlaceholder:hover {
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border-color: #d1d5db;
 }

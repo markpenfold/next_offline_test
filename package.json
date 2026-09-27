@@ -24,6 +24,7 @@
     "@stripe/stripe-js": "^9.7.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
+    "@tiptap/extension-highlight": "^3.31.3",
     "@tiptap/extension-image": "^3.31.3",
     "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/pm": "^3.31.3",

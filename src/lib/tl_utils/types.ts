@@ -55,6 +55,7 @@ export interface AccountContext {
   is_personal: boolean;
   role: 'owner' | 'member';
   can_publish: boolean;
+  account_slug:string;
 }
 
 export interface UserProfile {

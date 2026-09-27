@@ -18,7 +18,8 @@ export async function fetchUserAccounts(
         name,
         plan_name,
         subscription_status,
-        is_personal
+        is_personal,
+        account_slug
       )
     `)
     .eq('user_id', userId);
@@ -42,6 +43,7 @@ export async function fetchUserAccounts(
         role: mem.role,
         is_personal: !!acc.is_personal,
         can_publish: mem.can_publish,
+        account_slug: acc.account_slug,
       };
       //console.log("ACCOUNTS COLLECTED: ", returnValue, typeof(returnValue));
 
@@ -102,7 +104,9 @@ export async function updateProfile(
   return data
 }
 
-// 
+// Accepting the SupabaseClient<Database> as a param means this function can work ANYWHERE
+// Depending on context you pass a server or client supabase 
+// One reads localStorage the other document.cookie 
 export async function checkPublishingPermissions(
   supabase: SupabaseClient<Database>,
   userId: string,

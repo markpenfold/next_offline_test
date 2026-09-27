@@ -20,7 +20,7 @@ import { DraftFinderModal } from '@/components/helpers/DraftFinderModal'
 
 import { SlashCommand, COMMANDS, renderItems } from './SlashCommand'
 
-
+import { Highlight } from '@tiptap/extension-highlight'
 export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
   const activeAccount = useAppStore((s) => s.activeAccount)
 
@@ -43,6 +43,8 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
   immediatelyRender: false,
   extensions: [
     StarterKit,
+    Highlight.configure({ multicolor: true }),
+    
     Image.configure({ inline: true, allowBase64: false }),
     Placeholder.configure({ placeholder: 'Write something, or type "/" for commands...' }),
     SlashCommand.configure({

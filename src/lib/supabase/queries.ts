@@ -453,6 +453,7 @@ interface DatabaseMembership {
     plan_name?: string | null;
     subscription_status?: string | null;
     is_personal?: boolean | null;
+    account_slug:string;
   } | null | unknown; // accounts can be an object, null, or unknown before filtering
 }
 
@@ -509,6 +510,7 @@ export async function generateUserSessionPayload(
         role: mem.role as "owner" | "member",
         is_personal: !!acc.is_personal,
         can_publish: !!mem.can_publish,
+        account_slug: acc.account_slug
       };
     })
     .sort((a, b) => {
