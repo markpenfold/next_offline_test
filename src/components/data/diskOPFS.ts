@@ -318,25 +318,6 @@ function resolveProjectFileName(projectName?: string | null): string {
   return projectName.endsWith(".json") ? projectName : `${projectName}.json`;
 }
 
-/** 
-export async function loadProjectX(
-  accountId: string, 
-  projectName?: string | null
-): Promise<ProjectConfig | null> {
-  try {
-    const dirPath = `savedProjects/${accountId}`;
-    const fileName = resolveProjectFileName(projectName);
-    
-    const hasFile = await checkFileExists(dirPath, fileName);
-    if (!hasFile) return null;
-
-    const text = (await readFromOPFSFolder(dirPath, fileName, "text")) as string;
-    return JSON.parse(text) as ProjectConfig;
-  } catch (err) {
-    console.warn(`Could not load project/session context [${projectName || "session"}]`, err);
-    return null;
-  }
-}*/
 
 
 export async function loadProject(
@@ -643,18 +624,35 @@ export async function copyOPFSDirectory(
   }
 }
 
-/**
- * Moves a draft folder from /publishing/drafts/{draftId} to /publishing/published/{finalSlug}
- */
+
 export async function moveDraftToPublished(draftId: string, finalSlug: string): Promise<void> {
   const draftsFolder = await getDirectory('publishing/drafts')
   const publishedFolder = await getDirectory('publishing/published')
 
+  // Target the specific post folders, NOT the parent directories
   const sourceDir = await draftsFolder.getDirectoryHandle(draftId)
   const targetDir = await publishedFolder.getDirectoryHandle(finalSlug, { create: true })
 
+  // Recursively copy all files and subdirectories (like /media) for this specific post
   await copyOPFSDirectory(sourceDir, targetDir)
+
+  // Delete the original draft folder
   await draftsFolder.removeEntry(draftId, { recursive: true })
+}
+
+export async function movePublishedToDraft(draftId: string, finalSlug: string): Promise<void> {
+  const draftsFolder = await getDirectory('publishing/drafts')
+  const publishedFolder = await getDirectory('publishing/published')
+
+  // Target the specific post folders
+  const sourceDir = await publishedFolder.getDirectoryHandle(finalSlug)
+  const targetDir = await draftsFolder.getDirectoryHandle(draftId, { create: true })
+
+  // Recursively copy all files and subdirectories for this specific post
+  await copyOPFSDirectory(sourceDir, targetDir)
+
+  // Delete the original published folder
+  await publishedFolder.removeEntry(finalSlug, { recursive: true })
 }
 
 
@@ -673,7 +671,7 @@ export async function syncAndUploadManifest(userContext: {
   accountId: string
   accountSlug: string
 }): Promise<ManifestEntry[]> {
-  const res = await fetch('/api/manifest/sync', {
+  const res = await fetch('/api/manifest-sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(userContext),

@@ -14,7 +14,7 @@ import { convertToWebP } from './blogHelpers'
 import { saveDraftMedia } from '@/components/data/diskOPFS'
 import { useEditorStore } from '@/stores/useEditorStore'
 import { useAppStore } from '@/providers/AppStoreProvider'
-
+import { PenTool } from 'lucide-react';
 import { DraftSaveModal } from '@/components/helpers/DraftSaveModal'
 import { DraftFinderModal } from '@/components/helpers/DraftFinderModal'
 
@@ -23,7 +23,6 @@ import { SlashCommand, COMMANDS, renderItems } from './SlashCommand'
 import { Highlight } from '@tiptap/extension-highlight'
 export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
   const activeAccount = useAppStore((s) => s.activeAccount)
-
   const draftId = useEditorStore((s) => s.draftId)
   const availableDrafts = useEditorStore((s) => s.availableDrafts)
   const availablePublished = useEditorStore((s) => s.availablePublished)
@@ -105,8 +104,12 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
       <aside className={styles.sidebar}>
         <div className={styles.sidebarTop}>
           <div className={styles.workspaceHeader}>
-            <div className={styles.workspaceAvatar}>W</div>
-            <span>Writer</span>
+          <div className={styles.sidebarUser} title="Active Account">
+            <div className={styles.userAvatar}>
+              <PenTool className={styles.penIcon} />
+            </div>
+            <span className={styles.userName}>{activeAccount?.account_slug || 'Account'}</span>
+          </div>
           </div>
 
           <button
@@ -127,7 +130,7 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
               className={`${styles.navItem} ${activeTab === 'editor' ? styles.navActive : ''}`}
               onClick={() => setActiveTab('editor')}
             >
-              <span>Canvas</span>
+              <span>Tabula</span>
             </button>
             <button
               type="button"
@@ -152,11 +155,6 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
               <span className={styles.navCount}>{availablePublished.length}</span>
             </button>
           </nav>
-        </div>
-
-        <div className={styles.sidebarUser}>
-          <div className={styles.userAvatar}>U</div>
-          <span className={styles.userName}>{activeAccount?.name || 'Account'}</span>
         </div>
       </aside>
 

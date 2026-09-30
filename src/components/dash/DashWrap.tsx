@@ -19,8 +19,6 @@ export default function DashWrap({ children }: { children: React.ReactNode }) {
 
   const isLoading = authStatus === 'unknown' || authStatus === 'loading'
   const isUnauthenticated = authStatus === 'unauthenticated';
-
-  // Only handle network status toggles (online vs offline dash)
   const shouldRedirectToOfflineDash = !isLoading && !isUnauthenticated && !isOnline && pathname !== '/offlinedash'
   const shouldRedirectToMainDash = !isLoading && !isUnauthenticated && isOnline && pathname === '/offlinedash'
 

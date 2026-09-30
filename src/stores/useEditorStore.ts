@@ -174,11 +174,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return success
   },
 
+  // guardian of the sync process 
+  // should be called on publish/unpublish
+  // Runs full scan of local and remote. Performs sync
   updateManifest: async (userContext) => {
     try {
-      const manifest = await syncAndUploadManifest(userContext) //
-      await reconcileLocalPublishedWithManifest(manifest) //
+      // Pulls remote manifest, uploads any changes, and deeply checks local OPFS parity
+      const manifest = await syncAndUploadManifest(userContext) 
+      await reconcileLocalPublishedWithManifest(manifest) 
+      
+      // Refresh both lists to ensure the UI reflects the fully synced state
       await get().fetchAvailablePublished()
+      await get().fetchAvailableDrafts()
+      
       return manifest
     } catch (err: any) {
       console.error('Failed to update manifest:', err)
@@ -205,8 +213,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       await removeLocalPublishedPost(postSlug) //
       await get().updateManifest(userContext)
-      await get().fetchAvailableDrafts()
-      await get().fetchAvailablePublished()
+    //  await get().fetchAvailableDrafts()
+    // await get().fetchAvailablePublished()
 
       return { success: true }
     } catch (err: any) {
@@ -215,6 +223,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+
+  // update to actually clean house, including toast warning
   deletePost: async (userContext, postSlug) => {
     try {
       const res = await fetch('/api/delete-post', {

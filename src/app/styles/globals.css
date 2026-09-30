@@ -227,3 +227,10 @@ code, pre, .mono-text {
   /* Inherit border-radius dynamically from the parent container */
   border-radius: inherit;
 }
+
+.p24 {
+  padding:24px;
+}
+.mw750 {
+  max-width: 750px;
+}

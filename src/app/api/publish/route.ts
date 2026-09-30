@@ -13,6 +13,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  /**
+   *      accountId: userContext.accountId,
+          postSlug: finalSlug,
+          title,
+          htmlContent: finalHtmlContent,
+   */
+
 
   try {
     const { accountId, accountSlug, postSlug, title, contentHtml } = await request.json()

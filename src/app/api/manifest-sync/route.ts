@@ -3,6 +3,8 @@ import { ListObjectsV2Command, PutObjectCommand, GetObjectCommand } from "@aws-s
 import { r2Client, BUCKET_NAME } from "@/lib/blog/r2";
 import { createClient } from "@/lib/supabase/server";
 
+// Scans R2 and generates a new manifst.json
+// So we know after this runs the manifest is accurate
 export async function POST(request: Request) {
   const supabase = await createClient();
 

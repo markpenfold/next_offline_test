@@ -23,12 +23,14 @@
   justify-content: space-between;
   padding: 1rem;
   z-index: 10;
+  height: 100vh;
 }
 
 .sidebarTop {
   display: flex;
   flex-direction: column;
   gap: 12px; /* Tight, consistent vertical stack */
+  flex: 1;
 }
 /* Main Canvas Container */
 .mainCanvas {
@@ -103,6 +105,52 @@
   flex-direction: column;
   gap: 2px;
   margin-top: 4px;
+}
+
+
+.sidebarUser {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem 0.4rem 0.6rem;
+  background-color: var(--foreground);
+  border-radius: 3px;    /* Rounded pill shape */
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.sidebarUser:hover {
+  background-color: var(--red);
+}
+
+/* Icon rotation to point the pen nib downward */
+.userAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.penIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+  transform: rotate(180deg); /* Rotates standard Lucide PenTool nib down-left */
+  stroke-width: 2.2;
+}
+
+.userAvatar svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Typography for account name */
+.userName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .navItem {
@@ -426,7 +474,7 @@
   max-width: 1000px; /* Constrains line length for comfortable reading */
   min-height: 100%;  /* Ensures it stretches down to the bottom edge */
   background-color: #ffffff;
-  padding: 3rem 4rem; /* Internal padding so text never touches the edges */
+  padding: 3rem 1rem; /* Internal padding so text never touches the edges */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -662,10 +710,105 @@
   border-radius: 0.5rem;
   cursor: pointer;
   transition: all 0.15s ease;
+  margin-left:64px;
+  margin-right:24px;
+  margin-top:  24px;
 }
 
 .heroPlaceholder:hover {
   background-color: #f3f4f6;
   color: #4b5563;
   border-color: #d1d5db;
+}
+
+/* Header Section */
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  font-size: 2rem;
+  font-weight: 400;
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+/* List Formatting */
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.listHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.headerTitle {
+  flex: 1;
+}
+
+.headerDate {
+  white-space: nowrap;
+  margin-left: 1rem;
+}
+
+/* Row Item styling with Flexbox layout */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding:12px;
+  font-weight: 100;
+  border-radius: 8px;
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+/* Hover state matching UI interactive elements */
+.row:hover {
+  background-color: #f3f4f6;
+}
+
+.row:active {
+  background-color: #e5e7eb;
+}
+
+/* Title & Date Typography */
+.docTitle {
+  font-size: 0.95rem;
+  font-weight: 300;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docDate {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-left: 1rem;
+  white-space: nowrap;
+}
+
+/* Empty State Message */
+.emptyState {
+  padding: 2rem 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+  font-style: italic;
 }

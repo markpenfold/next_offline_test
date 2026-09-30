@@ -91,10 +91,15 @@ export function EditorCanvas({
     return
   }
 
-  const accountSlug = activeAccount.name
+  let accountSlug = activeAccount.account_slug
+    
+
+  if(!accountSlug){
+    accountSlug = activeAccount.name
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
+  }
 
   const res = await publishDraft(
     {

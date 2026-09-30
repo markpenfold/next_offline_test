@@ -16,14 +16,21 @@ export const DocumentListView: React.FC<DocumentListViewProps> = ({
   emptyMessage,
 }) => {
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <h1>{title}</h1>
-      </header>
+  <div className="pageContainer p24 mw750">
+    <header className={styles.header}>
+      <h1>{title}</h1>
+    </header>
 
-      {items.length === 0 ? (
-        <div className={styles.emptyState}>{emptyMessage}</div>
-      ) : (
+    {items.length === 0 ? (
+      <div className={styles.emptyState}>{emptyMessage}</div>
+    ) : (
+      <div className={styles.tableWrapper}>
+        {/* Table Column Headers */}
+        <div className={styles.listHeader}>
+          <span className={styles.headerTitle}>Title</span>
+          <span className={styles.headerDate}>Last edited</span>
+        </div>
+
         <ul className={styles.list}>
           {items.map((item) => (
             <li 
@@ -42,7 +49,8 @@ export const DocumentListView: React.FC<DocumentListViewProps> = ({
             </li>
           ))}
         </ul>
-      )}
-    </div>
-  )
+      </div>
+    )}
+  </div>
+)
 }
