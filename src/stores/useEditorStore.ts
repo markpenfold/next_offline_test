@@ -147,54 +147,58 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  fetchAvailablePublished: async (userContext) => {
-    if (!userContext.accountId || !userContext.accountSlug) {
-      console.error('fetchAvailablePublished aborted: Invalid UserContext.')
-      set({ availablePublished: [] })
-      return
-    }
+fetchAvailablePublished: async (userContext) => {
+  if (!userContext.accountId || !userContext.accountSlug) {
+    console.error('fetchAvailablePublished aborted: Invalid UserContext.')
+    set({ availablePublished: [] })
+    return
+  }
 
-    try {
-      let localPublished = await getOPFSPosts('publishing/published')
-      console.log("local published; ", localPublished)
+  try {
+    let localPublished = await getOPFSPosts('publishing/published')
+    console.log("local published: ", localPublished)
 
-      const res = await fetch('/api/list-published', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userContext),
-      })
-      console.log("REZZ from R2:", res)
+    const res = await fetch('/api/list-published', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userContext),
+    })
 
-      if (res.ok) {
-        const data = await res.json()
-        console.log("CUNTING DATA:", data)
-        const remoteManifest = data.manifest || data.posts || []
+    if (res.ok) {
+      const data = await res.json()
+      const remotePosts: Array<any> = data.posts || data.manifest || []
 
-        const localIds = new Set(localPublished.map((p) => p.id))
-        
-        const missingFromLocal = remoteManifest.filter(
-          (remote: { postId: string; postSlug: string; title: string; createdAt?: string }) =>
-            !localIds.has(remote.postId)
-        )
-        console.log("missing from local: ", missingFromLocal)
+      const localIds = new Set(localPublished.map((p) => p.id))
 
-        if (missingFromLocal.length > 0) {
-          await Promise.allSettled(
-            missingFromLocal.map(
-              (missingItem: { postId: string; postSlug: string; title: string; createdAt?: string }) =>
-                downloadAndSavePublishedPost(userContext, missingItem)
-            )
+      // 1. Normalize items to match expected properties
+      const missingFromLocal = remotePosts
+        .map((p) => ({
+          postId: p.postId || p.id,
+          postSlug: p.postSlug || p.slug,
+          title: p.title,
+          createdAt: p.createdAt || p.publishedAt,
+        }))
+        .filter((item) => item.postId && !localIds.has(item.postId))
+
+      console.log("missing from local: ", missingFromLocal)
+
+      // 2. Download missing items with resolved parameters
+      if (missingFromLocal.length > 0) {
+        await Promise.allSettled(
+          missingFromLocal.map((missingItem) =>
+            downloadAndSavePublishedPost(userContext, missingItem)
           )
-          localPublished = await getOPFSPosts('publishing/published')
-        }
+        )
+        localPublished = await getOPFSPosts('publishing/published')
       }
-
-      set({ availablePublished: localPublished })
-    } catch (err) {
-      console.error('Failed to fetch/sync OPFS published posts:', err)
-      set({ availablePublished: [] })
     }
-  },
+
+    set({ availablePublished: localPublished })
+  } catch (err) {
+    console.error('Failed to fetch/sync OPFS published posts:', err)
+    set({ availablePublished: [] })
+  }
+},
 
   initializeNewDraft: () => {
     const newUuid = crypto.randomUUID()
@@ -400,10 +404,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ isPublishing: true })
 
     try {
-      // 1. Ensure local draft is saved first
-      await saveCurrentDraft(userContext, htmlContent)
-
-      // 2. Upload media blobs to R2
+        console.log("USER CONTECTST: ", userContext)
+      // Upload media blobs to R2
       const finalHtmlContent = await uploadDraftMediaToR2(
         draftId,
         { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
@@ -421,7 +423,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           accountSlug: userContext.accountSlug,
           postId: draftId,
           postSlug: finalSlug,
-          liveTitle,
+          title: liveTitle,
           contentHtml: finalHtmlContent,
         }),
       })

@@ -19,7 +19,6 @@ import { DraftSaveModal } from '@/components/helpers/DraftSaveModal'
 import { DraftFinderModal } from '@/components/helpers/DraftFinderModal'
 import { NewDocModal } from '../helpers/NewDocModal'
 
-import { SlashCommand, COMMANDS, renderItems } from './SlashCommand'
 import { Highlight } from '@tiptap/extension-highlight'
 
 export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
@@ -79,11 +78,7 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
     }
   }, [authStatus, router])
 
-async function handleImagePipeline(
-  rawFile: File, 
-  targetEditor?: any, 
-  pos?: number
-) {
+  async function handleImagePipeline(rawFile: File, targetEditor?: Editor | null) {
   const activeEditor = targetEditor || editor
   if (!activeEditor) return
 
@@ -95,12 +90,8 @@ async function handleImagePipeline(
     const localBlobUrl = URL.createObjectURL(processedFile)
     registerBlob(localBlobUrl, fileName)
 
-    // Ensure editor receives explicit focus and target cursor position
-    if (typeof pos === 'number') {
-      activeEditor.chain().focus().setTextSelection(pos).setImage({ src: localBlobUrl }).run()
-    } else {
-      activeEditor.chain().focus().setImage({ src: localBlobUrl }).run()
-    }
+    // Insert directly using the active editor instance
+    activeEditor.chain().focus().setImage({ src: localBlobUrl }).run()
   } catch (err) {
     console.error('Failed to process image:', err)
   } finally {
@@ -115,17 +106,6 @@ async function handleImagePipeline(
       Highlight.configure({ multicolor: true }),
       Image.configure({ inline: true, allowBase64: false }),
       Placeholder.configure({ placeholder: 'Write something, or type "/" for commands...' }),
-      SlashCommand.configure({
-        onImageUpload: (file: File, ed?: any, pos?: number) => handleImagePipeline(file, ed, pos),
-        suggestion: {
-          items: ({ query }: { query: string }) => {
-            return COMMANDS.filter((item) =>
-              item.title.toLowerCase().startsWith(query.toLowerCase())
-            )
-          },
-          render: renderItems,
-        },
-      }),
     ],
  
   })

@@ -93,132 +93,128 @@ export function EditorCanvas({
     }
   }
 
-const handlePublish = async () => {
-  setEditorError(null)
+  const handlePublish = async () => {
+    setEditorError(null)
 
-  if (!user || !activeAccount?.id || !profile) {
-    setEditorError('Account session or user information is missing.')
-    return
-  }
-
-  let accountSlug = activeAccount.account_slug
-  if (!accountSlug && activeAccount.name) {
-    accountSlug = activeAccount.name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-  }
-
-  if (!accountSlug) {
-    setEditorError('A valid account slug could not be determined.')
-    return
-  }
-
-  const userContext = {
-    userId: user,
-    accountId: activeAccount.id,
-    accountSlug,
-    name: profile.display_name || activeAccount.name || `${activeAccount.account_slug || 'Author'} Author`,
-  }
-
-  const currentHtml = editor ? editor.getHTML() : ''
-
-  try {
-    // 1. Force-save unpersisted content to local OPFS draft & get the exact saved draft ID
-    const savedDraft = await saveCurrentDraft(userContext, currentHtml)
-    if (!savedDraft) {
-      setEditorError('Failed to save draft before publishing.')
+    if (!user || !activeAccount?.id || !profile) {
+      setEditorError('Account session or user information is missing.')
       return
     }
 
-    // 2. Publish to R2 (which internally calls moveDraftToPublished using savedDraftId)
-    const res = await publishDraft(userContext, currentHtml)
-
-    if (res.success) {
-      // 3. Fetch the accurate, updated post directly from OPFS published folder
-      const publishedPost = await getOPFSPostById('publishing/published', savedDraft.id)
-
-      if (publishedPost) {
-        setCurrentPost({
-          ...publishedPost,
-          content: currentHtml, // Attach active editor HTML content
-        })
-      } else {
-        // Fallback in case directory read fails
-        setCurrentPost({
-          id: savedDraft.id,
-          slug: res.postSlug || customSlug || savedDraft.id,
-          title: title || 'Untitled',
-          subTitle: subTitle || null,
-          content: currentHtml,
-          createdAt: currentPost?.createdAt || new Date().toISOString(),
-          dateLastEdited: new Date().toISOString(),
-          status: 'published',
-          author: {
-            userId: user,
-            accountId: activeAccount.id,
-            accountSlug,
-            name: profile.display_name || activeAccount.name || 'Author',
-          },
-          dirHandle: null,
-        })
-      }
-    } else {
-      setEditorError(res.error || 'Failed to publish draft.')
+    let accountSlug = activeAccount.account_slug
+    if (!accountSlug && activeAccount.name) {
+      accountSlug = activeAccount.name
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
     }
-  } catch (err: any) {
-    console.error('Error during pre-publish save or publish execution:', err)
-    setEditorError(err.message || 'An unexpected error occurred while publishing.')
-  }
-}
 
-const handleUnPublish = async () => {
-  setEditorError(null)
+    if (!accountSlug) {
+      setEditorError('A valid account slug could not be determined.')
+      return
+    }
 
-  if (!user || !activeAccount?.id) {
-    setEditorError('Account session or user information is missing.')
-    return
-  }
-
-  let accountSlug = activeAccount.account_slug
-  if (!accountSlug && activeAccount.name) {
-    accountSlug = activeAccount.name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-  }
-
-  const targetPostId = currentPost?.id || draftId
-  const targetPostSlug = currentPost?.slug || customSlug.trim() || title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
-
-  const res = await unpublishPost(
-    {
+    const userContext = {
       userId: user,
       accountId: activeAccount.id,
       accountSlug,
-      name: profile?.display_name || activeAccount.name || activeAccount.account_slug+' Author',
-    },
-    targetPostId,
-    targetPostSlug
-  )
+      name: profile.display_name || activeAccount.name || `${activeAccount.account_slug || 'Author'} Author`,
+    }
 
-  if (!res.success) {
-    setEditorError(res.error || 'Failed to unpublish post.')
+    const currentHtml = editor ? editor.getHTML() : ''
+
+    try {
+      // 1. Force-save unpersisted content to local OPFS draft & get the exact saved draft ID
+      const savedDraft = await saveCurrentDraft(userContext, currentHtml)
+      if (!savedDraft) {
+        setEditorError('Failed to save draft before publishing.')
+        return
+      }
+
+      // 2. Publish to R2 (which internally calls moveDraftToPublished using savedDraftId)
+      const res = await publishDraft(userContext, currentHtml)
+
+      if (res.success) {
+        // 3. Fetch the accurate, updated post directly from OPFS published folder
+        const publishedPost = await getOPFSPostById('publishing/published', savedDraft.id)
+
+        if (publishedPost) {
+          console.log("in the published folder now: ", publishedPost)
+          setCurrentPost({
+            ...publishedPost,
+            content: currentHtml, // Attach active editor HTML content
+          })
+        } else {
+          // Fallback in case directory read fails
+          setCurrentPost({
+            id: savedDraft.id,
+            slug: res.postSlug || customSlug || savedDraft.id,
+            title: title || 'Untitled',
+            subTitle: subTitle || null,
+            content: currentHtml,
+            createdAt: currentPost?.createdAt || new Date().toISOString(),
+            dateLastEdited: new Date().toISOString(),
+            status: 'published',
+            author: {
+              userId: user,
+              accountId: activeAccount.id,
+              accountSlug,
+              name: profile.display_name || activeAccount.name || 'Author',
+            },
+            dirHandle: null,
+          })
+        }
+      } else {
+        setEditorError(res.error || 'Failed to publish draft.')
+      }
+    } catch (err: any) {
+      console.error('Error during pre-publish save or publish execution:', err)
+      setEditorError(err.message || 'An unexpected error occurred while publishing.')
+    }
   }
-}
+
+
+
+  const handleUnPublish = async () => {
+    setEditorError(null)
+
+    if (!user || !activeAccount?.id) {
+      setEditorError('Account session or user information is missing.')
+      return
+    }
+
+    let accountSlug = activeAccount.account_slug
+    if (!accountSlug && activeAccount.name) {
+      accountSlug = activeAccount.name
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+    }
+
+    const targetPostId = currentPost?.id || draftId
+    const targetPostSlug = currentPost?.slug || customSlug.trim() || title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
+
+    const res = await unpublishPost(
+      {
+        userId: user,
+        accountId: activeAccount.id,
+        accountSlug,
+        name: profile?.display_name || activeAccount.name || activeAccount.account_slug+' Author',
+      },
+      targetPostId,
+      targetPostSlug
+    )
+
+    if (!res.success) {
+      setEditorError(res.error || 'Failed to unpublish post.')
+    }
+  }
 
   return (
     <div className={styles.canvasWrapper}>
       {/* Header Bar */}
       <header className={styles.editorHeader}>
         <div className={styles.headerLeft}>
-          <button
-            type="button"
-            onClick={toggleToolbar}
-            className={`${styles.actionBtn} ${showToolbar ? styles.toolBtnActive : ''}`}
-            title="Toggle Toolbar">
-            <Toolbox size={16} />
-          </button>
 
           <button 
             type="button" 
@@ -258,7 +254,7 @@ const handleUnPublish = async () => {
       </header>
 
       {/* Formatting Toolbar */}
-      {showToolbar && (
+  
         <div className={styles.editorToolbar}>
           <button
             type="button"
@@ -403,7 +399,7 @@ const handleUnPublish = async () => {
           </div>
           <span className={styles.toolbarDivider} />
         </div>
-      )}
+     
 
       {editorError && <div className={styles.editorErrorNotice}>{editorError}</div>}
 

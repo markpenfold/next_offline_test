@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     if (!accountSlug) {
       return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 })
     }
-    console.log("looking for ", accountSlug)
+    //console.log("looking for ", accountSlug)
     const accountPrefix = `${accountSlug}`
     const postsPrefix = `${accountPrefix}/posts/`
     const manifestKey = `${accountPrefix}/manifest.json`
@@ -34,9 +34,9 @@ export async function POST(request: Request) {
         
         const str = await manifestRes.Body.transformToString()
         const manifestData = JSON.parse(str)
-        console.log("MANIFEST:", manifestData)
+        //console.log("MANIFEST:", manifestData)
         const posts: ManifestPost[] = manifestData.posts || manifestData || []
-        console.log("POSTS: ", posts)
+        //console.log("POSTS: ", posts)
 
         for (const item of posts) {
           const itemSlug = item.postSlug
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
           updatedAt: meta?.updatedAt || meta?.publishedAt || new Date().toISOString(),
         }
       })
-      console.log("PP: ", publishedPosts)
+      //console.log("PP: ", publishedPosts)
 
     return NextResponse.json({ success: true, posts: publishedPosts })
   } catch (err: any) {
