@@ -3,11 +3,12 @@ import Suggestion, { SuggestionOptions } from '@tiptap/suggestion'
 import tippy, { Instance as TippyInstance } from 'tippy.js'
 import { ReactRenderer } from '@tiptap/react'
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
-import { Bold, Heading2, List, Quote } from 'lucide-react'
+import { Bold, Heading2, Heading3, Heading4, Image as ImageIcon, List, Quote } from 'lucide-react'
 
 import styles from '@/app/styles/editor.module.css'
 
 export interface SlashCommandOptions {
+  onImageUpload?: (file: File) => void
   suggestion: Omit<SuggestionOptions, 'editor'>
 }
 
@@ -17,6 +18,51 @@ export const COMMANDS = [
     icon: Heading2,
     command: ({ editor, range }: any) => {
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run()
+    },
+  },
+  {
+    title: 'Heading 3',
+    icon: Heading3,
+    command: ({ editor, range }: any) => {
+      editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run()
+    },
+  },
+  {
+    title: 'Heading 4',
+    icon: Heading4,
+    command: ({ editor, range }: any) => {
+      editor.chain().focus().deleteRange(range).setNode('heading', { level: 4 }).run()
+    },
+  },
+  {
+    title: 'Image',
+    icon: ImageIcon,
+    command: ({ editor, range }: any) => {
+      // 1. Capture exact cursor position before deleting slash text
+      const pos = range.from
+
+      // 2. Clear slash command string
+      editor.chain().focus().deleteRange(range).run()
+
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+
+      input.onchange = () => {
+        const file = input.files?.[0]
+        const onImageUpload = (
+          editor.extensionManager.extensions.find(
+            (ext: any) => ext.name === 'slashCommand'
+          )?.options as any
+        )?.onImageUpload
+
+        if (file && typeof onImageUpload === 'function') {
+          // Pass file, editor instance, AND exact insertion position
+          onImageUpload(file, editor, pos)
+        }
+      }
+
+      input.click()
     },
   },
   {
@@ -104,6 +150,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
   addOptions() {
     return {
+      onImageUpload: undefined,
       suggestion: {
         char: '/',
         command: ({ editor, range, props }: any) => {

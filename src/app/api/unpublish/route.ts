@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     if (!accountSlug || !postSlug) {
       return NextResponse.json({ error: "Missing accountSlug or postSlug" }, { status: 400 });
     }
+    console.log("GONNA TRY AND KILL: ",accountSlug, postSlug)
 
     // 1. Delete all R2 storage objects under the post directory
     const postPrefix = `${accountSlug}/posts/${postSlug}/`;

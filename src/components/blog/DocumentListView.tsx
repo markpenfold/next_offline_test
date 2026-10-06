@@ -1,10 +1,11 @@
 import React from 'react'
-import { LocalPostEntry } from '@/components/data/diskOPFS'
+import { BlogPost } from '@/components/blog/blogHelpers'
 import styles from '@/app/styles/editor.module.css'
+import { blendBurn } from 'three/tsl'
 
 interface DocumentListViewProps {
   title: string
-  items: LocalPostEntry[]
+  items: BlogPost[]
   onSelect: (slug: string) => void
   emptyMessage: string
 }
@@ -34,13 +35,13 @@ export const DocumentListView: React.FC<DocumentListViewProps> = ({
         <ul className={styles.list}>
           {items.map((item) => (
             <li 
-              key={item.slug} 
+              key={item.id} 
               className={styles.row}
-              onClick={() => onSelect(item.slug)}
+              onClick={() => onSelect(item.id)}
             >
               <span className={styles.docTitle}>{item.title}</span>
               <span className={styles.docDate}>
-                {new Date(item.updatedAt).toLocaleDateString(undefined, {
+                {new Date(item.dateLastEdited).toLocaleDateString(undefined, {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',

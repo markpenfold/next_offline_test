@@ -3,40 +3,59 @@
 import React, { useEffect, useState } from "react";
 import { useEditorStore } from "@/stores/useEditorStore";
 import { useAppStore } from "@/providers/AppStoreProvider";
+import { getOPFSPosts } from "@/components/data/diskOPFS";
 import styles from "./helpers.module.css";
 
-interface DraftSaveModalProps {
+interface NewDocModalProps {
   isOpen: boolean;
   onClose: () => void;
   editor: any;
 }
 
-export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps) {
+export function NewDocModal({ isOpen, onClose, editor }: NewDocModalProps) {
   const activeAccount = useAppStore((state) => state.activeAccount);
   const user = useAppStore((state) => state.userId);
-  const profile = useAppStore((s) => s.profile);
+  const profile = useAppStore((state) => state.profile);
 
-  // Grab title and setTitle from editor store alongside saveCurrentDraft
-  const title = useEditorStore((state) => state.liveTitle);
-  const subTitle = useEditorStore((state) => state.liveSubTitle);
   const setTitle = useEditorStore((state) => state.setLiveTitle);
+  const setDraftId = useEditorStore((state) => state.setDraftId);
+  const initializeNewDraft = useEditorStore((state) => state.initializeNewDraft);
   const saveCurrentDraft = useEditorStore((state) => state.saveCurrentDraft);
-  
+
   const [draftName, setDraftName] = useState("");
+  const [existingTitles, setExistingTitles] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    setDraftName(title || "");
+
+    setDraftName("");
     setErrorMessage(null);
-  }, [isOpen, title]);
+
+    // Fetch existing posts to warn on identical titles (optional check)
+    Promise.all([
+      getOPFSPosts("publishing/drafts"),
+      getOPFSPosts("publishing/published"),
+    ])
+      .then(([drafts, published]) => {
+        const titles = new Set<string>();
+        drafts.forEach((d) => titles.add(d.title.trim().toLowerCase()));
+        published.forEach((p) => titles.add(p.title.trim().toLowerCase()));
+        setExistingTitles(titles);
+      })
+      .catch((err) => {
+        console.error("Failed to load local post entries:", err);
+        setExistingTitles(new Set());
+      });
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const trimmedName = draftName.trim();
+  const titleExists = existingTitles.has(trimmedName.toLowerCase());
 
-  const handleSave = async (e: React.SubmitEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trimmedName || !user || !activeAccount?.id || !editor) return;
 
@@ -44,26 +63,36 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
       setIsSaving(true);
       setErrorMessage(null);
 
-      // Sync user-modified draft name back into store title before saving
+      // 1. Generate a permanent UUID for this post
+      const postUuid = crypto.randomUUID();
+
+      // 2. Clear canvas & set up fresh store state
+      initializeNewDraft();
+      editor.commands.clearContent();
+
+      // 3. Assign UUID as the draftId folder key
+      setDraftId(postUuid);
       setTitle(trimmedName);
 
+      // 4. Save to OPFS under /publishing/drafts/<postUuid>/
       const success = await saveCurrentDraft(
         {
-          userId: user,
-          accountId: activeAccount.id,
-          name: profile?.display_name || activeAccount.name || "Anon",
-        },
+      userId: user,
+      accountId: activeAccount.id,
+      accountSlug: activeAccount.account_slug,
+      name: profile?.display_name || activeAccount.name || activeAccount.account_slug+' Author',
+    },
         editor.getHTML()
       );
 
       if (success) {
         onClose();
       } else {
-        setErrorMessage("Failed to write draft to storage.");
+        setErrorMessage("Failed to create document in storage.");
       }
     } catch (err: any) {
-      console.error("Failed to save draft:", err);
-      setErrorMessage(err?.message || "An error occurred while saving.");
+      console.error("Failed to create document:", err);
+      setErrorMessage(err?.message || "An error occurred during creation.");
     } finally {
       setIsSaving(false);
     }
@@ -72,29 +101,22 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
   return (
     <div className={styles.overlay}>
       <div className={styles.modal}>
-        {/* Header */}
         <div className={styles.header}>
           <div className={styles.titleGroup}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
             </svg>
-            <h2 className={styles.title}>Save Draft</h2>
+            <h2 className={styles.title}>New Document</h2>
           </div>
-          <button onClick={onClose} className={styles.closeButton}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <button onClick={onClose} className={styles.closeButton}>✕</button>
         </div>
 
-        {/* Save Form */}
-        <form onSubmit={handleSave}>
+        <form onSubmit={handleCreate}>
           <div className={styles.searchContainer}>
             <label style={{ display: "block", fontSize: "0.75rem", color: "#a3a3a3", marginBottom: "0.5rem" }}>
-              Draft Name / Title
+              Document Name / Title
             </label>
             <input
               type="text"
@@ -109,6 +131,12 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
               autoFocus
             />
 
+            {titleExists && (
+              <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "#f97316" }}>
+                ℹ️ Note: You already have a document named <strong>"{trimmedName}"</strong>. Both documents will exist independently under distinct IDs.
+              </div>
+            )}
+
             {errorMessage && (
               <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "#ef4444" }}>
                 ❌ {errorMessage}
@@ -116,7 +144,6 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
             )}
           </div>
 
-          {/* Footer */}
           <div className={styles.footer}>
             <span>Destination: Browser OPFS</span>
             <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -129,7 +156,7 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
                 disabled={!trimmedName || isSaving}
                 style={{ padding: "0.375rem 1rem" }}
               >
-                {isSaving ? <div className={styles.spinner} /> : "Save Draft"}
+                {isSaving ? "Creating..." : "Create Document"}
               </button>
             </div>
           </div>

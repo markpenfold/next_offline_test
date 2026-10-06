@@ -315,41 +315,24 @@ export const useUIStore = create<UIStore>((set, get) => ({
 
     await get().initWebGPUSupport(accountId);
   },
-  initWebGPUSupport: async (accountId?: string | null) => {
-    const targetAccountId = accountId ?? useDATAStore.getState().accountId ?? null;
+initWebGPUSupport: async (accountId?: string | null) => {
+  const targetAccountId = accountId ?? useDATAStore.getState().accountId ?? null;
 
-    const status = await checkWebGPUSupport();
-    set({ gpuStatus: status });
+  const status = await checkWebGPUSupport(); //[cite: 2]
+  set({ gpuStatus: status, useWebGL: false }); // Always force WebGPU
 
-    let opfsSettings: OPFSGpuSettings | null = null;
+  if (!status.supported) { //[cite: 2]
+    showWebGPUToast(status); // Displays the Linux script / setup toast[cite: 4, 5]
+  } else {
+    set({ gpuPreference: 'webgpu' });
     if (targetAccountId) {
-      opfsSettings = await loadGpuSettingsFromOPFS(targetAccountId);
+      await saveGpuSettingsToOPFS(targetAccountId, { //[cite: 4]
+        gpuPreference: 'webgpu',
+        updatedAt: new Date().toISOString(),
+      });
     }
-
-    if (opfsSettings && opfsSettings.gpuPreference !== 'unset') {
-      const pref = opfsSettings.gpuPreference;
-      set({ gpuPreference: pref, useWebGL: pref === 'webgl' || !status.supported });
-    } else {
-      if (!status.supported) {
-        set({ gpuPreference: 'webgl', useWebGL: true });
-        if (targetAccountId) {
-          await saveGpuSettingsToOPFS(targetAccountId, {
-            gpuPreference: 'webgl',
-            updatedAt: new Date().toISOString(),
-          });
-        }
-        showWebGPUToast(status);
-      } else {
-        set({ gpuPreference: 'webgpu', useWebGL: false });
-        if (targetAccountId) {
-          await saveGpuSettingsToOPFS(targetAccountId, {
-            gpuPreference: 'webgpu',
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
-    }
-      },
+  }
+},
     }
   )
 );

@@ -1,23 +1,30 @@
 import { create } from 'zustand'
-import { saveDraft, loadDraft, TemplateId } from '@/components/blog/blogHelpers'
 import { 
-  LocalPostEntry,
-  ManifestEntry, 
+  
+  TemplateId, 
+  BlogPost, 
+  ManifestPost, 
+  UserContext,
+  AuthorContext,
+  getDirectory
+} from '@/components/blog/blogHelpers'
+import { 
   removeLocalPublishedPost, 
   reconcileLocalPublishedWithManifest, 
   syncAndUploadManifest, 
   getOPFSPosts, 
   uploadDraftMediaToR2, 
-  moveDraftToPublished 
+  moveDraftToPublished, 
+  movePublishedToDraft,
+  downloadAndSavePublishedPost,
+  saveDraft, 
+  loadDraft, 
+  loadPublished, 
 } from "@/components/data/diskOPFS"
 
-export type ActiveTab = 'editor' | 'drafts' | 'published'
+import { getProfileFromUserId } from '@/lib/supabase/client_queries'
 
-interface UserContext {
-  userId: string
-  accountId: string
-  accountSlug?: string
-}
+export type ActiveTab = 'editor' | 'drafts' | 'published'
 
 interface EditorState {
   // --- NAVIGATION & VIEW ---
@@ -26,57 +33,63 @@ interface EditorState {
 
   // --- STATE PROPERTIES ---
   draftId: string
-  title: string
-  subTitle: string
+  liveTitle: string
+  liveSubTitle: string
   customSlug: string
   isDirty: boolean
   isSaving: boolean
   isPublishing: boolean
+  isUnpublishing: boolean
   isLoadingDrafts: boolean
-  availableDrafts: LocalPostEntry[]
-  availablePublished: LocalPostEntry[]
+  availableDrafts: BlogPost[]
+  availablePublished: BlogPost[]
   blobMap: Record<string, string>
   isDrawerOpen: boolean
   templateId: TemplateId
   showToolbar: boolean
+  currentPost: BlogPost | null
+  isNewDocModalOpen: boolean
 
-  // --- SYNCHRONOUS ACTIONS ---
+  // --- SYNCHRONOUS ACTIONS --- //
+  setCurrentPost: (post: BlogPost | null) => void
   setDraftId: (id: string) => void
-  setTitle: (title: string) => void
-  setSubTitle: (subTitle: string) => void
+  setLiveTitle: (title: string) => void
+  setLiveSubTitle: (subTitle: string) => void
   setCustomSlug: (slug: string) => void
   setTemplateId: (id: TemplateId) => void
   registerBlob: (blobUrl: string, fileName: string) => void
   setIsDrawerOpen: (open: boolean) => void
+  setIsNewDocModalOpen: (open: boolean) => void
   setShowToolbar: (open: boolean) => void
   toggleToolbar: () => void
 
-  // --- ASYNC ACTIONS ---
+  // --- ASYNC ACTIONS --- //
   fetchAvailableDrafts: (onPurgeNotice?: (slug: string) => void) => Promise<void>
-  fetchAvailablePublished: () => Promise<void>
+  fetchAvailablePublished: (userContext: UserContext) => Promise<void>
   initializeNewDraft: () => void
   loadExistingDraft: (draftId: string) => Promise<string | null>
-  saveCurrentDraft: (userContext: UserContext, htmlContent: string) => Promise<boolean>
+  loadExistingPub: (pubId: string) => Promise<string | null>
+  saveCurrentDraft: (userContext: UserContext, htmlContent: string) => Promise<BlogPost | null>
   publishDraft: (userContext: UserContext, htmlContent: string) => Promise<{ success: boolean; postSlug?: string; error?: string }>
-
-  updateManifest: (userContext: { accountId: string; accountSlug: string }) => Promise<ManifestEntry[] | null>
-  unpublishPost: (userContext: { accountId: string; accountSlug: string }, postSlug: string) => Promise<{ success: boolean; error?: string }>
-  deletePost: (userContext: { accountId: string; accountSlug: string }, postSlug: string) => Promise<{ success: boolean; error?: string }>
+  updateManifest: (userContext: UserContext) => Promise<ManifestPost[] | null>
+  unpublishPost: (userContext: UserContext, postId: string, postSlug: string) => Promise<{ success: boolean; error?: string }>
+  deletePost: (userContext: UserContext, postId: string, postSlug: string) => Promise<{ success: boolean; error?: string }>
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   // Navigation
-  activeTab: 'editor',
+  activeTab: 'editor' as ActiveTab,
   setActiveTab: (activeTab) => set({ activeTab }),
 
   // Initial State
-  draftId: 'temp-draft',
-  title: '',
-  subTitle: '',
+  draftId: crypto.randomUUID(),
+  liveTitle: '',
+  liveSubTitle: '',
   customSlug: '',
   isDirty: false,
   isSaving: false,
   isPublishing: false,
+  isUnpublishing: false,
   isLoadingDrafts: false,
   availableDrafts: [],
   availablePublished: [],
@@ -84,13 +97,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isDrawerOpen: false,
   templateId: 'simple-blog',
   showToolbar: false,
+  currentPost: null,
+  isNewDocModalOpen: false,
 
+  // Synchronous Actions
+  setCurrentPost: (currentPost) => 
+  set((state) => {
+    if (!currentPost) {
+      return { currentPost: null }
+    }
+
+    return {
+      currentPost,
+      draftId: currentPost.id || state.draftId,
+      liveTitle: currentPost.title ?? state.liveTitle,
+      liveSubTitle: currentPost.subTitle ?? state.liveSubTitle ?? '',
+      customSlug: currentPost.slug ?? state.customSlug,
+      blobMap: currentPost.blobMap ?? state.blobMap ?? {},
+    }
+  }),
   setDraftId: (id) => set({ draftId: id }),
-  setTitle: (title) => set({ title, isDirty: true }),
-  setSubTitle: (subTitle) => set({ subTitle, isDirty: true }),
+  setLiveTitle: (liveTitle) => set({ liveTitle, isDirty: true }),
+  setLiveSubTitle: (liveSubTitle) => set({ liveSubTitle, isDirty: true }),
   setCustomSlug: (customSlug) => set({ customSlug, isDirty: true }),
   setTemplateId: (templateId) => set({ templateId, isDirty: true }),
   setIsDrawerOpen: (open) => set({ isDrawerOpen: open }),
+  setIsNewDocModalOpen: (open) => set({ isNewDocModalOpen: open }),
 
   setShowToolbar: (open) => set({ showToolbar: open }),
   toggleToolbar: () => set((state) => ({ showToolbar: !state.showToolbar })),
@@ -104,7 +136,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   fetchAvailableDrafts: async (onPurgeNotice) => {
     set({ isLoadingDrafts: true })
     try {
-      const drafts = await getOPFSPosts('publishing/drafts', onPurgeNotice) //
+      const drafts = await getOPFSPosts('publishing/drafts', onPurgeNotice)
+      console.log("aavailable draaafts: ", drafts)
       set({ availableDrafts: drafts })
     } catch (err) {
       console.error('Failed to fetch OPFS drafts:', err)
@@ -114,22 +147,63 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  fetchAvailablePublished: async () => {
+  fetchAvailablePublished: async (userContext) => {
+    if (!userContext.accountId || !userContext.accountSlug) {
+      console.error('fetchAvailablePublished aborted: Invalid UserContext.')
+      set({ availablePublished: [] })
+      return
+    }
+
     try {
-      const published = await getOPFSPosts('publishing/published') //
-      set({ availablePublished: published })
+      let localPublished = await getOPFSPosts('publishing/published')
+      console.log("local published; ", localPublished)
+
+      const res = await fetch('/api/list-published', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userContext),
+      })
+      console.log("REZZ from R2:", res)
+
+      if (res.ok) {
+        const data = await res.json()
+        console.log("CUNTING DATA:", data)
+        const remoteManifest = data.manifest || data.posts || []
+
+        const localIds = new Set(localPublished.map((p) => p.id))
+        
+        const missingFromLocal = remoteManifest.filter(
+          (remote: { postId: string; postSlug: string; title: string; createdAt?: string }) =>
+            !localIds.has(remote.postId)
+        )
+        console.log("missing from local: ", missingFromLocal)
+
+        if (missingFromLocal.length > 0) {
+          await Promise.allSettled(
+            missingFromLocal.map(
+              (missingItem: { postId: string; postSlug: string; title: string; createdAt?: string }) =>
+                downloadAndSavePublishedPost(userContext, missingItem)
+            )
+          )
+          localPublished = await getOPFSPosts('publishing/published')
+        }
+      }
+
+      set({ availablePublished: localPublished })
     } catch (err) {
-      console.error('Failed to fetch OPFS published posts:', err)
+      console.error('Failed to fetch/sync OPFS published posts:', err)
       set({ availablePublished: [] })
     }
   },
 
   initializeNewDraft: () => {
+    const newUuid = crypto.randomUUID()
     set({
       activeTab: 'editor',
-      draftId: crypto.randomUUID(),
-      title: '',
-      subTitle: '',
+      draftId: newUuid,
+      currentPost: null,
+      liveTitle: '',
+      liveSubTitle: '',
       customSlug: '',
       isDirty: false,
       blobMap: {},
@@ -137,54 +211,97 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   loadExistingDraft: async (draftId) => {
-    const data = await loadDraft(draftId)
-    if (!data) return null
+    const post = await loadDraft(draftId)
+    if (!post) return null
 
     set({
       activeTab: 'editor',
-      draftId: data.metadata.id || draftId,
-      title: data.metadata.title,
-      subTitle: data.metadata.subTitle || '',
-      customSlug: data.metadata.customSlug,
-      blobMap: data.metadata.blobMap || {},
+      draftId: post.id,
+      currentPost: post,
+      liveTitle: post.title,
+      liveSubTitle: post.subTitle || '',
+      customSlug: post.slug || '',
+      blobMap: post.blobMap || {},
       isDirty: false,
     })
 
-    return data.htmlContent
+    return post.content || null
   },
 
-  saveCurrentDraft: async (userContext, htmlContent) => {
-    const { draftId, title, customSlug, blobMap, subTitle } = get()
-    
-    if (draftId === 'temp-draft' && !title && Object.keys(blobMap).length === 0) {
-      return true
+  loadExistingPub: async (pubId) => {
+    const post = await loadPublished(pubId)
+    if (!post) return null
+
+    set({
+      activeTab: 'editor',
+      draftId: post.id,
+      currentPost: post,
+      liveTitle: post.title,
+      liveSubTitle: post.subTitle || '',
+      customSlug: post.slug || '',
+      blobMap: post.blobMap || {},
+      isDirty: false,
+    })
+
+    return post.content || null
+  },
+
+ saveCurrentDraft: async (userContext, htmlContent): Promise<BlogPost | null> => {
+    const { draftId, liveTitle, liveSubTitle, customSlug, blobMap, currentPost, setCurrentPost } = get()
+
+    const uProfile = getProfileFromUserId(userContext.userId)
+    // 1. Ensure permanent UUID
+    const targetId = !draftId || draftId === 'temp-draft' ? crypto.randomUUID() : draftId
+    const now = new Date().toISOString()
+
+    const resolvedSlug =
+      customSlug.trim() ||
+      (liveTitle ? liveTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-') : targetId)
+
+    const author: AuthorContext = {
+      userId: userContext.userId,
+      accountId: userContext.accountId,
+      accountSlug: userContext.accountSlug,
+      name: userContext.accountSlug || 'Author',
     }
 
-    set({ isSaving: true })
+    const postToSave: BlogPost = {
+      id: targetId,
+      slug: resolvedSlug,
+      title: liveTitle || 'Untitled Post',
+      subTitle: liveSubTitle || null,
+      status: 'draft',
+      createdAt: currentPost?.createdAt || now,
+      dateLastEdited: now,
+      author,
+      blobMap,
+      dirHandle: currentPost?.dirHandle || null,
+    }
 
-    const success = await saveDraft(
-      draftId,
-      { userId: userContext.userId, accountId: userContext.accountId },
-      { title, subTitle, customSlug, blobMap, isSaved: true },
-      htmlContent
-    )
+    set({ isSaving: true, draftId: targetId })
+
+    const { success, dirHandle } = await saveDraft(postToSave, htmlContent)
+
+    if (success) {
+      setCurrentPost({
+        ...postToSave,
+        content: htmlContent,
+        dirHandle: dirHandle || postToSave.dirHandle,
+      })
+    }
 
     set({ isSaving: false, isDirty: false })
     await get().fetchAvailableDrafts()
-    return success
+    
+    return success ? postToSave : null
   },
 
-  // guardian of the sync process 
-  // should be called on publish/unpublish
-  // Runs full scan of local and remote. Performs sync
   updateManifest: async (userContext) => {
     try {
-      // Pulls remote manifest, uploads any changes, and deeply checks local OPFS parity
       const manifest = await syncAndUploadManifest(userContext) 
       await reconcileLocalPublishedWithManifest(manifest) 
       
-      // Refresh both lists to ensure the UI reflects the fully synced state
-      await get().fetchAvailablePublished()
+      await get().fetchAvailablePublished(userContext)
       await get().fetchAvailableDrafts()
       
       return manifest
@@ -194,7 +311,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  unpublishPost: async (userContext, postSlug) => {
+  unpublishPost: async (userContext, postId, postSlug) => {
+    set({ isUnpublishing: true })
+
     try {
       const res = await fetch('/api/unpublish', {
         method: 'POST',
@@ -202,6 +321,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         body: JSON.stringify({
           accountId: userContext.accountId,
           accountSlug: userContext.accountSlug,
+          postId,
           postSlug,
         }),
       })
@@ -211,21 +331,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         throw new Error(err.error || 'Failed to unpublish post from R2.')
       }
 
-      await removeLocalPublishedPost(postSlug) //
+      await movePublishedToDraft(postId)
+      await removeLocalPublishedPost(postId)
       await get().updateManifest(userContext)
-    //  await get().fetchAvailableDrafts()
-    // await get().fetchAvailablePublished()
 
       return { success: true }
     } catch (err: any) {
       console.error('Failed to unpublish post:', err)
       return { success: false, error: err.message }
+    } finally {
+      set({ isUnpublishing: false })
     }
   },
 
-
-  // update to actually clean house, including toast warning
-  deletePost: async (userContext, postSlug) => {
+  deletePost: async (userContext, postId, postSlug) => {
     try {
       const res = await fetch('/api/delete-post', {
         method: 'POST',
@@ -233,6 +352,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         body: JSON.stringify({
           accountId: userContext.accountId,
           accountSlug: userContext.accountSlug,
+          postId,
           postSlug,
         }),
       })
@@ -242,10 +362,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         throw new Error(err.error || 'Failed to delete post.')
       }
 
-      await removeLocalPublishedPost(postSlug) //
+      await removeLocalPublishedPost(postId)
       await get().updateManifest(userContext)
       await get().fetchAvailableDrafts()
-      await get().fetchAvailablePublished()
+      await get().fetchAvailablePublished(userContext)
 
       return { success: true }
     } catch (err: any) {
@@ -255,13 +375,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   publishDraft: async (userContext, htmlContent) => {
-    const { draftId, title, customSlug, blobMap, saveCurrentDraft, initializeNewDraft, fetchAvailableDrafts, fetchAvailablePublished, updateManifest } = get()
+    const { 
+      draftId, 
+      liveTitle, 
+      liveSubTitle,
+      customSlug, 
+      blobMap, 
+      saveCurrentDraft, 
+      fetchAvailableDrafts, 
+      fetchAvailablePublished, 
+      updateManifest,
+      setCurrentPost 
+    } = get()
 
     if (!userContext.accountSlug) {
       return { success: false, error: 'Account slug is required for publishing.' }
     }
 
-    const finalSlug = customSlug.trim() || title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
+    const finalSlug = customSlug.trim() || liveTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')
     if (!finalSlug) {
       return { success: false, error: 'A title or custom slug is required to publish.' }
     }
@@ -269,9 +400,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ isPublishing: true })
 
     try {
+      // 1. Ensure local draft is saved first
       await saveCurrentDraft(userContext, htmlContent)
 
-      const finalHtmlContent = await uploadDraftMediaToR2( //
+      // 2. Upload media blobs to R2
+      const finalHtmlContent = await uploadDraftMediaToR2(
         draftId,
         { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
         finalSlug,
@@ -279,14 +412,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         htmlContent
       )
 
+      // 3. Trigger remote publish endpoint
       const publishRes = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountId: userContext.accountId,
           accountSlug: userContext.accountSlug,
+          postId: draftId,
           postSlug: finalSlug,
-          title,
+          liveTitle,
           contentHtml: finalHtmlContent,
         }),
       })
@@ -296,17 +431,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         throw new Error(err.error || 'Failed to publish post to R2 storage')
       }
 
+      // 4. Move local folder from publishing/drafts/ -> publishing/published/
       try {
-        await moveDraftToPublished(draftId, finalSlug) //
+        await moveDraftToPublished(draftId)
       } catch (moveErr) {
         console.warn('Post published to R2, but moving local OPFS draft failed:', moveErr)
       }
 
-      await updateManifest({ accountId: userContext.accountId, accountSlug: userContext.accountSlug })
+      await updateManifest(userContext)
 
-      initializeNewDraft()
+      // 5. Retrieve published directory handle and update currentPost state
+      const now = new Date().toISOString()
+      let pubDirHandle = null
+      try {
+        pubDirHandle = await getDirectory(`publishing/published/${draftId}`)
+      } catch (hErr) {
+        console.warn("Could not retrieve published OPFS directory handle:", hErr)
+      }
+
+      setCurrentPost({
+        id: draftId,
+        slug: finalSlug,
+        title: liveTitle || 'Untitled Post',
+        subTitle: liveSubTitle || null,
+        content: finalHtmlContent,
+        status: 'published',
+        createdAt: now,
+        dateLastEdited: now,
+        author: {
+          userId: userContext.userId,
+          accountId: userContext.accountId,
+          accountSlug: userContext.accountSlug,
+          name: userContext.accountSlug || 'Author',
+        },
+        dirHandle: pubDirHandle,
+      })
+
       await fetchAvailableDrafts()
-      await fetchAvailablePublished()
+      await fetchAvailablePublished(userContext)
 
       return { success: true, postSlug: finalSlug }
     } catch (err: any) {

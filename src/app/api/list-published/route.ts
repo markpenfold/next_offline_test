@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { r2Client, BUCKET_NAME } from "@/lib/blog/r2"
 import { createClient } from "@/lib/supabase/server"
+import { ManifestPost } from "@/components/blog/blogHelpers";
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -17,51 +18,67 @@ export async function POST(request: Request) {
     if (!accountSlug) {
       return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 })
     }
+    console.log("looking for ", accountSlug)
+    const accountPrefix = `${accountSlug}`
+    const postsPrefix = `${accountPrefix}/posts/`
+    const manifestKey = `${accountPrefix}/manifest.json`
 
-    // 1. Fetch manifest for post titles/metadata
-    const manifestKey = `${accountSlug}/manifest.json`
-    let manifestMap = new Map<string, { title: string; publishedAt: string }>()
+    // 1. Fetch manifest to map posts by slug
+    const manifestMapBySlug = new Map<string, ManifestPost>()
 
     try {
       const manifestRes = await r2Client.send(
         new GetObjectCommand({ Bucket: BUCKET_NAME, Key: manifestKey })
       )
-      const str = await manifestRes.Body?.transformToString()
-      if (str) {
+      if (manifestRes.Body) {
+        
+        const str = await manifestRes.Body.transformToString()
         const manifestData = JSON.parse(str)
-        for (const item of manifestData.posts || []) {
-          manifestMap.set(item.slug, { title: item.title, publishedAt: item.publishedAt })
+        console.log("MANIFEST:", manifestData)
+        const posts: ManifestPost[] = manifestData.posts || manifestData || []
+        console.log("POSTS: ", posts)
+
+        for (const item of posts) {
+          const itemSlug = item.postSlug
+          if (itemSlug) {
+            manifestMapBySlug.set(itemSlug, item)
+          }
         }
       }
     } catch {
-      // Manifest optional fallback
+      // Manifest optional fallback if missing
     }
 
-    // 2. Shallow list top-level folders inside <accountSlug>/posts/
+    // 2. Shallow list top-level post folders inside user-content/<accountSlug>/posts/
     const listRes = await r2Client.send(
       new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
-        Prefix: `${accountSlug}/posts/`,
-        Delimiter: "/", // Essential: prevents S3 from scanning inner media/HTML files
+        Prefix: postsPrefix,
+        Delimiter: "/", // Delimiter prevents scanning inner media/HTML files
       })
     )
 
-    // Extract slug names from folder paths (e.g. "marko-polo/posts/alpha/" -> "alpha")
+    // 3. Extract post slugs from R2 prefixes and pair with manifest metadata
     const publishedPosts = (listRes.CommonPrefixes || [])
       .map((cp) => {
         if (!cp.Prefix) return null
+        // e.g. "user-content/marko-polo/posts/alpha/" -> "alpha"
         const parts = cp.Prefix.replace(/\/$/, "").split("/")
         return parts[parts.length - 1]
       })
       .filter((slug): slug is string => Boolean(slug))
       .map((slug) => {
-        const meta = manifestMap.get(slug)
+        const meta = manifestMapBySlug.get(slug)
+
         return {
-          slug,
-          title: meta?.title || slug,
+          id: meta?.id || slug, // Permanent UUID from manifest (fallback to slug if missing)
+          slug: slug,           // Public URL slug
+          title: meta?.title || slug.replace(/-/g, " "),
           publishedAt: meta?.publishedAt || new Date().toISOString(),
+          updatedAt: meta?.updatedAt || meta?.publishedAt || new Date().toISOString(),
         }
       })
+      console.log("PP: ", publishedPosts)
 
     return NextResponse.json({ success: true, posts: publishedPosts })
   } catch (err: any) {
