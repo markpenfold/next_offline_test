@@ -25,17 +25,13 @@ import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
 import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
 
 // HELPER: Offline-First Parallel Discovery (Cloud + Disk)
-async function getAllIndexes(accountId: string): Promise<{
-  availableIndexes: AvailableIndex[];
-  localCacheIndexFiles: Array<{ name: string; handle: FileSystemFileHandle }>;
-  isOnline: boolean;
-}> {
+async function getAllIndexes(accountId: string) {
   const isOnline = useConnectivityStore.getState().network === 'online';
 
   // 1. Always scan local OPFS files first (instant local access)
   const [localCacheIndexFiles, opfsIndexes] = await Promise.all([
-    getOPFSEntries('indexes').catch((err) => {
-      console.error("💾 OPFS index scan failed:", err);
+    (getOPFSEntries('indexes') as Promise<Array<{ name: string; handle: FileSystemFileHandle }>>).catch((err) => {
+        console.error("💾 OPFS index scan failed:", err);
       return [] as Array<{ name: string; handle: FileSystemFileHandle }>;
     }),
     getLocalOPFSIndexes().catch((err) => {
