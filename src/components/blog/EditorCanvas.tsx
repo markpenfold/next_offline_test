@@ -27,7 +27,8 @@ import { useEditorStore } from '@/stores/useEditorStore'
 import { useAppStore } from '@/providers/AppStoreProvider'
 import { TEMPLATE_OPTIONS } from './templates/TemplateOptions'
 import type {} from '@tiptap/extension-highlight'
-import { getOPFSPostById } from '../data/diskOPFS'
+import { getOPFSPostById, saveDraftMedia } from '@/components/data/diskOPFS'
+import { convertToWebP } from './blogHelpers'
 
 interface EditorCanvasProps {
   editor: Editor
@@ -56,6 +57,7 @@ export function EditorCanvas({
   const isUnpublishing = useEditorStore((s) => s.isUnpublishing)
   const showToolbar = useEditorStore((s) => s.showToolbar)
   const currentPost = useEditorStore((s) => s.currentPost)
+  const heroImage = useEditorStore((s) => s.heroImage)
   
 
   const setTitle = useEditorStore((s) => s.setLiveTitle)
@@ -66,8 +68,9 @@ export function EditorCanvas({
   const unpublishPost = useEditorStore((s) => s.unpublishPost)
   const saveCurrentDraft = useEditorStore((s) => s.saveCurrentDraft)
   const setCurrentPost = useEditorStore((s) => s.setCurrentPost)
+  const setHeroImage = useEditorStore((s) => s.setHeroImage)
+  
 
-  const [heroImage, setHeroImage] = useState<string | null>(null)
   const [editorError, setEditorError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -84,93 +87,123 @@ export function EditorCanvas({
 
   const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.id === templateId) || TEMPLATE_OPTIONS[0]
 
-  const handleHeroSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const file = e.target.files[0]
-      const reader = new FileReader()
-      reader.onload = () => setHeroImage(reader.result as string)
-      reader.readAsDataURL(file)
+const handleHeroSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+
+  const { draftId, heroImage, setHeroImage, registerBlob } = useEditorStore.getState()
+
+  // Clean up existing local hero object URL if present
+  if (heroImage?.startsWith('blob:')) {
+    URL.revokeObjectURL(heroImage)
+  }
+
+  try {
+    // 1. Convert hero image to WebP using the same pipeline as body images
+    const processedFile = await convertToWebP(file)
+    const fileName = `${Date.now()}-hero.webp`
+
+    // 2. Save directly into OPFS under the current draft's media directory
+    await saveDraftMedia(draftId, fileName, processedFile)
+
+    // 3. Create blob URL and register mapping in Zustand (blobUrl -> fileName)
+    const localBlobUrl = URL.createObjectURL(processedFile)
+    
+    setHeroImage(localBlobUrl)
+    registerBlob(localBlobUrl, fileName)
+  } catch (err) {
+    console.error('Failed to process hero image:', err)
+  } finally {
+    e.target.value = ''
+  }
+}
+
+  const handleRemoveHero = () => {
+    if (heroImage?.startsWith('blob:')) {
+      URL.revokeObjectURL(heroImage)
     }
+    setHeroImage(null)
   }
 
   const handlePublish = async () => {
-    setEditorError(null)
+  setEditorError(null)
 
-    if (!user || !activeAccount?.id || !profile) {
-      setEditorError('Account session or user information is missing.')
+  if (!user || !activeAccount?.id || !profile) {
+    setEditorError('Account session or user information is missing.')
+    return
+  }
+
+  let accountSlug = activeAccount.account_slug
+  if (!accountSlug && activeAccount.name) {
+    accountSlug = activeAccount.name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+  }
+
+  if (!accountSlug) {
+    setEditorError('A valid account slug could not be determined.')
+    return
+  }
+
+  const userContext = {
+    userId: user,
+    accountId: activeAccount.id,
+    accountSlug,
+    name: profile.display_name || activeAccount.name || `${activeAccount.account_slug || 'Author'} Author`,
+  }
+
+  const currentHtml = editor ? editor.getHTML() : ''
+
+  try {
+    // 1. Force-save unpersisted content to local OPFS draft & get exact saved draft ID
+    const savedDraft = await saveCurrentDraft(userContext, currentHtml)
+    if (!savedDraft) {
+      setEditorError('Failed to save draft before publishing.')
       return
     }
 
-    let accountSlug = activeAccount.account_slug
-    if (!accountSlug && activeAccount.name) {
-      accountSlug = activeAccount.name
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-    }
+    // 2. Publish to R2 (internally processes blobMap, uploads hero image, and calls /api/publish)
+    const res = await publishDraft(userContext, currentHtml)
 
-    if (!accountSlug) {
-      setEditorError('A valid account slug could not be determined.')
-      return
-    }
+    if (res.success) {
+      // 3. Fetch accurate updated post directly from OPFS published folder
+      const publishedPost = await getOPFSPostById('publishing/published', savedDraft.id)
 
-    const userContext = {
-      userId: user,
-      accountId: activeAccount.id,
-      accountSlug,
-      name: profile.display_name || activeAccount.name || `${activeAccount.account_slug || 'Author'} Author`,
-    }
-
-    const currentHtml = editor ? editor.getHTML() : ''
-
-    try {
-      // 1. Force-save unpersisted content to local OPFS draft & get the exact saved draft ID
-      const savedDraft = await saveCurrentDraft(userContext, currentHtml)
-      if (!savedDraft) {
-        setEditorError('Failed to save draft before publishing.')
-        return
-      }
-
-      // 2. Publish to R2 (which internally calls moveDraftToPublished using savedDraftId)
-      const res = await publishDraft(userContext, currentHtml)
-
-      if (res.success) {
-        // 3. Fetch the accurate, updated post directly from OPFS published folder
-        const publishedPost = await getOPFSPostById('publishing/published', savedDraft.id)
-
-        if (publishedPost) {
-          console.log("in the published folder now: ", publishedPost)
-          setCurrentPost({
-            ...publishedPost,
-            content: currentHtml, // Attach active editor HTML content
-          })
-        } else {
-          // Fallback in case directory read fails
-          setCurrentPost({
-            id: savedDraft.id,
-            slug: res.postSlug || customSlug || savedDraft.id,
-            title: title || 'Untitled',
-            subTitle: subTitle || null,
-            content: currentHtml,
-            createdAt: currentPost?.createdAt || new Date().toISOString(),
-            dateLastEdited: new Date().toISOString(),
-            status: 'published',
-            author: {
-              userId: user,
-              accountId: activeAccount.id,
-              accountSlug,
-              name: profile.display_name || activeAccount.name || 'Author',
-            },
-            dirHandle: null,
-          })
-        }
+      if (publishedPost) {
+        console.log("In the published folder now: ", publishedPost)
+        setCurrentPost({
+          ...publishedPost,
+          content: currentHtml, // Attach active editor HTML content
+        })
       } else {
-        setEditorError(res.error || 'Failed to publish draft.')
+        // Fallback in case directory read fails
+        setCurrentPost({
+          id: savedDraft.id,
+          slug: res.postSlug || customSlug || savedDraft.id,
+          title: title || 'Untitled',
+          subTitle: subTitle || null,
+          heroImage: heroImage || null, // <-- Include heroImage in fallback state
+          content: currentHtml,
+          createdAt: currentPost?.createdAt || new Date().toISOString(),
+          dateLastEdited: new Date().toISOString(),
+          status: 'published',
+          author: {
+            userId: user,
+            accountId: activeAccount.id,
+            accountSlug,
+            name: profile.display_name || activeAccount.name || 'Author',
+          },
+          dirHandle: null,
+        })
       }
-    } catch (err: any) {
-      console.error('Error during pre-publish save or publish execution:', err)
-      setEditorError(err.message || 'An unexpected error occurred while publishing.')
+    } else {
+      setEditorError(res.error || 'Failed to publish draft.')
     }
+  } catch (err: any) {
+    console.error('Error during pre-publish save or publish execution:', err)
+    setEditorError(err.message || 'An unexpected error occurred while publishing.')
+  }
   }
 
 

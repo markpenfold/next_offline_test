@@ -50,6 +50,9 @@ interface EditorState {
   currentPost: BlogPost | null
   isNewDocModalOpen: boolean
 
+  heroImage: string | null,
+  setHeroImage: (url: string | null) => void,
+
   // --- SYNCHRONOUS ACTIONS --- //
   setCurrentPost: (post: BlogPost | null) => void
   setDraftId: (id: string) => void
@@ -99,6 +102,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   showToolbar: false,
   currentPost: null,
   isNewDocModalOpen: false,
+
+  heroImage: null,
+  setHeroImage: (url: string | null) => set({ heroImage: url }),
 
   // Synchronous Actions
   setCurrentPost: (currentPost) => 
@@ -383,6 +389,7 @@ fetchAvailablePublished: async (userContext) => {
       draftId, 
       liveTitle, 
       liveSubTitle,
+      heroImage,
       customSlug, 
       blobMap, 
       saveCurrentDraft, 
@@ -406,13 +413,15 @@ fetchAvailablePublished: async (userContext) => {
     try {
         console.log("USER CONTECTST: ", userContext)
       // Upload media blobs to R2
-      const finalHtmlContent = await uploadDraftMediaToR2(
+      const { finalHtmlContent, finalHeroUrl } = await uploadDraftMediaToR2(
         draftId,
         { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
         finalSlug,
         blobMap,
-        htmlContent
+        htmlContent,
+        heroImage
       )
+      
 
       // 3. Trigger remote publish endpoint
       const publishRes = await fetch('/api/publish', {
@@ -424,6 +433,8 @@ fetchAvailablePublished: async (userContext) => {
           postId: draftId,
           postSlug: finalSlug,
           title: liveTitle,
+          subTitle: liveSubTitle,   // Live store subtitle
+          heroImage: finalHeroUrl,  // Uploaded R2 CDN URL
           contentHtml: finalHtmlContent,
         }),
       })

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const postsPrefix = `${accountPrefix}/posts/`;
     const manifestKey = `${accountPrefix}/manifest.json`;
 
-    // 1. Fetch existing manifest (if present) to preserve stable UUIDs & publishedAt timestamps
+    // 1. Fetch existing manifest (if present) to preserve stable UUIDs, timestamps, subTitle & heroImage
     const existingManifestMapBySlug = new Map<string, ManifestPost>();
     try {
       const manifestRes = await r2Client.send(
@@ -70,13 +70,15 @@ export async function POST(request: Request) {
       )
     );
 
-    // 3. Rebuild manifest post list, preserving UUIDs and extracting title metadata
+    // 3. Rebuild manifest post list, preserving metadata and parsing fallback HTML
     const posts: ManifestPost[] = await Promise.all(
       postSlugs.map(async (slug) => {
         const htmlKey = `${postsPrefix}${slug}/index.html`;
         const existingEntry = existingManifestMapBySlug.get(slug);
 
         let title = existingEntry?.title || slug.replace(/-/g, " ");
+        let subTitle: string | null = existingEntry?.subTitle || null;
+        let heroImage: string | null = existingEntry?.heroImage || null;
         let postId = existingEntry?.id || crypto.randomUUID();
         let publishedAt = existingEntry?.publishedAt || new Date().toISOString();
         let updatedAt = new Date().toISOString();
@@ -94,6 +96,22 @@ export async function POST(request: Request) {
               title = titleMatch[1].trim();
             }
 
+            // Extract subtitle from .post-subtitle class if missing in manifest
+            if (!subTitle) {
+              const subTitleMatch = html.match(/<p class=["']post-subtitle["']>(.*?)<\/p>/i);
+              if (subTitleMatch?.[1]) {
+                subTitle = subTitleMatch[1].trim();
+              }
+            }
+
+            // Extract hero image src from .post-hero-image class if missing in manifest
+            if (!heroImage) {
+              const heroMatch = html.match(/<img[^>]+class=["'][^"']*post-hero-image[^"']*["'][^>]+src=["']([^"']+)["']/i);
+              if (heroMatch?.[1]) {
+                heroImage = heroMatch[1];
+              }
+            }
+
             // Extract data-post-id attribute if present in HTML head/body
             const idMatch = html.match(/data-post-id=["']([^"']+)["']/i);
             if (idMatch?.[1]) {
@@ -108,6 +126,8 @@ export async function POST(request: Request) {
           id: postId,
           postSlug: slug,
           title,
+          subTitle,
+          heroImage,
           publishedAt,
           updatedAt,
         };

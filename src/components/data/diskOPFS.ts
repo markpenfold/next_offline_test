@@ -555,6 +555,7 @@ export async function getOPFSPosts(
           blobMap: metadata.blobMap || {},
           templateId: metadata.templateId || 'simple-blog',
           dirHandle: subDir,
+          heroImage: metadata.heroImage || null,
         }
 
         posts.push(post)
@@ -580,15 +581,17 @@ export async function getOPFSPosts(
   }
 }
 
-export async function uploadDraftMediaToR2(
+export async function uploadDraftMediaToR2OLD(
   draftId: string,
   userContext: { accountId: string; accountSlug: string },
   finalSlug: string,
   blobMap: Record<string, string>,
-  htmlContent: string
+  htmlContent: string,
+  heroImage?: string | null
 ): Promise<string> {
   const mediaEntries = await getOPFSEntries(`publishing/drafts/${draftId}/media`)
   let updatedHtml = htmlContent
+  let updatedHeroUrl = heroImage
 
   for (const { name, handle } of mediaEntries) {
     if (handle.kind !== 'file') continue
@@ -613,6 +616,57 @@ export async function uploadDraftMediaToR2(
 
   return updatedHtml
 }
+
+
+export async function uploadDraftMediaToR2(
+  draftId: string,
+  userContext: { accountId: string; accountSlug: string },
+  finalSlug: string,
+  blobMap: Record<string, string>,
+  htmlContent: string,
+  heroImage?: string | null
+): Promise<{ finalHtmlContent: string; finalHeroUrl: string | null }> {
+  const mediaEntries = await getOPFSEntries(`publishing/drafts/${draftId}/media`)
+  let updatedHtml = htmlContent
+  let updatedHeroUrl = heroImage || null
+
+  for (const { name, handle } of mediaEntries) {
+    if (handle.kind !== 'file') continue
+
+    const file = await (handle as FileSystemFileHandle).getFile()
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('accountId', userContext.accountId)
+    formData.append('accountSlug', userContext.accountSlug)
+    formData.append('postSlug', finalSlug)
+
+    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (!res.ok) throw new Error(`Upload failed for ${name}: ${data.error}`)
+
+    // Look up the blob: URL associated with this OPFS filename
+    const blobEntry = Object.entries(blobMap).find(([_, mappedName]) => mappedName === name)
+
+    if (blobEntry) {
+      const [blobUrl] = blobEntry
+
+      // 1. Replace body inline image blob URL
+      updatedHtml = updatedHtml.replaceAll(blobUrl, data.url)
+
+      // 2. Replace hero image blob URL with public R2 URL
+      if (updatedHeroUrl === blobUrl) {
+        updatedHeroUrl = data.url
+      }
+    }
+  }
+
+  return {
+    finalHtmlContent: updatedHtml,
+    finalHeroUrl: updatedHeroUrl,
+  }
+}
+
 
 export async function copyOPFSDirectory(
   src: FileSystemDirectoryHandle, 

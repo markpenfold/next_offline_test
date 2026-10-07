@@ -1,0 +1,287 @@
+/* ==========================================================================
+   1. CSS VARIABLES & THEME SETUP
+   ========================================================================== */
+:root {
+  --bg-body: #ffffff;
+  --text-main: rgb(30 30 30);
+  --text-muted: rgb(88 97 102);
+  --border-color: rgb(203 197 197 / 0.95);
+  --brand-primary: rgb(30 30 30);
+  --radius-lg: 0.1rem;
+  --max-width: 88rem; /* Expanded container width (~1408px) */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-body: rgb(30 30 30);
+    --text-main: rgb(245 245 245 / 0.95);
+    --text-muted: rgb(88 97 102);
+    --border-color: rgb(41 41 41 / 0.95);
+    --brand-primary: rgb(30 30 30);
+  }
+}
+
+/* ==========================================================================
+   2. BASE RESET & GLOBALS
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  line-height: 1.7;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* ==========================================================================
+   3. HEADER & NAVIGATION
+   ========================================================================== */
+.header {
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-body);
+  padding: 1.25rem 0;
+  margin-bottom: 2.5rem;
+  width: 100%;
+}
+
+.header-container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 1.25rem; /* Matches .layout-grid horizontal alignment */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem; /* Space between circle icon and brand domain */
+  font-size: clamp(1.2rem, 2vw, 1.4rem);
+  font-weight: 700;
+  color: var(--text-main);
+  text-decoration: none;
+  letter-spacing: -0.025em;
+}
+
+.brand-link svg {
+  flex-shrink: 0;
+  color: var(--text-main); /* Inherits theme text color */
+}
+
+/* ==========================================================================
+   4. RESPONSIVE GRID LAYOUT
+   ========================================================================== */
+.layout-grid {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto 4rem auto;
+  padding: 0 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr; /* Single column stack on mobile */
+  gap: 2rem;
+}
+
+/* Sync header and grid alignment across breakpoints */
+@media (min-width: 768px) {
+  .header-container,
+  .layout-grid {
+    padding: 0 2rem;
+  }
+
+  .layout-grid {
+    grid-template-columns: 1fr 240px;
+    gap: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .layout-grid {
+    grid-template-columns: 1fr 260px;
+    gap: 3rem; /* Space between content divider line and sidebar */
+  }
+}
+
+/* ==========================================================================
+   5. MAIN CONTENT & SIDEBAR CONTAINER (NO CARDS)
+   ========================================================================== */
+.main-content {
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+  /* Horizontal divider below main content on mobile screens */
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 2rem;
+}
+
+.sidebar {
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+}
+
+/* Desktop Divider Setup */
+@media (min-width: 768px) {
+  .main-content {
+    border-bottom: none;
+    padding-bottom: 0;
+    /* Vertical divider line on the right side of main content */
+    border-right: 1px solid var(--border-color);
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding-right: 3rem;
+  }
+}
+
+/* ==========================================================================
+   6. ARTICLE & PROSE CONTENT
+   ========================================================================== */
+.post-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.post-hero-container {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.post-hero-image {
+  width: 100%;
+  height: auto;
+  max-height: 500px;
+  object-fit: cover;
+  display: block;
+}
+
+.post-title-container {
+  width: 100%;
+}
+
+.post-title {
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.post-subtitle-container {
+  width: 100%;
+}
+
+.post-subtitle {
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.prose {
+  font-size: 1.0625rem;
+  color: var(--text-main);
+  word-wrap: break-word;
+}
+
+.prose > * + * {
+  margin-top: 1.5em;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-lg);
+  margin: 2rem 0;
+}
+
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: var(--text-main);
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 2em;
+  margin-bottom: 0.85em;
+}
+
+.prose a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prose code {
+  background-color: #f1f5f9;
+  padding: 0.2em 0.4em;
+  border-radius: var(--radius-lg);
+  font-size: 0.875em;
+  word-break: break-word;
+}
+
+.prose pre {
+  background-color: #1e293b;
+  color: #f8fafc;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* ==========================================================================
+   7. SIDEBAR COMPONENT
+   ========================================================================== */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  align-self: start;
+}
+
+.sidebar-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.recent-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.recent-link {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-main);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  transition: color 0.15s ease;
+}
+
+.recent-link:hover {
+  color: var(--brand-primary);
+}
+
+.status-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

@@ -35,6 +35,7 @@ export interface BlogPost {
   templateId?: TemplateId | string
   blobMap?: Record<string, string>
   dirHandle: FileSystemDirectoryHandle | null
+  heroImage?: string | null
 }
 
 export interface ManifestPost {
@@ -43,6 +44,8 @@ export interface ManifestPost {
   title: string
   publishedAt: string
   updatedAt: string
+  subTitle?: string | null
+  heroImage?: string | null
 }
 
 /*===============================================================================

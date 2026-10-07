@@ -2,89 +2,137 @@ interface PageTemplateParams {
   title: string;
   contentHtml: string;
   accountSlug: string;
-  recentPosts?: { slug: string; title: string }[];
+  subTitle: string;
+  heroImage: string;
 }
 
-export function renderFullPage({ title, contentHtml, accountSlug, recentPosts = [] }: PageTemplateParams): string {
-  const sidebarLinks = recentPosts
-    .map((post) => `<li><a href="/${post.slug}" class="hover:underline">${post.title}</a></li>`)
-    .join("");
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export function renderFullPage({ 
+  title, 
+  subTitle, 
+  heroImage, 
+  contentHtml, 
+  accountSlug 
+}: PageTemplateParams): string {
+  const safeTitle = escapeHtml(title);
+  const safeSubTitle = subTitle ? escapeHtml(subTitle) : null;
+  const safeAccountSlug = escapeHtml(accountSlug);
+
+  const circleIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle preview-icon"><circle cx="12" cy="12" r="10"/></svg>`.trim();
+
+  // Conditional Hero container
+  const heroHtml = heroImage
+    ? `<div class="post-hero-container">
+        <img src="${escapeHtml(heroImage)}" alt="${safeTitle}" class="post-hero-image" />
+       </div>`
+    : '';
+
+  // Conditional Subtitle container
+  const subTitleHtml = safeSubTitle
+    ? `<div class="post-subtitle-container">
+        <p class="post-subtitle">${safeSubTitle}</p>
+       </div>`
+    : '';
 
   return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 text-slate-900 font-sans min-h-screen">
-  <header class="border-b bg-white py-4 px-6 mb-8 shadow-sm">
-    <div class="max-w-5xl mx-auto flex justify-between items-center">
-      <a href="/" class="text-xl font-bold tracking-tight">${accountSlug}.omen.land</a>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${safeTitle} - ${safeAccountSlug}</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="header">
+      <div class="header-container">
+        <a href="/" class="brand-link">
+          ${circleIconSvg}
+          <span>${safeAccountSlug}</span>
+        </a>
+      </div>
+    </header>
+    
+    <div class="layout-grid">
+      <main class="main-content">
+        <header class="post-header">
+          ${heroHtml}
+          <div class="post-title-container">
+            <h1 class="post-title">${safeTitle}</h1>
+          </div>
+          ${subTitleHtml}
+        </header>
+
+        <article class="prose">
+          ${contentHtml}
+        </article>
+      </main>
+
+      <aside class="sidebar">
+        <h3 class="sidebar-title">Recent Posts</h3>
+        <ul id="recent-posts-list" class="recent-list">
+          <li class="status-text">Loading...</li>
+        </ul>
+      </aside>
     </div>
-  </header>
-  
-  <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-8">
-    <main class="md:col-span-3 bg-white p-8 rounded-xl shadow-sm border border-slate-100">
-      <h1 class="text-4xl font-extrabold tracking-tight mb-6">${title}</h1>
-      <article class="prose max-w-none">
-        ${contentHtml}
-      </article>
-    </main>
 
-    <aside class="md:col-span-1 space-y-6">
-  <h3 class="font-bold text-slate-500 uppercase tracking-wider text-sm">Recent Posts</h3>
-  <ul id="recent-posts-list" class="space-y-2 text-sm">
-    <li class="text-slate-400 text-xs">Loading...</li>
-  </ul>
-</aside>
+    <script>
+      (async function loadRecentPosts() {
+        var listEl = document.getElementById('recent-posts-list');
+        if (!listEl) return;
 
-<script>
-  (async function loadRecentPosts() {
-    try {
-      var res = await fetch('/manifest.json');
-      if (!res.ok) throw new Error('HTTP status ' + res.status);
-      
-      var data = await res.json();
-      var listEl = document.getElementById('recent-posts-list');
-      
-      if (!data || !data.posts || !Array.isArray(data.posts) || data.posts.length === 0) {
-        listEl.innerHTML = '<li class="text-slate-400 text-xs">No posts found</li>';
-        return;
-      }
+        try {
+          var res = await fetch('/manifest.json');
+          if (!res.ok) throw new Error('Status ' + res.status);
+          
+          var data = await res.json();
+          
+          if (!data || !Array.isArray(data.posts) || data.posts.length === 0) {
+            listEl.innerHTML = '<li class="status-text">No recent posts</li>';
+            return;
+          }
 
-      // Sort posts by publishedAt date descending
-      var sortedPosts = data.posts.sort(function(a, b) { 
-        return new Date(b.publishedAt) - new Date(a.publishedAt);
-      });
+          var sortedPosts = data.posts.sort(function(a, b) { 
+            var dateA = new Date(a.publishedAt || a.createdAt || 0);
+            var dateB = new Date(b.publishedAt || b.createdAt || 0);
+            return dateB - dateA;
+          });
 
-      // Get top 5 recent posts
-      var recent = sortedPosts.slice(0, 5);
+          var recent = sortedPosts.slice(0, 5);
+          listEl.innerHTML = '';
 
-      // Build DOM elements safely without template literals or HTML slashes
-      listEl.innerHTML = '';
-      recent.forEach(function(post) {
-        var li = document.createElement('li');
-        var a = document.createElement('a');
-        
-        a.href = '/' + post.postSlug;
-        a.className = 'text-slate-700 hover:text-slate-900 transition font-medium';
-        a.textContent = post.title;
-        
-        li.appendChild(a);
-        listEl.appendChild(li);
-      });
-    } catch (err) {
-      console.error('Failed to load recent posts:', err);
-      var container = document.getElementById('recent-posts-list');
-      if (container) {
-        container.innerHTML = '<li class="text-slate-400 text-xs">Unable to load recent posts</li>';
-      }
-    }
-  })();
-</script>
-  </div>
-</body>
-</html>`;
+          recent.forEach(function(post) {
+            var slug = post.postSlug || post.slug || post.id;
+            if (!slug) return;
+
+            var li = document.createElement('li');
+            var a = document.createElement('a');
+            
+            a.href = '/' + slug;
+            a.className = 'recent-link';
+            a.textContent = post.title || 'Untitled';
+            
+            if (window.location.pathname === '/' + slug) {
+              a.setAttribute('aria-current', 'page');
+              a.style.fontWeight = '700';
+            }
+
+            li.appendChild(a);
+            listEl.appendChild(li);
+          });
+        } catch (err) {
+          console.error('Failed to load recent posts:', err);
+          listEl.innerHTML = '<li class="status-text">Unable to load posts</li>';
+        }
+      })();
+    </script>
+  </body>
+  </html>`;
 }

@@ -4,12 +4,13 @@ interface Env {
 
 function getContentType(path: string): string {
   if (path.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (path.endsWith('.json')) return 'application/json; charset=utf-8';
   if (path.endsWith('.webp')) return 'image/webp';
   if (path.endsWith('.png')) return 'image/png';
   if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
   if (path.endsWith('.svg')) return 'image/svg+xml';
-  if (path.endsWith('.css')) return 'text/css';
-  if (path.endsWith('.js')) return 'application/javascript';
+  if (path.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (path.endsWith('.js')) return 'application/javascript; charset=utf-8';
   return 'application/octet-stream';
 }
 
@@ -21,42 +22,50 @@ export default {
     const accountSlug = hostname.split('.')[0];
     let path = url.pathname;
 
-    // Strip leading /posts if present
+    // Strip leading /posts if present in the URL
     if (path.startsWith('/posts/')) {
       path = path.replace('/posts', '');
     }
 
-    const isStaticAsset = path.includes('.');
+    // List of top-level paths that live inside the global /assets folder
+    const isGlobalAsset = path === '/styles.css' || path === '/favicon.ico' || path.startsWith('/assets/');
 
-    // Build the expected R2 key
-    let r2Key = isStaticAsset 
-      ? `${accountSlug}/posts${path}`
-      : `${accountSlug}/posts${path.endsWith('/') ? path.slice(0, -1) : path}/index.html`;
+    let r2Key: string;
+
+    if (isGlobalAsset) {
+      // Maps /styles.css -> assets/styles.css
+      // Maps /assets/logo.png -> assets/logo.png
+      r2Key = path.startsWith('/assets/') 
+        ? path.slice(1) 
+        : `assets${path}`;
+    } else {
+      // User-specific assets and routes (e.g., "marko-polo/posts/manifest.json")
+      const hasExtension = path.includes('.');
+      r2Key = hasExtension
+        ? `${accountSlug}/posts${path}`
+        : `${accountSlug}/posts${path.endsWith('/') ? path.slice(0, -1) : path}/index.html`;
+    }
 
     let object = await env.USER_CONTENT.get(r2Key);
 
-    // If static asset fails, NEVER fall through to HTML
-    if (!object && isStaticAsset) {
-      return new Response(`404 Asset Not Found: Expected R2 Key "${r2Key}"`, { 
+    // 404 handling if missing from R2
+    if (!object) {
+      return new Response(`404 Not Found: "${r2Key}" does not exist in R2`, { 
         status: 404, 
-        headers: { "Content-Type": "text/plain" } 
+        headers: { "Content-Type": "text/plain; charset=utf-8" } 
       });
     }
 
-    // HTML Fallback for routes
-    if (!object) {
-      r2Key = `${accountSlug}/posts/index.html`;
-      object = await env.USER_CONTENT.get(r2Key);
-    }
-
-    if (!object) {
-      return new Response(`404 Page Not Found`, { status: 404 });
-    }
+    // Cache strategy: instant revalidation for HTML/JSON, long-term CDN caching for CSS/images
+    const isHtmlOrJson = r2Key.endsWith('.html') || r2Key.endsWith('.json');
+    const cacheControl = isHtmlOrJson
+      ? "public, max-age=0, must-revalidate"
+      : "public, max-age=31536000, immutable";
 
     return new Response(object.body, {
       headers: { 
         "Content-Type": getContentType(r2Key),
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": cacheControl,
       },
     });
   },

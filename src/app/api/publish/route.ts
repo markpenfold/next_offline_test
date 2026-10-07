@@ -14,8 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { postId, accountId, accountSlug, postSlug, title, contentHtml } = await request.json()
-    //console.log("API PUBLISH DATA: ", postId, accountId, accountSlug, postSlug, title)
+    const { postId, accountId, accountSlug, postSlug, title, subTitle, heroImage, contentHtml } = await request.json()
 
     if (!accountSlug) return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 });
     if (!postSlug) return NextResponse.json({ error: "Missing postSlug" }, { status: 400 });
@@ -31,7 +30,7 @@ export async function POST(request: Request) {
 
     // 2. Fetch existing manifest or start fresh
     const manifestKey = `${accountSlug}/manifest.json`;
-    let manifest = { posts: [] as { id: string; slug: string; title: string; publishedAt: string; updatedAt: string }[] };
+    let manifest = { posts: [] as { id: string; slug: string; title: string; subTitle?: string | null; heroImage?: string | null; publishedAt: string; updatedAt: string }[] };
 
     try {
       const existingManifest = await r2Client.send(
@@ -40,7 +39,6 @@ export async function POST(request: Request) {
       if (existingManifest.Body) {
         const str = await existingManifest.Body.transformToString();
         manifest = JSON.parse(str);
-        
       }
     } catch {
       // Manifest does not exist yet for this account; starting with an empty array
@@ -54,16 +52,19 @@ export async function POST(request: Request) {
       id: resolvedId,
       slug: postSlug,
       title: cleanTitle,
+      subTitle: subTitle || null,
+      heroImage: heroImage || null,
       publishedAt: now,
       updatedAt: now,
     });
 
-    // 4. Render complete HTML string using clean raw title
+    // 4. Render complete HTML string using clean raw title, subTitle, and heroImage
     const fullHtml = renderFullPage({
       title: cleanTitle,
+      subTitle: subTitle || null,
+      heroImage: heroImage || null,
       contentHtml,
       accountSlug,
-      recentPosts: manifest.posts,
     });
 
     // 5. Upload pre-rendered post HTML to R2
@@ -92,6 +93,8 @@ export async function POST(request: Request) {
       id: resolvedId,
       slug: postSlug,
       title: cleanTitle,
+      subTitle: subTitle || null,
+      heroImage: heroImage || null,
       url: `https://${accountSlug}.omen.land/${postSlug}`,
     });
   } catch (error: any) {
