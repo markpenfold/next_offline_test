@@ -12,7 +12,7 @@ import { EditorCanvas } from './EditorCanvas'
 
 import styles from '@/app/styles/editor.module.css'
 import { convertToWebP, UserContext } from './blogHelpers'
-import { saveDraftMedia } from '@/components/data/diskOPFS'
+import { saveDraftMedia, getHeroImageUrl  } from '@/components/data/diskOPFS'
 import { useEditorStore } from '@/stores/useEditorStore'
 import { useAppStore } from '@/providers/AppStoreProvider'
 import { DraftSaveModal } from '@/components/helpers/DraftSaveModal'
@@ -45,6 +45,7 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
   const setIsNewDocModalOpen = useEditorStore((s) => s.setIsNewDocModalOpen)
   const isNewDocModalOpen = useEditorStore((s) => s.isNewDocModalOpen)
   const setCurrentPost = useEditorStore((s) => s.setCurrentPost)
+  const setHeroImage = useEditorStore((s) => s.setHeroImage)
 
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
   const [isProcessingMedia, setIsProcessingMedia] = useState(false)
@@ -105,7 +106,7 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
       StarterKit,
       Highlight.configure({ multicolor: true }),
       Image.configure({ inline: true, allowBase64: false }),
-      Placeholder.configure({ placeholder: 'Write something, or type "/" for commands...' }),
+      Placeholder.configure({ placeholder: 'Write something nice...' }),
     ],
  
   })
@@ -130,21 +131,28 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
 
   
 
- const handleSelectDocument = async (id: string) => {
-    if (!editor) return
+const handleSelectDocument = async (id: string) => {
+  if (!editor) return
 
-    if (activeTab === 'published') {
-      const htmlContent = await loadExistingPub(id)
-      if (htmlContent) {
-        editor.commands.setContent(htmlContent)
-      }
-    } else {
-      const htmlContent = await loadExistingDraft(id)
-      if (htmlContent) {
-        editor.commands.setContent(htmlContent)
-      }
-    }
+  const isPublished = activeTab === 'published'
+  const folder = isPublished ? 'published' : 'drafts'
+
+  // 1. Load document content
+  const htmlContent = isPublished 
+    ? await loadExistingPub(id) 
+    : await loadExistingDraft(id)
+
+  if (htmlContent) {
+    editor.commands.setContent(htmlContent)
   }
+
+  // 2. Load hero image blob URL
+  const heroUrl = await getHeroImageUrl(folder, id)
+  setHeroImage(heroUrl)
+
+  // 3. Navigate to editor
+  setActiveTab('editor')
+}
 
   // Waiting on hydration or editor instance
   if (authStatus === 'unknown' || authStatus === 'loading' || !editor) {

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { EditorContent, Editor } from '@tiptap/react'
+
 import { 
   Bold, 
   Italic, 
@@ -27,7 +28,7 @@ import { useEditorStore } from '@/stores/useEditorStore'
 import { useAppStore } from '@/providers/AppStoreProvider'
 import { TEMPLATE_OPTIONS } from './templates/TemplateOptions'
 import type {} from '@tiptap/extension-highlight'
-import { getOPFSPostById, saveDraftMedia } from '@/components/data/diskOPFS'
+import { getOPFSPostById, saveDraftMedia, removeDraftMedia } from '@/components/data/diskOPFS'
 import { convertToWebP } from './blogHelpers'
 
 interface EditorCanvasProps {
@@ -69,7 +70,7 @@ export function EditorCanvas({
   const saveCurrentDraft = useEditorStore((s) => s.saveCurrentDraft)
   const setCurrentPost = useEditorStore((s) => s.setCurrentPost)
   const setHeroImage = useEditorStore((s) => s.setHeroImage)
-  
+  const loadExistingDraft = useEditorStore((s) => s.loadExistingDraft)
 
   const [editorError, setEditorError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -85,44 +86,37 @@ export function EditorCanvas({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  
+
   const activeTemplate = TEMPLATE_OPTIONS.find((t) => t.id === templateId) || TEMPLATE_OPTIONS[0]
 
-const handleHeroSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0]
-  if (!file) return
+  const handleHeroSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-  const { draftId, heroImage, setHeroImage, registerBlob } = useEditorStore.getState()
+    try {
+      // 1. Process to WebP
+      const processedFile = await convertToWebP(file)
 
-  // Clean up existing local hero object URL if present
-  if (heroImage?.startsWith('blob:')) {
-    URL.revokeObjectURL(heroImage)
-  }
+      // 2. Save directly to draft media via OPFS primitive wrapper
+      await saveDraftMedia(draftId, 'hero.webp', processedFile)
 
-  try {
-    // 1. Convert hero image to WebP using the same pipeline as body images
-    const processedFile = await convertToWebP(file)
-    const fileName = `${Date.now()}-hero.webp`
-
-    // 2. Save directly into OPFS under the current draft's media directory
-    await saveDraftMedia(draftId, fileName, processedFile)
-
-    // 3. Create blob URL and register mapping in Zustand (blobUrl -> fileName)
-    const localBlobUrl = URL.createObjectURL(processedFile)
-    
-    setHeroImage(localBlobUrl)
-    registerBlob(localBlobUrl, fileName)
-  } catch (err) {
-    console.error('Failed to process hero image:', err)
-  } finally {
-    e.target.value = ''
-  }
-}
-
-  const handleRemoveHero = () => {
-    if (heroImage?.startsWith('blob:')) {
-      URL.revokeObjectURL(heroImage)
+      // 3. Create preview blob URL for the React state / UI
+      const localBlobUrl = URL.createObjectURL(processedFile)
+      setHeroImage(localBlobUrl)
+    } catch (err) {
+      console.error('Failed to process hero image:', err)
+    } finally {
+      e.target.value = ''
     }
+  }
+
+  const handleRemoveHero = async () => {
+    // 1. Clear state preview
     setHeroImage(null)
+
+    // 2. Remove hero.webp from OPFS media directory
+    await removeDraftMedia(draftId, 'hero.webp')
   }
 
   const handlePublish = async () => {
@@ -206,8 +200,6 @@ const handleHeroSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
   }
   }
 
-
-
   const handleUnPublish = async () => {
     setEditorError(null)
 
@@ -240,6 +232,14 @@ const handleHeroSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
     if (!res.success) {
       setEditorError(res.error || 'Failed to unpublish post.')
+    }
+
+    if (targetPostId && editor) {
+      loadExistingDraft(targetPostId).then((htmlContent) => {
+        if (htmlContent) {
+          editor.commands.setContent(htmlContent)
+        }
+      })
     }
   }
 
@@ -448,7 +448,7 @@ const handleHeroSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 <button
                   type="button"
                   className={styles.removeHeroBtn}
-                  onClick={() => setHeroImage(null)}
+                  onClick={handleRemoveHero}
                   title="Remove Hero Image"
                 >
                   <X size={16} />

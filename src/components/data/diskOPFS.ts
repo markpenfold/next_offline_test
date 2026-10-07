@@ -386,57 +386,42 @@ export async function saveDraftMedia(
   blob: Blob
 ): Promise<string> {
   const dirPath = `publishing/drafts/${draftId}/media`
-  await saveToOPFSFolder(dirPath, fileName, blob)
-  return `${dirPath}/${fileName}`
+  // Reuses core saveToOPFSFolder primitive
+  return await saveToOPFSFolder(dirPath, fileName, blob)
 }
 
-export async function getDraftMediaFile(
+export async function removeDraftMedia(
   draftId: string,
   fileName: string
-): Promise<File | null> {
+): Promise<boolean> {
   const dirPath = `publishing/drafts/${draftId}/media`
+  // Reuses core deleteOPFSFile primitive (handles file opening & errors cleanly)
+  return await deleteOPFSFile(dirPath, fileName)
+}
+
+export async function getLocalMediaFile(
+  folder: 'drafts' | 'published',
+  postId: string,
+  fileName: string
+): Promise<File | null> {
+  const dirPath = `publishing/${folder}/${postId}/media`
   const handle = await getOPFSFileHandle(dirPath, fileName)
   if (!handle) return null
   return await handle.getFile()
 }
 
-export async function processAndUploadDraftMedia(
-  draftId: string,
-  accountId: string,
-  accountSlug: string,
-  postSlug: string,
-  htmlContent: string,
-  blobToFilenameMap: Map<string, string>
-): Promise<string> {
-  let updatedHtml = htmlContent
-
-  for (const [blobUrl, fileName] of blobToFilenameMap.entries()) {
-    if (!updatedHtml.includes(blobUrl)) continue
-
-    const file = await getDraftMediaFile(draftId, fileName)
-    if (!file) continue
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('accountId', accountId)
-    formData.append('accountSlug', accountSlug)
-    formData.append('postSlug', postSlug)
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload ${fileName} during publishing process.`)
-    }
-
-    const { url: publicCdnUrl } = await response.json()
-    updatedHtml = updatedHtml.replaceAll(blobUrl, publicCdnUrl)
-  }
-
-  return updatedHtml
+/**
+ * Helper to fetch hero.webp and return a Blob URL preview for React state
+ */
+export async function getHeroImageUrl(
+  folder: 'drafts' | 'published',
+  postId: string
+): Promise<string | null> {
+  const file = await getLocalMediaFile(folder, postId, 'hero.webp')
+  if (!file) return null
+  return URL.createObjectURL(file)
 }
+
 
 export async function deleteDraftFolder(draftId: string): Promise<boolean> {
   return await wipeOPFSFolder(`publishing/drafts/${draftId}`)
@@ -628,7 +613,7 @@ export async function uploadDraftMediaToR2(
 ): Promise<{ finalHtmlContent: string; finalHeroUrl: string | null }> {
   const mediaEntries = await getOPFSEntries(`publishing/drafts/${draftId}/media`)
   let updatedHtml = htmlContent
-  let updatedHeroUrl = heroImage || null
+  let updatedHeroUrl: string | null = null
 
   for (const { name, handle } of mediaEntries) {
     if (handle.kind !== 'file') continue
@@ -645,19 +630,17 @@ export async function uploadDraftMediaToR2(
     const data = await res.json()
     if (!res.ok) throw new Error(`Upload failed for ${name}: ${data.error}`)
 
-    // Look up the blob: URL associated with this OPFS filename
-    const blobEntry = Object.entries(blobMap).find(([_, mappedName]) => mappedName === name)
+    // 1. Explicitly catch standardized hero image
+    if (name === 'hero.webp') {
+      updatedHeroUrl = data.url
+      continue
+    }
 
+    // 2. Catch inline body images registered in blobMap
+    const blobEntry = Object.entries(blobMap).find(([_, mappedName]) => mappedName === name)
     if (blobEntry) {
       const [blobUrl] = blobEntry
-
-      // 1. Replace body inline image blob URL
       updatedHtml = updatedHtml.replaceAll(blobUrl, data.url)
-
-      // 2. Replace hero image blob URL with public R2 URL
-      if (updatedHeroUrl === blobUrl) {
-        updatedHeroUrl = data.url
-      }
     }
   }
 
@@ -719,31 +702,57 @@ export async function moveDraftToPublished(draftId: string, targetId?: string): 
   await draftsFolder.removeEntry(draftId, { recursive: true })
 }
 
-export async function movePublishedToDraft(postId: string): Promise<void> {
+export async function movePublishedToDraft(postId: string): Promise<BlogPost | null> {
   const draftsFolder = await getDirectory('publishing/drafts')
   const publishedFolder = await getDirectory('publishing/published')
 
   const sourceDir = await publishedFolder.getDirectoryHandle(postId)
   const targetDir = await draftsFolder.getDirectoryHandle(postId, { create: true })
 
+  // 1. Copy full directory (post.json + media/) over to drafts
   await copyOPFSDirectory(sourceDir, targetDir)
+
+  let metadata: BlogPost | null = null
 
   try {
     const postJsonHandle = await targetDir.getFileHandle('post.json')
     const file = await postJsonHandle.getFile()
-    const metadata: BlogPost = JSON.parse(await file.text())
+    metadata = JSON.parse(await file.text())
     
-    metadata.status = 'draft'
-    metadata.dateLastEdited = new Date().toISOString()
-    
-    const writable = await postJsonHandle.createWritable()
-    await writable.write(JSON.stringify(metadata, null, 2))
-    await writable.close()
+    if (metadata) {
+      metadata.status = 'draft'
+      metadata.dateLastEdited = new Date().toISOString()
+
+      // 2. Look up local media directory to restore hero image local blob URL if needed
+      try {
+        const mediaDir = await targetDir.getDirectoryHandle('media')
+        
+        for await (const [name, handle] of mediaDir.entries()) {
+          if (handle.kind === 'file' && name.includes('hero')) {
+            const mediaFile = await (handle as FileSystemFileHandle).getFile()
+            const localBlobUrl = URL.createObjectURL(mediaFile)
+            
+            // Reassign heroImage to local blob URL for editor state
+            metadata.heroImage = localBlobUrl
+          }
+        }
+      } catch {
+        // Media directory might be empty or missing
+      }
+
+      // 3. Save updated post.json back to draft
+      const writable = await postJsonHandle.createWritable()
+      await writable.write(JSON.stringify(metadata, null, 2))
+      await writable.close()
+    }
   } catch (e) {
     console.warn(`Could not update status to draft in copied post.json:`, e)
   }
 
+  // 4. Clean up published directory
   await publishedFolder.removeEntry(postId, { recursive: true })
+
+  return metadata
 }
 
 export async function syncAndUploadManifest(uc: UserContext): Promise<ManifestPost[]> {

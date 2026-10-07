@@ -232,6 +232,7 @@ fetchAvailablePublished: async (userContext) => {
       liveSubTitle: post.subTitle || '',
       customSlug: post.slug || '',
       blobMap: post.blobMap || {},
+      heroImage: post.heroImage,
       isDirty: false,
     })
 
@@ -341,9 +342,23 @@ fetchAvailablePublished: async (userContext) => {
         throw new Error(err.error || 'Failed to unpublish post from R2.')
       }
 
-      await movePublishedToDraft(postId)
+      const draftData = await movePublishedToDraft(postId)
       await removeLocalPublishedPost(postId)
       await get().updateManifest(userContext)
+
+      if (draftData) {
+      set({
+        heroImage: draftData.heroImage || null,
+        liveTitle: draftData.title || '',
+        liveSubTitle : draftData.subTitle || '',
+      })
+
+      // Register hero blob in Zustand blobMap so future re-publishing succeeds
+      if (draftData.heroImage && draftData.heroImage.startsWith('blob:')) {
+        const heroFileName = Object.keys(draftData).find(k => k.includes('hero')) || `${Date.now()}-hero.webp`
+        get().registerBlob(draftData.heroImage, heroFileName)
+      }
+    }
 
       return { success: true }
     } catch (err: any) {
