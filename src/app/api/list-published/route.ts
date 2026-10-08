@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server"
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
-import { r2Client, BUCKET_NAME } from "@/lib/blog/r2"
+import { r2Client } from "@/lib/blog/r2"
 import { createClient } from "@/lib/supabase/server"
 import { ManifestPost } from "@/components/blog/blogHelpers";
 
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
+
+  
+const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
+  if (!bucketName) {
+  console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
+  return NextResponse.json(
+    { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
+    { status: 500 }
+  )
+}
 
   if (error || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -28,7 +38,7 @@ export async function POST(request: Request) {
 
     try {
       const manifestRes = await r2Client.send(
-        new GetObjectCommand({ Bucket: BUCKET_NAME, Key: manifestKey })
+        new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
       )
       if (manifestRes.Body) {
         
@@ -52,7 +62,7 @@ export async function POST(request: Request) {
     // 2. Shallow list top-level post folders inside user-content/<accountSlug>/posts/
     const listRes = await r2Client.send(
       new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName,
         Prefix: postsPrefix,
         Delimiter: "/", // Delimiter prevents scanning inner media/HTML files
       })

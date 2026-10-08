@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { r2Client, BUCKET_NAME } from "@/lib/blog/r2";
+import { r2Client } from "@/lib/blog/r2";
 import { renderFullPage } from "@/lib/blog/template";
 import { createClient } from '@/lib/supabase/server'
 
@@ -11,6 +11,15 @@ export async function POST(request: Request) {
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
+    if (!bucketName) {
+    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
+    return NextResponse.json(
+      { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
+      { status: 500 }
+    )
   }
 
   try {
@@ -34,7 +43,7 @@ export async function POST(request: Request) {
 
     try {
       const existingManifest = await r2Client.send(
-        new GetObjectCommand({ Bucket: BUCKET_NAME, Key: manifestKey })
+        new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
       );
       if (existingManifest.Body) {
         const str = await existingManifest.Body.transformToString();
@@ -71,7 +80,7 @@ export async function POST(request: Request) {
     const htmlKey = `${accountSlug}/posts/${postSlug}/index.html`;
     await r2Client.send(
       new PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName,
         Key: htmlKey,
         Body: fullHtml,
         ContentType: "text/html; charset=utf-8",
@@ -81,7 +90,7 @@ export async function POST(request: Request) {
     // 6. Save updated manifest.json to R2
     await r2Client.send(
       new PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName,
         Key: manifestKey,
         Body: JSON.stringify(manifest, null, 2),
         ContentType: "application/json",

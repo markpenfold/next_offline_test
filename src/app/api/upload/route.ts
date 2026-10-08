@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { r2Client, BUCKET_NAME } from '@/lib/blog/r2'
+import { r2Client } from '@/lib/blog/r2'
 import { createClient } from '@/lib/supabase/server'
 import { checkPublishingPermissions } from '@/lib/supabase/client_queries'
 
@@ -12,6 +12,15 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
+    if (!bucketName) {
+    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
+    return NextResponse.json(
+      { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
+      { status: 500 }
+    )
   }
 
   try {
@@ -50,7 +59,7 @@ export async function POST(request: Request) {
     // 6. Upload binary object to R2
     await r2Client.send(
       new PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName,
         Key: r2Key,
         Body: buffer,
         ContentType: file.type || 'image/webp',

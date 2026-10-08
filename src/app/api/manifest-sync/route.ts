@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ListObjectsV2Command, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { r2Client, BUCKET_NAME } from "@/lib/blog/r2";
+import { r2Client } from "@/lib/blog/r2";
 import { createClient } from "@/lib/supabase/server";
 import { ManifestPost } from "@/components/blog/blogHelpers";
 
@@ -13,6 +13,17 @@ export async function POST(request: Request) {
   if (error || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+    const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
+    if (!bucketName) {
+    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
+    return NextResponse.json(
+      { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
+      { status: 500 }
+    )
+  }
+
+  
 
   try {
     const { accountSlug } = await request.json();
@@ -29,7 +40,7 @@ export async function POST(request: Request) {
     const existingManifestMapBySlug = new Map<string, ManifestPost>();
     try {
       const manifestRes = await r2Client.send(
-        new GetObjectCommand({ Bucket: BUCKET_NAME, Key: manifestKey })
+        new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
       );
       if (manifestRes.Body) {
         const rawText = await manifestRes.Body.transformToString();
@@ -50,7 +61,7 @@ export async function POST(request: Request) {
     // 2. Scan R2 bucket for all published post index.html objects
     const listResult = await r2Client.send(
       new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName,
         Prefix: postsPrefix,
       })
     );
@@ -85,7 +96,7 @@ export async function POST(request: Request) {
 
         try {
           const file = await r2Client.send(
-            new GetObjectCommand({ Bucket: BUCKET_NAME, Key: htmlKey })
+            new GetObjectCommand({ Bucket: bucketName, Key: htmlKey })
           );
           if (file.Body) {
             const html = await file.Body.transformToString();
@@ -139,7 +150,7 @@ export async function POST(request: Request) {
     // 4. Write back updated manifest.json to R2
     await r2Client.send(
       new PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucketName,
         Key: manifestKey,
         Body: JSON.stringify(manifest, null, 2),
         ContentType: "application/json",
