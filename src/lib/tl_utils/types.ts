@@ -21,6 +21,7 @@ export interface ProfileRecord {
   username: string;
   has_avatar: boolean;
   display_name?:string;
+  avatar_url:string | null;
 }
 
 export interface Account {
@@ -56,6 +57,8 @@ export interface AccountContext {
   role: 'owner' | 'member';
   can_publish: boolean;
   account_slug:string;
+  blog_title:string;
+  blog_subtitle: string | null;
 }
 
 export interface UserProfile {
@@ -70,7 +73,8 @@ export interface UserProfile {
   age?: number | null;             // NULLABLE
   has_avatar?: boolean | null;     // NULLABLE
   follow?: string[] | null;        // NULLABLE (text[])
-  updated_at?: string | null;      // NULLABLE
+  updated_at?: string | null;      // NULLABL
+  
 }
 
 
@@ -86,6 +90,7 @@ export interface LoginPayload {
     hasAvatar: boolean;
     bio: string | null;
     display_name: string | null;
+    avatar_url: string | null;
   };
   accounts: AccountContext[];
 }
@@ -152,10 +157,8 @@ export interface AppState {
   offlineLeaseJwt: string | null;
   activeAccount: AccountContext | null;
   accounts: AccountContext[];
-  avatarVersion: string; 
   isInitialized:boolean;
-  
-  setAvatarVersion: (version: string) => void; 
+
   canAccessWorkspace: () => boolean;
   initializeWorkspace: () => Promise<void>;
   loginSuccess: (payload: LoginPayload) => void;

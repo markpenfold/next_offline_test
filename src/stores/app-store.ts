@@ -23,9 +23,6 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     offlineLeaseJwt: null,
     activeAccount: null,
     accounts: [],
-    avatarVersion: '',
-
-    setAvatarVersion: (version) => set({ avatarVersion: version }),
     
     setActiveAccount: (accChoice: AccountContext) => {
       set((state) => {
@@ -183,6 +180,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           email: user.email || '',
           display_name: uProfile?.display_name || null,
           bio: uProfile?.bio || null,
+          avatar_url: uProfile?.avatar_url || null,
         };
 
         // Construct pristine brand-new lease object from scratch

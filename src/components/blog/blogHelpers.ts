@@ -3,6 +3,8 @@
 /*===============================================================================
 TYPES & INTERFACES
 ===============================================================================*/
+// Example Publisher Pipeline Step
+
 
 export type TemplateId = 'simple-blog' | 'newsprint' | 'split-screen' | 'super-clean'
 
@@ -137,4 +139,39 @@ export function convertToWebP(
 
     img.onerror = () => reject(new Error('Failed to parse image file'))
   })
+}
+
+export interface Contributor {
+  id: string;
+  name: string;
+  username: string;
+  avatarUrl: string | null;
+  bio: string | null;
+}
+
+export interface PostCardData {
+  slug: string;
+  title: string;
+  subtitle?: string | null;
+  heroImage?: string | null;
+  publishedAt: string;
+  readingTime?: string | null;
+}
+
+export interface IndexPageParams {
+  accountSlug: string;
+  blogTitle: string;
+  blogSubtitle?: string | null;
+  blogHeaderImage?: string | null;
+  contributors: Contributor[];
+  initialPosts?: PostCardData[];
+}
+
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

@@ -1,7 +1,6 @@
 import React from 'react'
 import { BlogPost } from '@/components/blog/blogHelpers'
 import styles from '@/app/styles/editor.module.css'
-import { blendBurn } from 'three/tsl'
 
 interface DocumentListViewProps {
   title: string

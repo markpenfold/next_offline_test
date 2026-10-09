@@ -71,6 +71,9 @@ export default function AccountDetailsCard() {
         <p><strong>Account Owner:</strong> {profile.email || 'N/A'}</p>
         <p><strong>Display Name:</strong> {profile.display_name || 'N/A'}</p>
         <p><strong>Bio:</strong> {profile.bio || 'Superstes'}</p>
+        <p><strong>Blog Title:</strong> {currentAccount.blog_title || 'No Title given'}</p>
+        <p><strong>Blog Subtitle:</strong> {currentAccount.blog_subtitle || 'No Subtitle given'}</p>
+        <p><strong>Blog URL:</strong> {currentAccount.account_slug + '.omen.land'}</p>
 
         
       </div>

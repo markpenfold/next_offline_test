@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
-  
+
 const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
   if (!bucketName) {
   console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')

@@ -153,58 +153,58 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-fetchAvailablePublished: async (userContext) => {
-  if (!userContext.accountId || !userContext.accountSlug) {
-    console.error('fetchAvailablePublished aborted: Invalid UserContext.')
-    set({ availablePublished: [] })
-    return
-  }
-
-  try {
-    let localPublished = await getOPFSPosts('publishing/published')
-    console.log("local published: ", localPublished)
-
-    const res = await fetch('/api/list-published', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userContext),
-    })
-
-    if (res.ok) {
-      const data = await res.json()
-      const remotePosts: Array<any> = data.posts || data.manifest || []
-
-      const localIds = new Set(localPublished.map((p) => p.id))
-
-      // 1. Normalize items to match expected properties
-      const missingFromLocal = remotePosts
-        .map((p) => ({
-          postId: p.postId || p.id,
-          postSlug: p.postSlug || p.slug,
-          title: p.title,
-          createdAt: p.createdAt || p.publishedAt,
-        }))
-        .filter((item) => item.postId && !localIds.has(item.postId))
-
-      console.log("missing from local: ", missingFromLocal)
-
-      // 2. Download missing items with resolved parameters
-      if (missingFromLocal.length > 0) {
-        await Promise.allSettled(
-          missingFromLocal.map((missingItem) =>
-            downloadAndSavePublishedPost(userContext, missingItem)
-          )
-        )
-        localPublished = await getOPFSPosts('publishing/published')
-      }
+  fetchAvailablePublished: async (userContext) => {
+    if (!userContext.accountId || !userContext.accountSlug) {
+      console.error('fetchAvailablePublished aborted: Invalid UserContext.')
+      set({ availablePublished: [] })
+      return
     }
 
-    set({ availablePublished: localPublished })
-  } catch (err) {
-    console.error('Failed to fetch/sync OPFS published posts:', err)
-    set({ availablePublished: [] })
-  }
-},
+    try {
+      let localPublished = await getOPFSPosts('publishing/published')
+      console.log("local published: ", localPublished)
+
+      const res = await fetch('/api/list-published', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userContext),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const remotePosts: Array<any> = data.posts || data.manifest || []
+
+        const localIds = new Set(localPublished.map((p) => p.id))
+
+        // 1. Normalize items to match expected properties
+        const missingFromLocal = remotePosts
+          .map((p) => ({
+            postId: p.postId || p.id,
+            postSlug: p.postSlug || p.slug,
+            title: p.title,
+            createdAt: p.createdAt || p.publishedAt,
+          }))
+          .filter((item) => item.postId && !localIds.has(item.postId))
+
+        console.log("missing from local: ", missingFromLocal)
+
+        // 2. Download missing items with resolved parameters
+        if (missingFromLocal.length > 0) {
+          await Promise.allSettled(
+            missingFromLocal.map((missingItem) =>
+              downloadAndSavePublishedPost(userContext, missingItem)
+            )
+          )
+          localPublished = await getOPFSPosts('publishing/published')
+        }
+      }
+
+      set({ availablePublished: localPublished })
+    } catch (err) {
+      console.error('Failed to fetch/sync OPFS published posts:', err)
+      set({ availablePublished: [] })
+    }
+  },
 
   initializeNewDraft: () => {
     const newUuid = crypto.randomUUID()
@@ -257,7 +257,7 @@ fetchAvailablePublished: async (userContext) => {
     return post.content || null
   },
 
- saveCurrentDraft: async (userContext, htmlContent): Promise<BlogPost | null> => {
+  saveCurrentDraft: async (userContext, htmlContent): Promise<BlogPost | null> => {
     const { draftId, liveTitle, liveSubTitle, customSlug, blobMap, currentPost, setCurrentPost } = get()
 
     const uProfile = getProfileFromUserId(userContext.userId)
@@ -314,12 +314,20 @@ fetchAvailablePublished: async (userContext) => {
       
       await get().fetchAvailablePublished(userContext)
       await get().fetchAvailableDrafts()
+
+      // rebuild blog index page
+      fetch('/api/rebuild-index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({  accountSlug: userContext.accountSlug, accountId: userContext.accountId  }),
+      }).catch((err) => console.error('Failed to trigger index rebuild:', err))
+
       
       return manifest
     } catch (err: any) {
       console.error('Failed to update manifest:', err)
       return null
-    }
+      }
   },
 
   unpublishPost: async (userContext, postId, postSlug) => {
@@ -359,7 +367,6 @@ fetchAvailablePublished: async (userContext) => {
         get().registerBlob(draftData.heroImage, heroFileName)
       }
     }
-
       return { success: true }
     } catch (err: any) {
       console.error('Failed to unpublish post:', err)
@@ -391,6 +398,8 @@ fetchAvailablePublished: async (userContext) => {
       await get().updateManifest(userContext)
       await get().fetchAvailableDrafts()
       await get().fetchAvailablePublished(userContext)
+
+
 
       return { success: true }
     } catch (err: any) {
@@ -498,6 +507,7 @@ fetchAvailablePublished: async (userContext) => {
       await fetchAvailableDrafts()
       await fetchAvailablePublished(userContext)
 
+      
       return { success: true, postSlug: finalSlug }
     } catch (err: any) {
       console.error('Publishing pipeline failed:', err)

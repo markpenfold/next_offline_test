@@ -12,5 +12,3 @@ export const r2Client = new S3Client({
     secretAccessKey: process.env.R2_BLOG_SECRET_KEY,
   },
 });
-
-export const BUCKET_NAME = process.env.R2_USERCONTENT_BUCKET_NAME || "user-content";

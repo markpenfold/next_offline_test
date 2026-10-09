@@ -16,6 +16,10 @@ export type Database = {
     Tables: {
       accounts: {
         Row: {
+          account_slug: string
+          blog_header_image: string | null
+          blog_subtitle: string | null
+          blog_title: string | null
           created_at: string | null
           id: string
           is_personal: boolean | null
@@ -29,6 +33,10 @@ export type Database = {
           subscription_status: string
         }
         Insert: {
+          account_slug: string
+          blog_header_image?: string | null
+          blog_subtitle?: string | null
+          blog_title?: string | null
           created_at?: string | null
           id?: string
           is_personal?: boolean | null
@@ -42,6 +50,10 @@ export type Database = {
           subscription_status?: string
         }
         Update: {
+          account_slug?: string
+          blog_header_image?: string | null
+          blog_subtitle?: string | null
+          blog_title?: string | null
           created_at?: string | null
           id?: string
           is_personal?: boolean | null
@@ -163,6 +175,7 @@ export type Database = {
         Row: {
           age: number | null
           avatar_url: string | null
+          avatar_version: string | null
           bio: string | null
           display_name: string | null
           email: string
@@ -177,6 +190,7 @@ export type Database = {
         Insert: {
           age?: number | null
           avatar_url?: string | null
+          avatar_version?: string | null
           bio?: string | null
           display_name?: string | null
           email: string
@@ -191,6 +205,7 @@ export type Database = {
         Update: {
           age?: number | null
           avatar_url?: string | null
+          avatar_version?: string | null
           bio?: string | null
           display_name?: string | null
           email?: string
@@ -241,7 +256,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_account_slug_exists: {
+        Args: { target_slug: string }
+        Returns: boolean
+      }
+      generate_slug: { Args: { value: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

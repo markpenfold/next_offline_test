@@ -313,13 +313,31 @@ export function EditorCanvas({
             <UnderlineIcon size={16} />
           </button>
           
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()}
-            className={`${styles.toolBtn} ${editor.isActive('highlight') ? styles.toolBtnActive : ''}`}
-            title="Highlight Text">
-            <Highlighter size={16} />
-          </button>
+  
+
+
+          <span className={styles.toolbarDivider} />
+          <Highlighter size={16} />
+     
+          <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+            {['#fef08a', '#bbf7d0', '#fbcfe8', '#bfdbfe'].map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => editor.chain().focus().toggleHighlight({ color }).run()}
+                className={styles.toolBtn}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  backgroundColor: color,
+                  border: editor.isActive('highlight', { color }) ? '2px solid #000' : '1px solid #ccc',
+                }}
+                title={`Highlight ${color}`}
+              />
+            ))}
+          </div>
+
 
           <span className={styles.toolbarDivider} />
 

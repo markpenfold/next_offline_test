@@ -34,8 +34,14 @@ export async function getOPFSFileHandle(
   try {
     const dirHandle = await getDirectory(dirName);
     return await dirHandle.getFileHandle(fileName, { create: false });
-  } catch (err) {
-    console.error(`❌ Could not find file handle for /${dirName}/${fileName}:`, err);
+  } catch (err: any) {
+    // A missing file is expected for optional assets (like hero.webp)
+    if (err?.name === 'NotFoundError' || err?.code === 8) {
+      return null;
+    }
+    
+    // Log real unexpected errors (e.g. disk permissions or corrupt handles)
+    console.warn(`Unexpected error getting handle for /${dirName}/${fileName}:`, err);
     return null;
   }
 }
@@ -1115,26 +1121,37 @@ export async function loadDraft(draftId: string): Promise<BlogPost | null> {
     let htmlContent = (await readFromOPFSFolder(dirPath, 'index.html', 'text')) as string
     const post: BlogPost = JSON.parse(rawMeta)
 
-    // 2. Re-hydrate binary media blobs into fresh browser Object URLs
-    const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
+    // 2. Re-hydrate binary media blobs into fresh browser Object URLs (if media/ exists)
     const updatedBlobMap: Record<string, string> = {}
+    let rehydratedHeroUrl: string | null = post.heroImage || null
 
-    for (const { name, handle } of mediaEntries) {
-      if ((handle as FileSystemHandle).kind === 'file') {
-        const fileHandle = handle as FileSystemFileHandle
-        const file = await fileHandle.getFile()
-        const freshBlobUrl = URL.createObjectURL(file)
-        
-        updatedBlobMap[freshBlobUrl] = name
+    try {
+      const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
 
-        const oldBlobUrl = Object.keys(post.blobMap || {}).find(
-          (key) => post.blobMap?.[key] === name
-        )
+      for (const { name, handle } of mediaEntries) {
+        if ((handle as FileSystemHandle).kind === 'file') {
+          const fileHandle = handle as FileSystemFileHandle
+          const file = await fileHandle.getFile()
+          const freshBlobUrl = URL.createObjectURL(file)
 
-        if (oldBlobUrl) {
-          htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
+          updatedBlobMap[freshBlobUrl] = name
+
+          // Check if this file is the hero image
+          if (name.includes('hero')) {
+            rehydratedHeroUrl = freshBlobUrl
+          }
+
+          const oldBlobUrl = Object.keys(post.blobMap || {}).find(
+            (key) => post.blobMap?.[key] === name
+          )
+
+          if (oldBlobUrl) {
+            htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
+          }
         }
       }
+    } catch {
+      // media/ folder does not exist for this post, ignore safely
     }
 
     // 3. Get local directory handle reference
@@ -1142,6 +1159,7 @@ export async function loadDraft(draftId: string): Promise<BlogPost | null> {
 
     return {
       ...post,
+      heroImage: rehydratedHeroUrl,
       content: htmlContent,
       blobMap: updatedBlobMap,
       status: 'draft',
@@ -1166,32 +1184,43 @@ export async function loadPublished(
     let htmlContent = (await readFromOPFSFolder(dirPath, 'index.html', 'text')) as string
     const post: BlogPost = JSON.parse(rawMeta)
 
-    // 2. Re-hydrate binary media blobs
-    const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
+    // 2. Re-hydrate binary media blobs (if media/ exists)
     const updatedBlobMap: Record<string, string> = {}
+    let rehydratedHeroUrl: string | null = post.heroImage || null
 
-    for (const { name, handle } of mediaEntries) {
-      if ((handle as FileSystemHandle).kind === 'file') {
-        const fileHandle = handle as FileSystemFileHandle
-        const file = await fileHandle.getFile()
-        const freshBlobUrl = URL.createObjectURL(file)
-        
-        updatedBlobMap[freshBlobUrl] = name
+    try {
+      const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
 
-        const oldBlobUrl = Object.keys(post.blobMap || {}).find(
-          (key) => post.blobMap?.[key] === name
-        )
+      for (const { name, handle } of mediaEntries) {
+        if ((handle as FileSystemHandle).kind === 'file') {
+          const fileHandle = handle as FileSystemFileHandle
+          const file = await fileHandle.getFile()
+          const freshBlobUrl = URL.createObjectURL(file)
 
-        if (oldBlobUrl) {
-          htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
+          updatedBlobMap[freshBlobUrl] = name
+
+          if (name.includes('hero')) {
+            rehydratedHeroUrl = freshBlobUrl
+          }
+
+          const oldBlobUrl = Object.keys(post.blobMap || {}).find(
+            (key) => post.blobMap?.[key] === name
+          )
+
+          if (oldBlobUrl) {
+            htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
+          }
         }
       }
+    } catch {
+      // media/ folder does not exist for this post, ignore safely
     }
 
     const dirHandle = await getDirectory(dirPath)
 
     return {
       ...post,
+      heroImage: rehydratedHeroUrl,
       content: htmlContent,
       blobMap: updatedBlobMap,
       status: 'published',
@@ -1214,6 +1243,7 @@ export async function loadPublished(
             id: match.id,
             slug: match.postSlug,
             title: match.title,
+            heroImage: match.heroImage || null,
             status: 'published',
             createdAt: match.publishedAt,
             dateLastEdited: match.updatedAt,

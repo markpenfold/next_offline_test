@@ -17,9 +17,10 @@ export function ProfileManager() {
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [followInput, setFollowInput] = useState('')
+  const [blogTitle, setBlogTitle] = useState('')
+  const [blogSubtitle, setBlogSubtitle] = useState('')
+
   const [savingField, setSavingField] = useState<string | null>(null)
-  
-  // Track field-specific status: { display_name: 'success', bio: 'error', ... }
   const [fieldStatuses, setFieldStatuses] = useState<Record<string, 'success' | 'error' | null>>({})
 
   useEffect(() => {
@@ -28,66 +29,69 @@ export function ProfileManager() {
       setBio(profile.bio || '')
       setFollowInput(Array.isArray(profile.follow) ? profile.follow.join(', ') : '')
     }
-  }, [profile])
+    if (activeAccount) {
+      setBlogTitle(activeAccount.blog_title || activeAccount.name || '')
+      setBlogSubtitle(activeAccount.blog_subtitle || '')
+    }
+  }, [profile, activeAccount])
 
-  if (!profile) return null
+  if (!profile || !activeAccount) return null
 
+  // Save Account-level settings (blog_title, blog_subtitle)
+  async function saveAccountData(updates: { blog_title?: string; blog_subtitle?: string }, fieldKey: string) {
+    setSavingField(fieldKey)
+    setFieldStatuses(prev => ({ ...prev, [fieldKey]: null }))
+
+    if (!activeAccount) {
+        throw new Error('No active account selected.')
+      }
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('accounts')
+        .update(updates)
+        .eq('id', activeAccount.id)
+
+      if (error) throw error
+
+      await syncFromDatabase()
+      setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'success' }))
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to update account setting:', error)
+      setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'error' }))
+    } finally {
+      setSavingField(null)
+    }
+  }
+
+  // Save Profile-level settings (display_name, bio, follow)
   async function saveProfileData(
     updates: { display_name?: string; bio?: string; follow?: string[] },
     fieldKey: string
   ) {
     setSavingField(fieldKey)
-    // Clear status for this specific field when attempting save
     setFieldStatuses(prev => ({ ...prev, [fieldKey]: null }))
+
+    if (!activeAccount) {
+        throw new Error('No active account selected.')
+      }
 
     try {
       const supabase = createClient()
       const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-      if (authError || !user) {
-        throw new Error('Authentication required. Please sign in again.')
-      }
+      if (authError || !user) throw new Error('Authentication required.')
+      if (!activeAccount.can_publish) throw new Error('Insufficient permissions.')
 
-      const userId = user.id
-      if (!userId) {
-        throw new Error('User ID is missing from profile.')
-      }
-
-      if (!activeAccount) {
-        throw new Error('No active account selected.')
-      }
-
-      if (!activeAccount.can_publish) {
-        throw new Error('You do not have permission to modify settings for this account.')
-      }
-
-      await updateProfile(userId, activeAccount, updates)
+      await updateProfile(user.id, activeAccount, updates)
       await syncFromDatabase()
 
-      // Mark success for the field (or all fields if "SAVE ALL" was clicked)
-      if (fieldKey === 'all') {
-        setFieldStatuses({
-          display_name: 'success',
-          bio: 'success',
-          follow: 'success',
-          all: 'success',
-        })
-      } else {
-        setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'success' }))
-      }
-
+      setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'success' }))
       router.refresh()
     } catch (error: any) {
-      if (fieldKey === 'all') {
-        setFieldStatuses({
-          display_name: 'error',
-          bio: 'error',
-          follow: 'error',
-          all: 'error',
-        })
-      } else {
-        setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'error' }))
-      }
+      console.error('Failed to update profile:', error)
+      setFieldStatuses(prev => ({ ...prev, [fieldKey]: 'error' }))
     } finally {
       setSavingField(null)
     }
@@ -114,25 +118,67 @@ export function ProfileManager() {
     saveProfileData({ follow: getParsedFollow() }, 'follow')
   }
 
-  const handleSaveAll = (e: React.FormEvent) => {
+  const handleSaveBlogTitle = (e: React.MouseEvent) => {
     e.preventDefault()
-    saveProfileData(
-      {
-        display_name: displayName,
-        bio: bio,
-        follow: getParsedFollow(),
-      },
-      'all'
-    )
+    saveAccountData({ blog_title: blogTitle }, 'blog_title')
+  }
+
+  const handleSaveBlogSubtitle = (e: React.MouseEvent) => {
+    e.preventDefault()
+    saveAccountData({ blog_subtitle: blogSubtitle }, 'blog_subtitle')
+  }
+
+  const handleSaveAll = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingField('all')
+    setFieldStatuses({})
+
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        await updateProfile(user.id, activeAccount, {
+          display_name: displayName,
+          bio: bio,
+          follow: getParsedFollow(),
+        })
+      }
+
+      await supabase
+        .from('accounts')
+        .update({
+          blog_title: blogTitle,
+          blog_subtitle: blogSubtitle,
+        })
+        .eq('id', activeAccount.id)
+
+      await syncFromDatabase()
+
+      setFieldStatuses({
+        display_name: 'success',
+        bio: 'success',
+        follow: 'success',
+        blog_title: 'success',
+        blog_subtitle: 'success',
+        all: 'success',
+      })
+      router.refresh()
+    } catch (error) {
+      console.error('Failed to save all settings:', error)
+      setFieldStatuses({ all: 'error' })
+    } finally {
+      setSavingField(null)
+    }
   }
 
   const renderStatusIcon = (fieldKey: string) => {
     const status = fieldStatuses[fieldKey]
     if (status === 'success') {
-      return <Check size={20} className="text-emerald-500 stroke-[2.5]" style={{ color: '#10b981' }} />
+      return <Check size={20} className={styles.statusSuccessIcon} />
     }
     if (status === 'error') {
-      return <X size={20} className="text-rose-500 stroke-[2.5]" style={{ color: '#f43f5e' }} />
+      return <X size={20} className={styles.statusErrorIcon} />
     }
     return null
   }
@@ -142,7 +188,7 @@ export function ProfileManager() {
       <div className={styles.cardHeader}>
         <div className={styles.headerTitleGroup}>
           <UserPen size={21} strokeWidth={1.8} className={styles.headerIcon} />
-          <h1 className={styles.AccountCardHeader}>Profile Settings</h1>
+          <h1 className={styles.AccountCardHeader}>Profile & Blog Settings</h1>
         </div>
       </div>
 
@@ -168,7 +214,7 @@ export function ProfileManager() {
                   required
                 />
               </div>
-              <div className={styles.btnRow} style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+              <div className={styles.btnRow}>
                 {renderStatusIcon('display_name')}
                 <button
                   type="button"
@@ -177,6 +223,72 @@ export function ProfileManager() {
                   className="fullButtonGreen btn"
                 >
                   {savingField === 'display_name' ? 'Saving...' : 'Save Name'}
+                </button>
+              </div>
+            </div>
+
+            {/* Blog Title */}
+            <div className={styles.fieldBlock}>
+              <div className={styles.inputLine}>
+                <div className={styles.labelCol}>
+                  <label className={styles.fieldLabel}>Blog Title</label>
+                  <span className={styles.fieldHelpText}>
+                    Displayed on your site's header
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={blogTitle}
+                  onChange={(e) => {
+                    setBlogTitle(e.target.value)
+                    setFieldStatuses(prev => ({ ...prev, blog_title: null }))
+                  }}
+                  placeholder="e.g., Marko's Expedition Journal"
+                  className={styles.textInput}
+                />
+              </div>
+              <div className={styles.btnRow}>
+                {renderStatusIcon('blog_title')}
+                <button
+                  type="button"
+                  onClick={handleSaveBlogTitle}
+                  disabled={savingField !== null}
+                  className="fullButtonGreen btn"
+                >
+                  {savingField === 'blog_title' ? 'Saving...' : 'Save Title'}
+                </button>
+              </div>
+            </div>
+
+            {/* Blog Subtitle */}
+            <div className={styles.fieldBlock}>
+              <div className={styles.inputLine}>
+                <div className={styles.labelCol}>
+                  <label className={styles.fieldLabel}>Blog Subtitle</label>
+                  <span className={styles.fieldHelpText}>
+                    Brief summary used for header tagline and RSS feeds
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={blogSubtitle}
+                  onChange={(e) => {
+                    setBlogSubtitle(e.target.value)
+                    setFieldStatuses(prev => ({ ...prev, blog_subtitle: null }))
+                  }}
+                  placeholder="e.g., Dispatches on web engineering and distributed systems"
+                  className={styles.textInput}
+                />
+              </div>
+              <div className={styles.btnRow}>
+                {renderStatusIcon('blog_subtitle')}
+                <button
+                  type="button"
+                  onClick={handleSaveBlogSubtitle}
+                  disabled={savingField !== null}
+                  className="fullButtonGreen btn"
+                >
+                  {savingField === 'blog_subtitle' ? 'Saving...' : 'Save Subtitle'}
                 </button>
               </div>
             </div>
@@ -202,7 +314,7 @@ export function ProfileManager() {
                   maxLength={160}
                 />
               </div>
-              <div className={styles.btnRow} style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+              <div className={styles.btnRow}>
                 {renderStatusIcon('bio')}
                 <button
                   type="button"
@@ -235,7 +347,7 @@ export function ProfileManager() {
                   className={styles.textInput}
                 />
               </div>
-              <div className={styles.btnRow} style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+              <div className={styles.btnRow}>
                 {renderStatusIcon('follow')}
                 <button
                   type="button"
@@ -247,6 +359,7 @@ export function ProfileManager() {
                 </button>
               </div>
             </div>
+
           </div>
         </div>
 
@@ -257,7 +370,7 @@ export function ProfileManager() {
               <strong>Commit all changes</strong>
               <span className={styles.fieldHelpText}>Refresh your browser for changes to take effect</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className={styles.footerActionGroup}>
               {renderStatusIcon('all')}
               <button
                 type="submit"

@@ -20,6 +20,7 @@ import { DraftFinderModal } from '@/components/helpers/DraftFinderModal'
 import { NewDocModal } from '../helpers/NewDocModal'
 
 import { Highlight } from '@tiptap/extension-highlight'
+import { Underline } from '@tiptap/extension-underline' 
 
 export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
   const router = useRouter()
@@ -104,6 +105,7 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
     immediatelyRender: false,
     extensions: [
       StarterKit,
+      Underline,
       Highlight.configure({ multicolor: true }),
       Image.configure({ inline: true, allowBase64: false }),
       Placeholder.configure({ placeholder: 'Write something nice...' }),

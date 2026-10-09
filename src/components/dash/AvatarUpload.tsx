@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useAppStore } from "@/providers/AppStoreProvider"
 import { avatarSchema } from "@/lib/validations/primitives"
 import styles from '@/app/styles/dashboard.module.css'
-import { AVATAR_BUCKET_URL } from '@/lib/utils/constants'
+import { convertToWebP } from '@/components/blog/blogHelpers' // Adjust import path as needed
 import { Upload } from 'lucide-react'
 
 export function AvatarUpload() {
@@ -13,20 +13,22 @@ export function AvatarUpload() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  
   const [loadError, setLoadError] = useState(false)
 
   const userId = useAppStore((s) => s.userId) ?? ''
-  const avatarVersion = useAppStore((s) => s.avatarVersion || '')
-  const setAvatarVersion = useAppStore((s) => s.setAvatarVersion)
   const profile = useAppStore((s) => s.profile)
   const syncFromDatabase = useAppStore((s) => s.syncFromDatabase)
 
+  const CDN_BASE = process.env.NEXT_PUBLIC_R2_CDN_URL || 'https://assets.omen.land'
+
   const supabase = createClient()
-  const baseUrl = `${AVATAR_BUCKET_URL}/${userId}/avatar.png`
   
+  // Notice we use avatar.webp to match our WebP conversion format
+  const baseUrl = `${CDN_BASE}/${userId}/avatar.webp`
   const localPreview = selectedFile ? URL.createObjectURL(selectedFile) : null
-  const previewUrl = avatarVersion ? `${baseUrl}?v=${avatarVersion}` : baseUrl
+  const previewUrl = profile?.avatar_url 
+  ? `${CDN_BASE}/user-avatars/${userId}/${profile.avatar_url}`
+  : null
 
   const getInitials = () => {
     const identifier = profile?.username || profile?.email || 'OL'
@@ -38,35 +40,6 @@ export function AvatarUpload() {
       .join('')
       .toUpperCase()
       .slice(0, 2)
-  }
-
-  const handleDelete = async () => {
-    const confirmDelete = confirm("Are you sure you want to remove your avatar?")
-    if (!confirmDelete) return
-
-    setUploading(true)
-    setErrorMsg(null)
-
-    try {
-      const { error: dbError } = await supabase
-        .from('profiles')
-        .update({ has_avatar: false })
-        .eq('id', userId)
-
-      if (dbError) throw dbError
-
-      const filePath = `${userId}/avatar.png`
-      await supabase.storage.from('avatars').remove([filePath])
-
-      syncFromDatabase()
-      setLoadError(true)
-
-    } catch (error) {
-      console.error(error)
-      setErrorMsg("Could not delete avatar. Please try again.")
-    } finally {
-      setUploading(false)
-    }
   }
 
   const handleFileSelect = (file: File | undefined) => {
@@ -82,41 +55,101 @@ export function AvatarUpload() {
       return
     }
     setSelectedFile(file)
-  }
+    }
 
   const startUpload = async () => {
-    if (!selectedFile) return
-    setUploading(true)
-    setErrorMsg(null)
+      if (!selectedFile || !userId) return
+      setUploading(true)
+      setErrorMsg(null)
 
-    const filePath = `${userId}/avatar.png`
-    
-    const { error } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, selectedFile, {
-        cacheControl: '0',
-        upsert: true
-      })
+      try {
+        // 1. Convert image to WebP
+        const webpFile = await convertToWebP(selectedFile, {
+          maxWidth: 500,
+          maxSizeBytes: 500 * 1024,
+          initialQuality: 0.85,
+        })
 
-    setUploading(false)
+        // 2. Upload to Cloudflare R2
+        const formData = new FormData()
+        formData.append('file', webpFile)
+        formData.append('userId', userId)
 
-    if (error) {
-      setErrorMsg("Upload failed. Please try again.")
-    } else {
-      setAvatarVersion(Date.now().toString())
-      setSelectedFile(null)
+        const r2Res = await fetch('/api/upload-avatar', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!r2Res.ok) throw new Error('Failed to upload image to R2.')
+
+        // 3. Build relative path with cache buster
+        const cacheBuster = `avatar.webp?v=${Date.now()}`
+        // 4. Update Supabase DB
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .update({ 
+            has_avatar: true,
+            avatar_url: cacheBuster 
+          })
+          .eq('id', userId)
+
+        if (dbError) throw dbError
+
+        // 5. Reset local state & re-sync store
+        setSelectedFile(null)
+        await syncFromDatabase()
+      } catch (err: any) {
+        console.error('Avatar upload process failed:', err)
+        setErrorMsg(err.message || 'Upload failed. Please try again.')
+      } finally {
+        setUploading(false)
+      }
     }
-  }
+
+  const handleDelete = async () => {
+      if (!confirm("Are you sure you want to remove your avatar?")) return
+
+      setUploading(true)
+      setErrorMsg(null)
+
+      try {
+        // 1. Delete from Cloudflare R2
+        await fetch('/api/upload-avatar', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        })
+
+        // 2. Clear fields in Supabase DB
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .update({ 
+            has_avatar: false,
+            avatar_url: null 
+          })
+          .eq('id', userId)
+
+        if (dbError) throw dbError
+
+        await syncFromDatabase()
+        setLoadError(true)
+      } catch (error: any) {
+        console.error(error)
+        setErrorMsg("Could not delete avatar. Please try again.")
+      } finally {
+        setUploading(false)
+      }
+    }
 
   return (
     <div className={styles.gridCard}>
       <div className={styles.cardHeader}>
         <div className={styles.headerTitleGroup}>
-        <Upload size={21} strokeWidth={1.8} className={styles.headerIcon} />
-        <h1 className={styles.AccountCardHeader}>Upload your Avatar</h1>
+          <Upload size={21} strokeWidth={1.8} className={styles.headerIcon} />
+          <h1 className={styles.AccountCardHeader}>Upload your Avatar</h1>
         </div>
       </div>
-      
+
       <div className={styles.cardBody} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <label 
           className={`${styles.dropZone} ${isDragging ? styles.dragging : ''}`}
@@ -134,11 +167,11 @@ export function AvatarUpload() {
             accept="image/*"
             className={styles.hiddenInput}
           />
-          
+
           <div className={styles.circleWrapper}>
             {(localPreview || (profile?.has_avatar && !loadError)) ? (
               <img 
-                src={localPreview || previewUrl} 
+                src={localPreview || previewUrl || undefined} 
                 className={styles.avatarImg}
                 alt="Avatar Workspace Preview"
                 crossOrigin="anonymous"

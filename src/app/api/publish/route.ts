@@ -14,6 +14,7 @@ export async function POST(request: Request) {
   }
 
   const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
+  console.log('bucket name: ', bucketName)
     if (!bucketName) {
     console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
     return NextResponse.json(
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
     const manifestKey = `${accountSlug}/manifest.json`;
     let manifest = { posts: [] as { id: string; slug: string; title: string; subTitle?: string | null; heroImage?: string | null; publishedAt: string; updatedAt: string }[] };
 
+    console.log('DEBUG R2 BUCKET:', JSON.stringify(process.env.R2_USERCONTENT_BUCKET_NAME))
+    console.log('DEBUG R2 ENDPOINT:', process.env.R2_ACCOUNT_ID)
+
+    
     try {
       const existingManifest = await r2Client.send(
         new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })

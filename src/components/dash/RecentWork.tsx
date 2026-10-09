@@ -51,14 +51,25 @@ export function RecentWork() {
           target="_blank" 
           rel="noopener noreferrer"
         >
-          <button type="button" className="hollowButtonGreen btn">Let's go!</button>
+          <button type="button" className="hollowButtonGreen btn">Let's read!</button>
         </Link>
       </div>
-      <span className={styles.blogLinkText}>
-      <Link  href='dash/editor' > LET'S WRITE!</Link>
-      </span>
-      <div>YO</div>
-      <div>YO</div>
+
+      <div className={styles.blogLinkRow}>
+        <span className={styles.blogLinkText}>
+          It's time to put pen to paper for: <strong>{activeAccount?.account_slug}</strong>
+        </span>
+        
+        <Link 
+          href='dash/editor'
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <button type="button" className="hollowButtonGreen btn">Let's write!</button>
+        </Link>
+      </div>
+
+
     </div>
     <div className={styles.cardFooter}></div>
 </>

@@ -19,7 +19,9 @@ export async function fetchUserAccounts(
         plan_name,
         subscription_status,
         is_personal,
-        account_slug
+        account_slug,
+        blog_title,
+        blog_subtitle
       )
     `)
     .eq('user_id', userId);
@@ -44,6 +46,8 @@ export async function fetchUserAccounts(
         is_personal: !!acc.is_personal,
         can_publish: mem.can_publish,
         account_slug: acc.account_slug,
+        blog_title: acc.blog_title,
+        blog_subtitle:acc.blog_subtitle
       };
       //console.log("ACCOUNTS COLLECTED: ", returnValue, typeof(returnValue));
 
@@ -59,7 +63,7 @@ export async function getProfileFromUserId (uID:string){
   
   const { data: profile } = await supabase
     .from('profiles') // Ensure this matches your table name
-    .select('id, full_name, display_name, bio, follow, has_avatar, username, updated_at')
+    .select('id, full_name, display_name, bio, follow, has_avatar, username, updated_at, avatar_url')
     .eq('id', uID)
     .single()
   return profile;

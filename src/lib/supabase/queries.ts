@@ -7,6 +7,7 @@ import { Database, Tables } from '@/lib/tl_utils/database_types'
 import { SupabaseClient, QueryData } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
+import { Contributor} from "@/components/blog/blogHelpers";
 
 // Using 'cache' ensures that if you call this 3 times in 
 // one request, it only hits the database ONCE.
@@ -20,7 +21,7 @@ export const getProfile = cache(async () => {
 
   const { data: profile } = await supabase
     .from('profiles') // Ensure this matches your table name
-    .select('id, full_name, has_avatar, username, updated_at')
+    .select('id, full_name, has_avatar, username, updated_at, avatar_url')
     .eq('id', user.id)
     .single()
   console.log("getP is finding:", profile)
@@ -246,6 +247,38 @@ export async function getActiveUserAccount( user_id: string) {
   return membership;
 }
 
+export async function getPublishingContributors(accountId: string) {
+  const supabase = await createAdminClient()
+  const cdnBase = process.env.NEXT_PUBLIC_R2_CDN_URL || 'https://assets.omen.land'
+
+  const { data: publishingMembers } = await supabase
+    .from('memberships')
+    .select('user_id')
+    .eq('account_id', accountId)
+    .eq('can_publish', true)
+
+  if (!publishingMembers?.length) return []
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username, full_name, display_name, bio, avatar_url')
+    .in('id', publishingMembers.map((m) => m.user_id))
+
+  return (profiles || []).map((p) => {
+    // Predictable URL: BASE_URL / user-avatars / USER_ID / FILENAME
+    const fileName = p.avatar_url || 'avatar.webp'
+    const avatarUrl = `${cdnBase}/user-avatars/${p.id}/${fileName}`
+
+    return {
+      id: p.id,
+      name: p.display_name || p.full_name || p.username || 'Contributor',
+      username: p.username,
+      bio: p.bio,
+      avatarUrl,
+    }
+  })
+}
+
 //get ALL ACCOUNTS this user owns 
 export async function getActiveUserAccounts(user_id: string) {
   const supabaseAdmin = await createAdminClient();
@@ -382,7 +415,11 @@ const getAccountContextQuery = (supabase: SupabaseClient, userId: string, accoun
         stripe_subscription_id,
         subscription_status,
         stripe_subscription_item_id,
-        plan_name
+        plan_name,
+        blog_title,
+        blog_subtitle,
+        account_slug,
+        name
       )
     `)
     .eq('user_id', userId)
@@ -422,6 +459,9 @@ export async function getAccountContext(
     stripeSubscriptionItemId: accountData?.stripe_subscription_item_id || null,
     subscriptionStatus: accountData?.subscription_status || null,
     planName: accountData?.plan_name || null,
+    blog_title:  accountData?.blog_title || accountData.name,
+    blog_subtitle: accountData?.blog_subtitle || null,
+    account_slug:accountData?.account_slug
   }
 }
 
@@ -454,6 +494,8 @@ interface DatabaseMembership {
     subscription_status?: string | null;
     is_personal?: boolean | null;
     account_slug:string;
+    blog_title:string;
+    blog_subtitle: string | null;
   } | null | unknown; // accounts can be an object, null, or unknown before filtering
 }
 
@@ -480,6 +522,7 @@ export async function generateUserSessionPayload(
     hasAvatar: !!profile.has_avatar,
     bio:profile.bio,
     display_name:profile.display_name,
+    avatar_url: profile.avatar_url ?? null,
   };
 
   if (memberships.length === 0) {
@@ -510,7 +553,9 @@ export async function generateUserSessionPayload(
         role: mem.role as "owner" | "member",
         is_personal: !!acc.is_personal,
         can_publish: !!mem.can_publish,
-        account_slug: acc.account_slug
+        account_slug: acc.account_slug,
+        blog_title:acc.blog_title,
+        blog_subtitle: acc.blog_subtitle
       };
     })
     .sort((a, b) => {
