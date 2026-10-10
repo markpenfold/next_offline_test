@@ -17,7 +17,7 @@ interface GPUStatus {
   [key: string]: any;
 }
 
-export type PanelTab = 'histories' | 'events';
+export type PanelTab = "free" | "pro" | "selected" | "events";
 
 export interface UIStore {
 
@@ -253,7 +253,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setSelectedLink: (link) => set({ selectedLink: link }),
   
   // Histories and Events Window
-  activePanelTab: 'histories',
+  activePanelTab: 'free',
   setActivePanelTab: (tab) => set({ activePanelTab: tab }),
   
   // Event State

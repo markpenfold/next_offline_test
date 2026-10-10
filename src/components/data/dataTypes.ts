@@ -10,6 +10,7 @@ export interface AvailableIndex {
   version: string;
   sizeBytes: number;
   handle?: FileSystemFileHandle; 
+  collection?: string;
 }
 
 export interface AvailableIndex2 {

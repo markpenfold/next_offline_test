@@ -1,3 +1,4 @@
+// components/omenland/IndexLoader.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,9 +9,6 @@ import {
   CheckCircle2, 
   AlertCircle, 
   GripVertical, 
-  FolderOpen, 
-  Save, 
-  Layers, 
   HardDrive, 
   WifiOff 
 } from "lucide-react";
@@ -25,19 +23,23 @@ import { formatIndexDisplayName, formatYear } from "@/components/data/dataHelper
 import { loadShardIntoEngine, rebuildDataView } from "@/components/data/duckDATA";
 import { useConnectivityStore } from "@/stores/useConnectivityStore";
 
+interface IndexLoaderProps {
+  source?: "free" | "pro" | "selected";
+}
 
-export function IndexLoader() {
+export function IndexLoader({ source = "free" }: IndexLoaderProps) {
   const [draggedSlotIndex, setDraggedSlotIndex] = useState<number | null>(null);
   
   // OPFS Cache Map for index files
   const [opfsMap, setOpfsMap] = useState<Record<string, boolean>>({});
 
-  // 🟢 Online Status & Stores
+  // Online Status & Stores
   const isOnline = useConnectivityStore(
-  state => state.network === 'online'
-);
+    state => state.network === 'online'
+  );
   
   const setFinderOpen = useUIStore((s) => s.setFinderOpen);
+  const setActivePanelTab = useUIStore((s) => s.setActivePanelTab);
   const activeAccount = useAppStore((s) => s.activeAccount);
   const availableIndexes = useDATAStore((s) => s.availableIndexes);
   const loadingKeys = useUIStore((s) => s.loadingKeys);
@@ -46,7 +48,7 @@ export function IndexLoader() {
   const slots = useDATAStore((s) => s.slots);
   const downloadStatuses = useDATAStore((s) => s.downloadStatuses);
 
-  // 🟢 OPFS Data Shards State & Store Actions
+  // OPFS Data Shards State & Store Actions
   const dataShards = useDATAStore((s) => s.dataShards);
   const refreshDataShards = useDATAStore((s) => s.refreshDataShards);
 
@@ -58,45 +60,38 @@ export function IndexLoader() {
   const reorderSlots = useDATAStore((s) => s.reorderSlots);
 
   // Helper to re-sync active slots into DuckDB and rebuild currentDataView
-const syncDuckDBView = async (activeSlots: typeof slots) => {
-  console.log("SUNC DDB VIEW")
-  try {
-    const mountedFileNames: string[] = [];
+  const syncDuckDBView = async (activeSlots: typeof slots) => {
+    try {
+      const mountedFileNames: string[] = [];
 
-    for (const slot of activeSlots) {
-      if (!slot.fileName) continue;
+      for (const slot of activeSlots) {
+        if (!slot.fileName) continue;
 
-      // 1. Derive the expected local shard names (pre_1900 and post_1900)
-      const shardMetas = getLocalShardNamesFromIndex(slot.fileName);
+        const shardMetas = getLocalShardNamesFromIndex(slot.fileName);
 
-      for (const { localFileName } of shardMetas) {
-        // 2. Check if the Parquet file exists in OPFS /data directory
-        const exists = await checkFileExists("data", localFileName);
-        
-        if (exists) {
-          // 3. Mount existing shard into DuckDB VFS
-          const mountedName = await loadShardIntoEngine("data", localFileName);
-          if (mountedName) {
-            mountedFileNames.push(mountedName);
+        for (const { localFileName } of shardMetas) {
+          const exists = await checkFileExists("data", localFileName);
+          
+          if (exists) {
+            const mountedName = await loadShardIntoEngine("data", localFileName);
+            if (mountedName) {
+              mountedFileNames.push(mountedName);
+            }
           }
         }
       }
+
+      await rebuildDataView(mountedFileNames);
+    } catch (err) {
+      console.error("🚨 [DuckDB] Failed to rebuild currentDataView:", err);
     }
+  };
 
-    // 4. Rebuild the DuckDB currentDataView over all active, mounted shards
-    await rebuildDataView(mountedFileNames);
-    //console.log("✅ [DuckDB] Synchronized view with active shards:", mountedFileNames);
-  } catch (err) {
-    console.error("🚨 [DuckDB] Failed to rebuild currentDataView:", err);
-  }
-};
-
-  // 🟢 Scan OPFS indexes and data shards on mount / when availableIndexes update
+  // Scan OPFS indexes and data shards on mount / when availableIndexes update
   useEffect(() => {
     let isMounted = true;
 
     async function scanLocalFiles() {
-      // 1. Check OPFS for index JSON/meta files
       const checks = await Promise.all(
         availableIndexes.map(async (item) => {
           const exists = await checkFileExists("indexes", item.fileName);
@@ -104,9 +99,7 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
         })
       );
 
-      // 2. 🟢 Scan OPFS /data directory for Parquet shards and auto-update store
       let shardsAvailable = await refreshDataShards();
-      //console.log("AVAILABLE SHARDS: ", shardsAvailable)
 
       if (isMounted) {
         setOpfsMap(Object.fromEntries(checks));
@@ -122,25 +115,30 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
     };
   }, [availableIndexes, refreshDataShards]);
 
-  // Dynamic sorting: Active slots adhere strictly to stack index order
-  const sortedAvailableIndexes = [...availableIndexes].sort((a, b) => {
-    const slotIdxA = slots.findIndex((s) => s.fileName === a.fileName);
-    const slotIdxB = slots.findIndex((s) => s.fileName === b.fileName);
+  // Dynamic sorting and filtering based on active tab source ("free", "pro", or "selected")
+  const sortedAvailableIndexes = [...availableIndexes]
+    .filter((item) => {
+      const isItemActive = slots.some((s) => s.fileName === item.fileName);
+      const isProItem = item.tier === "pro";
 
-    const isAActive = slotIdxA !== -1;
-    const isBActive = slotIdxB !== -1;
+      if (source === "selected") {
+        return isItemActive; // Only show active items in the Selected tab
+      }
+      return source === "pro" ? isProItem : !isProItem;
+    })
+    .sort((a, b) => {
+      const slotIdxA = slots.findIndex((s) => s.fileName === a.fileName);
+      const slotIdxB = slots.findIndex((s) => s.fileName === b.fileName);
 
-    if (isAActive && isBActive) return slotIdxB - slotIdxA;
-    if (isAActive) return -1;
-    if (isBActive) return 1;
+      const isAActive = slotIdxA !== -1;
+      const isBActive = slotIdxB !== -1;
 
-    const isAFree = a.tier !== "pro";
-    const isBFree = b.tier !== "pro";
-    if (isAFree && !isBFree) return -1;
-    if (!isAFree && isBFree) return 1;
+      if (isAActive && isBActive) return slotIdxB - slotIdxA;
+      if (isAActive) return -1;
+      if (isBActive) return 1;
 
-    return a.fileName.localeCompare(b.fileName);
-  });
+      return a.fileName.localeCompare(b.fileName);
+    });
 
   // Add and remove timelines from the terrain
   const handleToggleDataView = async (item: AvailableIndex) => {
@@ -156,7 +154,6 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
 
       if (isActive) {
         removeFromSlot(fileName);
-        // Rebuild DuckDB view with remaining active slots
         const nextSlots = slots.filter((s) => s.fileName !== fileName);
         await syncDuckDBView(nextSlots);
         return;
@@ -164,35 +161,31 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
 
       if (slots.length >= 12) return;
 
-      // Check OPFS locally first ////////////////////////////////////////
       let existsOnDisk = opfsMap[fileName];
       if (existsOnDisk === undefined) {
         existsOnDisk = await checkFileExists("indexes", fileName);
       }
 
-      // If missing locally AND offline, abort //////////////////////////////////
       if (!existsOnDisk && !isOnline) {
         console.warn(`Cannot fetch ${fileName} - offline and not found in OPFS.`);
         return;
       }
 
-      // Fetch index from R2 if not local //////////////////////////////////////////
       if (!existsOnDisk) {
         const result = await getMasterIndex({ item, accountId });
         if (!result.success) throw new Error(`Failed to download ${fileName}`);
-        // Update OPFS local state map
         setOpfsMap((prev) => ({ ...prev, [fileName]: true }));
       }
 
       await addToSlot(item);
       await getFullDataShards(item, accountId);
-
-      // 🟢 Auto-refresh local OPFS dataShards in store after sync
       await refreshDataShards();
 
-      // 🟢 Rebuild DuckDB view with the newly added slot
       const updatedSlots = useDATAStore.getState().slots;
       await syncDuckDBView(updatedSlots);
+
+      // Automatically switch to the "Selected" tab upon adding a dataset
+      setActivePanelTab("selected");
 
     } catch (err) {
       console.error(`Failed to toggle ${fileName}:`, err);
@@ -223,10 +216,12 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
   return (
     <div className={styles.container}>
       <div className={styles.panelContainer}>
-
-
         {isInitializing ? (
           <p className={styles.initializingText}>Loading histories</p>
+        ) : sortedAvailableIndexes.length === 0 ? (
+          <p className={styles.initializingText} style={{ padding: '20px', color: '#777' }}>
+            {source === "selected" ? "No datasets selected" : `No ${source} histories available`}
+          </p>
         ) : (
           <div className={styles.itemList}>
             {sortedAvailableIndexes.map((item) => {
@@ -238,7 +233,6 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
               const slotColor = matchingSlot?.color;
               const downloadStatus = downloadStatuses[item.fileName] || "idle";
 
-              // 🟢 Offline Availability Determination
               const isCachedInOpfs = opfsMap[item.fileName] ?? false;
               const canActivate = isActive || isCachedInOpfs || isOnline;
 
@@ -254,14 +248,12 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
                   } ${!canActivate ? styles.itemRowDisabled : ""}`}
                 >
                   <div className={styles.itemLeft}>
-                    {/* Drag Handle Icon for active items */}
                     {isActive && (
                       <span className={styles.dragHandle} title="Drag to reorder strata position">
                         <GripVertical size={12} />
                       </span>
                     )}
 
-                    {/* Tier Badge */}
                     <span
                       className={`${styles.tierBadge} ${
                         item.tier === "pro" ? styles.tierBadgePro : styles.tierBadgeFree
@@ -270,7 +262,6 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
                       {item.tier ? item.tier.charAt(0) : "F"}
                     </span>
 
-                    {/* Color Swatch */}
                     <div
                       className={`${styles.colorSwatch} ${
                         isActive ? styles.colorSwatchActive : styles.colorSwatchInactive
@@ -290,17 +281,14 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
                       )}
                     </div>
 
-                    {/* Display Name */}
                     <span className={styles.displayName}>{displayName}</span>
 
-                    {/* 🟢 Storage / Network Badge */}
                     {isCachedInOpfs && !isActive && (
                       <span title="Stored locally in OPFS" className={styles.localBadge}>
                         <HardDrive size={11} />
                       </span>
                     )}
 
-                    {/* Download Indicator */}
                     {downloadStatus === "downloading" && (
                       <span className={styles.statusDownloading}>
                         <Loader2 className="animate-spin" size={11} />
@@ -319,7 +307,6 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
                   </div>
 
                   <div className={styles.itemRight}>
-                    {/* Ticket Stub Years Container */}
                     {isActive && matchingSlot && (
                       <div className={styles.yearsContainer}>
                         <span className={styles.yearText}>
@@ -331,14 +318,12 @@ const syncDuckDBView = async (activeSlots: typeof slots) => {
                       </div>
                     )}
 
-                    {/* Event Count Box */}
                     {isActive && matchingSlot && (
                       <span className={styles.countBox}>
                         {(matchingSlot.totalEvents ?? 0).toLocaleString()}
                       </span>
                     )}
 
-                    {/* Action Button */}
                     <button
                       disabled={isLoading || (!isActive && !canActivate)}
                       onClick={() => handleToggleDataView(item)}

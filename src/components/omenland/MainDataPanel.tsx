@@ -5,14 +5,13 @@ import React from "react";
 import { useUIStore } from "@/stores/useUIStore";
 import { IndexLoader } from "./IndexLoader";
 import { EventsList } from "./EventList";
-import { WindowBar, WindowBarIconButton } from "./WindowBar";
-import { Layers, ListFilter, FolderOpen, Save } from "lucide-react";
+import { WindowBar } from "./WindowBar";
+import { Layers, ShieldCheck, CheckSquare, ListFilter } from "lucide-react";
 import styles from "@/app/styles/omenland.module.css";
 
 export function MainDataPanel() {
   const activePanelTab = useUIStore((state) => state.activePanelTab);
   const setActivePanelTab = useUIStore((state) => state.setActivePanelTab);
-
   const latestClickedEvents = useUIStore((state) => state.latestClickedEvents);
 
   return (
@@ -21,17 +20,43 @@ export function MainDataPanel() {
         className={styles.windowbarHeader}
         title={
           <div className={styles.windowBarTabGroup}>
+            {/* Free Tab */}
             <button
               type="button"
               className={`${styles.windowBarTab} ${
-                activePanelTab === "histories" ? styles.windowBarTabActive : ""
+                activePanelTab === "free" ? styles.windowBarTabActive : ""
               }`}
-              onClick={() => setActivePanelTab("histories")}
+              onClick={() => setActivePanelTab("free")}
             >
               <Layers size={13} />
-              <span>Histories</span>
+              <span>Free</span>
             </button>
 
+            {/* Pro Tab */}
+            <button
+              type="button"
+              className={`${styles.windowBarTab} ${
+                activePanelTab === "pro" ? styles.windowBarTabActive : ""
+              }`}
+              onClick={() => setActivePanelTab("pro")}
+            >
+              <ShieldCheck size={13} />
+              <span>Pro</span>
+            </button>
+
+            {/* Selected Tab */}
+            <button
+              type="button"
+              className={`${styles.windowBarTab} ${
+                activePanelTab === "selected" ? styles.windowBarTabActive : ""
+              }`}
+              onClick={() => setActivePanelTab("selected")}
+            >
+              <CheckSquare size={13} />
+              <span>Selected</span>
+            </button>
+
+            {/* Events Tab */}
             <button
               type="button"
               className={`${styles.windowBarTab} ${
@@ -49,12 +74,13 @@ export function MainDataPanel() {
             </button>
           </div>
         }
-      >
-
-      </WindowBar>
+      />
 
       <div className={styles.tabContentArea}>
-        {activePanelTab === "histories" ? <IndexLoader /> : <EventsList />}
+        {activePanelTab === "free" && <IndexLoader source="free" />}
+        {activePanelTab === "pro" && <IndexLoader source="pro" />}
+        {activePanelTab === "selected" && <IndexLoader source="selected" />}
+        {activePanelTab === "events" && <EventsList />}
       </div>
     </div>
   );

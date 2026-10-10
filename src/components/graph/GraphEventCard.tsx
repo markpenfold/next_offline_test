@@ -188,7 +188,7 @@ export function GraphEventCard({ item, onRemove, bg }: GraphEventCardProps) {
           ) : (
             <CircleDot size={10} fill={collectionColor} strokeWidth={0} />
           )}
-          <span>{item.subject}</span>
+          <span>{item.subject} - {item.year}</span>
 
           <div className={classes.buttonz}>
             <ChevronDown

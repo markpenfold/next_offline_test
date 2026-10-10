@@ -51,6 +51,10 @@ function RotatingFlag({ position }: { position: [number, number, number] }) {
       groupRef.current.rotation.y += delta * 0.35;
     }
 
+    if (groupRef .current) {
+      groupRef.current.position.y = 3.0 + Math.sin(time * 5.0) * 0.8;
+    }
+
     // 2. Sine wave oscillator between 0 and 1 (speed factor = 3.0)
     const pulse = (Math.sin(time * 3.0) + 1.0) / 2.0;
 
@@ -72,7 +76,7 @@ function RotatingFlag({ position }: { position: [number, number, number] }) {
       {/* Dynamic Golden Light Casting on Nearby Peaks */}
       <pointLight
         ref={lightRef}
-        color="#ffb700"
+        color="#9e8899"
         distance={25}
         decay={2}
         position={[0, 1.5, 0]}
@@ -80,12 +84,16 @@ function RotatingFlag({ position }: { position: [number, number, number] }) {
 
       {/* Rotating Inverted Pyramid Mesh */}
       <group ref={groupRef}>
-        <mesh position={[0, 3.0, 0]} rotation={[Math.PI, 0, 0]}>
-          <coneGeometry args={[2.4, 6.0, 4]} />
+        <mesh 
+        position={[0, 3.0, 0]} 
+        rotation={[Math.PI, 0, 0]}
+        castShadow
+        >
+          <torusGeometry args={[5, 1, 8]} />
           <meshStandardMaterial
             ref={materialRef}
-            color="#d93838"
-            emissive="#ff9900"
+            color="#38d95e"
+            emissive="#55b1ee"
             emissiveIntensity={0.5}
             roughness={0.3}
             metalness={0.2}
@@ -130,7 +138,7 @@ export function TerrainFlags() {
       const z = ((row + 0.5) / 32) * 400 - 200;
 
       const peakCeiling = getSimplePeakCeiling(gridIndex, slots);
-      const y = peakCeiling * 0.8;
+      const y = peakCeiling * 0.80;
 
       flags.push({ year, position: [x, y, z] });
     });

@@ -77,6 +77,7 @@ export function Scene() {
         material={material}
         position={[0, 0, 0]}
         raycast={() => null}
+        receiveShadow
       />
 
       {/* 2. Ultra-fast 2-Triangle Raycast Proxy Plane */}

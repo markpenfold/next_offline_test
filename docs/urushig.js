@@ -94,9 +94,9 @@ export const getUrushiG = (g, hoverUV) => {
     const lacquerBandsWithHeight = bandColorOut.mul(heightVariation);
 
     // Subtle Subsurface Warmth 
-    const sssWarmth = color('#3e3837'); 
-    const sssIntensity = clamp(positionLocal.y.mul(0.05), float(0.0), float(0.1));
-    const lacquerWithSSS = mix(lacquerBandsWithHeight, sssWarmth, sssIntensity.mul(0.02));
+    const sssWarmth = color('#7a1a0c'); 
+    const sssIntensity = clamp(positionLocal.y.mul(0.05), float(0.0), float(1.0));
+    const lacquerWithSSS = mix(lacquerBandsWithHeight, sssWarmth, sssIntensity.mul(0.12));
 
     // Solid orange-red dot blend
     const finalColorWithDot = mix(lacquerWithSSS, dotColor, coreMask);
@@ -108,8 +108,8 @@ export const getUrushiG = (g, hoverUV) => {
 
   // Roughness: 1.0 (completely matte) at zero level, glossy/dot roughness above
   mat.roughnessNode = Fn(() => {
-    const lacquerRoughness = float(0.63); 
-    const dotRoughness = float(0.4);
+    const lacquerRoughness = float(0.33); 
+    const dotRoughness = float(0.2);
     const terrainRoughness = mix(lacquerRoughness, dotRoughness, coreMask);
 
     return mix(float(1.0), terrainRoughness, heightMask);
@@ -126,11 +126,11 @@ export const getUrushiG = (g, hoverUV) => {
 
   // Clearcoat: Disabled at zero level to eliminate reflections
   mat.clearcoatNode = Fn(() => {
-    return mix(float(0.5), float(0.3), heightMask);
+    return mix(float(0.0), float(1.0), heightMask);
   })();
 
   mat.clearcoatRoughnessNode = Fn(() => {
-    return mix(float(10.0), float(1.06), heightMask);
+    return mix(float(1.0), float(0.06), heightMask);
   })();
 
   // Transmission: Translucent terrain above, solid non-translucent at zero level
@@ -140,7 +140,7 @@ export const getUrushiG = (g, hoverUV) => {
   })();
 
   mat.thicknessNode = Fn(() => {
-    return float(0.95);
+    return float(0.35);
   })();
 
   mat.attenuationColorNode = Fn(() => {
