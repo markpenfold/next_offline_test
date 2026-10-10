@@ -42,10 +42,7 @@ export async function POST(request: Request) {
     const manifestKey = `${accountSlug}/manifest.json`;
     let manifest = { posts: [] as { id: string; slug: string; title: string; subTitle?: string | null; heroImage?: string | null; publishedAt: string; updatedAt: string }[] };
 
-    console.log('DEBUG R2 BUCKET:', JSON.stringify(process.env.R2_USERCONTENT_BUCKET_NAME))
-    console.log('DEBUG R2 ENDPOINT:', process.env.R2_ACCOUNT_ID)
 
-    
     try {
       const existingManifest = await r2Client.send(
         new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })

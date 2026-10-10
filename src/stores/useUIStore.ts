@@ -1,17 +1,16 @@
 // stores/useUIStore.ts
 import { create } from 'zustand';
 import { useDATAStore } from '@/stores/useDataStore';
-import { checkWebGPUSupport, WebGPUStatus } from '@/lib/utils/general';
+import { checkWebGPUSupport } from '@/lib/utils/general';
 import {
-  loadGpuSettingsFromOPFS,
   saveGpuSettingsToOPFS,
-  OPFSGpuSettings,
 } from '@/components/data/diskOPFS';
 
 import { showWebGPUToast } from '@/lib/utils/webgpuToast';
 import { TimelineEvent, EventLink } from "@/components/omenland/omenTypes";
-import { GraphNode, GraphLink, GraphData } from "@/components/omenland/omenTypes";
+import { GraphData } from "@/components/omenland/omenTypes";
 import { sortTimelineEvents } from '@/lib/utils/general';
+import type { BufferGeometry } from 'three';
 
 interface GPUStatus {
   supported: boolean;
@@ -21,6 +20,16 @@ interface GPUStatus {
 export type PanelTab = 'histories' | 'events';
 
 export interface UIStore {
+
+  terrainGeometry: BufferGeometry | null;
+  setTerrainGeometry: (geo: BufferGeometry) => void;
+  resolution:number;
+
+  // Flags Display Toggle
+  showFlags: boolean;
+  setShowFlags: (show: boolean) => void;
+  toggleFlagsVisibility: () => void;
+  
 
   //Graph view items
   graphData: GraphData;
@@ -86,6 +95,17 @@ export interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set, get) => ({
+
+  terrainGeometry: null,
+  setTerrainGeometry: (geo) => set({ terrainGeometry: geo }),
+
+  resolution: 512,
+
+  // 2. Flags Visibility Toggle
+  showFlags: true,
+  setShowFlags: (show) => set({ showFlags: show }),
+  toggleFlagsVisibility: () => set((state) => ({ showFlags: !state.showFlags })),
+
 
   //////////////////////////////////////////////////////////////////////////
   // EVENT METADATA - notes, graph positions, links ////////////////////////

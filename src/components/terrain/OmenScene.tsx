@@ -1,7 +1,7 @@
 
 import { getUrushiG } from './shaders/urushiG';
 import { useMemo, useRef } from 'react';
-import { StorageBufferAttribute, MeshBasicNodeMaterial } from 'three/webgpu';
+import { StorageBufferAttribute } from 'three/webgpu';
 import * as THREE from 'three/webgpu';
 import { useThree } from '@react-three/fiber';
 import { TerrainOrchestrator } from './tO';
@@ -10,10 +10,8 @@ import { Vector3 } from 'three';
 import { useUIStore } from '@/stores/useUIStore';
 import { queryEventsByYear } from "@/components/data/duckDATA";
 import { useDATAStore } from '@/stores/useDataStore';
-
-interface SceneProps {
-  resolution?: number;
-}
+import type { BufferGeometry } from 'three';
+import { TerrainFlags } from '../omenland/TerrainFlags';
 
 export async function handleTerrainDoubleClick(targetYear: number) {
   // console.log("HIT THE DOUBLE TAP: ", targetYear);
@@ -30,13 +28,13 @@ export async function handleTerrainDoubleClick(targetYear: number) {
 
 
 
-export function Scene({ resolution = 512 }: SceneProps) {
+export function Scene() {
   const meshRef = useRef<THREE.Mesh>(null);
   const tempVec = useRef(new Vector3());
   const invalidate = useThree((state) => state.invalidate);
   const setHoverCoord = useUIStore((state) => state.setHoverCoord);
-  const setActivePanelTab = useUIStore((state) => state.setActivePanelTab);
-  const setLatestClickedEvents = useUIStore((state) => state.setLatestClickedEvents);
+  const setTerrainGeometry = useUIStore((state) => state.setTerrainGeometry);
+  const resolution = useUIStore((state) => state.resolution);
 
   ///////////////////////////////////////////////////////////
   // 1. BASE GEOMETRY (Allocated once with Storage Buffers)
@@ -60,12 +58,15 @@ export function Scene({ resolution = 512 }: SceneProps) {
     geo.userData.averageHeight = 5;
     geo.userData.numTimelines = 12;
 
+    // Store reference for UI / Event position lookups
+    setTerrainGeometry(geo as unknown as BufferGeometry);
+
     return geo;
   }, [resolution]);
 
   const material = useMemo(() => {
     return getUrushiG(geometry, null);
-  }, [geometry]);
+  }, [geometry, setTerrainGeometry]);
 
   return (
     <>
@@ -133,6 +134,7 @@ export function Scene({ resolution = 512 }: SceneProps) {
         <meshBasicMaterial visible={false} />
       </mesh>
 
+      <TerrainFlags />
       <TerrainGrid />
       <TerrainOrchestrator 
         geometry={geometry} 

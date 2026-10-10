@@ -30,6 +30,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "src/components/terrain/urushiChan.js"  ],
+, "src/components/terrain/urushiChan.js", "workers/index.js"  ],
   "exclude": ["node_modules", "workers"]
 }

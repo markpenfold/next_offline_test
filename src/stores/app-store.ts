@@ -26,8 +26,8 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     
     setActiveAccount: (accChoice: AccountContext) => {
       set((state) => {
-        // 1. Get the new tier from the chosen account (fallback to current state tier if undefined)
-        const newTier = accChoice?.plan_name || state.tier;
+        // 1. Get the new tier from the chosen account (fallback to free tier if undefined)
+        const newTier = accChoice?.plan_name || TIERS.FREE;
 
         // 2. Sync the updated selection to localStorage so refreshes keep the context
         try {
@@ -106,7 +106,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
       try {
         const parsed = JSON.parse(savedLease);
         const decoded = decodeLeaseJwt(parsed.offlineLeaseJwt);
-        console.log("FROM CACHE: ", parsed);
+        console.log("DEBUG FROM CACHE JUNGLE LEASE: ", parsed);
         
         // Ensure token exists and hasn't expired yet
         if (decoded && decoded.exp > Math.floor(Date.now() / 1000)) {
@@ -206,12 +206,24 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
           activeAccount: targetActiveAccount,
           authStatus: 'authenticated'
         });
+        let accountSlug = get().activeAccount?.account_slug
+        let aID = get().activeAccount?.id
+          
+        if(accountSlug && aID){
+          // rebuild blog index page
+            fetch('/api/rebuild-index', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({  accountSlug: accountSlug, accountId: aID  }),
+                }).catch((err) => console.error('Failed to trigger index rebuild:', err))
+          }
+        
 
         // Successfully connected to DB, so mark network as online
         if (useConnectivityStore.getState().network !== 'online') {
           useConnectivityStore.getState().setNetworkStatus('online');
         }
-          console.log("Client workspace successfully synced with live database source-of-truth.");
+          console.log("Client workspace successfully synced with the big O.");
 
         } catch (err) {
           console.error("Critical error encountered during live network sync:", err);

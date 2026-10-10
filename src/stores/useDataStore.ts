@@ -62,6 +62,11 @@ export interface Slot {
 // ============================================================================
 
 export interface DATAStore {
+  currentPalette: string[];
+  
+  // Actions
+  togglePalette: () => void;
+  
   availableIndexes: any[];
   downloadedIndexes: any[];
   dataShards: AvailableDataShard[];
@@ -235,6 +240,25 @@ function toIndexFileName(fileName: string): string {
 // ============================================================================
 
 export const useDATAStore = create<DATAStore>((set, get) => ({
+
+  currentPalette: COLLECTION_COLORS_T6,
+
+  togglePalette: () => {
+    const isCurrentlyColor = get().currentPalette === COLLECTION_COLORS_T6;
+    const nextPalette = isCurrentlyColor ? COLLECTION_COLORS_T6_GREYSCALE : COLLECTION_COLORS_T6;
+
+    // Re-map active slot colors directly using the new palette
+    const updatedSlots = get().slots.map((slot, idx) => ({
+      ...slot,
+      color: nextPalette[idx % 12],
+    }));
+
+    set({
+      currentPalette: nextPalette,
+      slots: updatedSlots,
+      lastChangedSlot: { indices: 'ALL', nonce: Date.now() },
+    });
+  },
   // Initial State
   availableIndexes: [],
   downloadedIndexes: [],
@@ -330,7 +354,8 @@ export const useDATAStore = create<DATAStore>((set, get) => ({
       item.category
     );
 
-    const defaultColor = COLLECTION_COLORS_T6[newStackIndex % 12];
+    const palette = get().currentPalette;
+    const defaultColor = palette[newStackIndex % 12];
 
     const newSlot: Slot = {
       id: newStackIndex,

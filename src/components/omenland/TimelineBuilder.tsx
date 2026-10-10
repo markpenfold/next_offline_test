@@ -58,7 +58,7 @@ export function TimelineBuilder() {
     return [0, 2025];
   }, [itemYearRange]);
 
-  // 🟢 1. FIX RULER DENSITY: 10 step fractions for 11 ruler markings
+  // RULER DENSITY: 10 step fractions for 11 ruler markings
   const rulerFractions = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
 
   return (
@@ -92,7 +92,7 @@ export function TimelineBuilder() {
 
       {isOpen && (
         <>
-          {/* 🟢 1. FIX PADDING & ALIGNMENT: 16px horizontal inset and text alignment transforms */}
+          {/* PADDING & ALIGNMENT: 16px horizontal inset and text alignment transforms */}
           <div className={styles.timelineRuler} style={{ padding: "0 16px" }}>
             <div className={styles.timelineRulerLabels} style={{ position: "relative", height: "18px" }}>
               {rulerFractions.map((fraction, idx) => {
