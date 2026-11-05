@@ -19,16 +19,19 @@ export function AvatarUpload() {
   const profile = useAppStore((s) => s.profile)
   const syncFromDatabase = useAppStore((s) => s.syncFromDatabase)
 
-  const CDN_BASE = process.env.NEXT_PUBLIC_R2_CDN_URL || 'https://assets.omen.land'
+  const CDN_BASE = process.env.NEXT_PUBLIC_R2_CDN_URL || "https://assets.omen.land"
 
   const supabase = createClient()
   
+  
   // Notice we use avatar.webp to match our WebP conversion format
-  const baseUrl = `${CDN_BASE}/${userId}/avatar.webp`
+  const baseUrl = `${CDN_BASE}/user-avatars/${userId}/avatar.webp`
   const localPreview = selectedFile ? URL.createObjectURL(selectedFile) : null
   const previewUrl = profile?.avatar_url 
   ? `${CDN_BASE}/user-avatars/${userId}/${profile.avatar_url}`
   : null
+
+  console.log("WTF? ", previewUrl)
 
   const getInitials = () => {
     const identifier = profile?.username || profile?.email || 'OL'

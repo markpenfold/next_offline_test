@@ -76,6 +76,9 @@ function AuthenticatedSiteNav() {
   // Construct URL directly from profile.avatar_url
  const CDN_BASE = process.env.NEXT_PUBLIC_R2_CDN_URL || 'https://assets.omen.land'
 
+ console.log("FUFLKJLJF: ", [profile?.avatar_url])
+ console.log("HAs avatar?: ", [profile?.has_avatar])
+
 const avatarUrl = profile?.avatar_url 
   ? `${CDN_BASE}/user-avatars/${profile.id}/${profile.avatar_url}`
   : null

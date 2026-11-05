@@ -93,7 +93,7 @@ export function EventRow({
                     ? `${year} AD`
                     : `${Math.abs(year)} BC`
                   : "";
-              const query = `${item.subject || item.description || "event"} ${yearStr}`.trim();
+              const query = `${item.subject + " " + item.description || item.description || "event"} ${yearStr}`.trim();
               window.open(
                 `https://www.google.com/search?q=${encodeURIComponent(query)}`,
                 "_blank",

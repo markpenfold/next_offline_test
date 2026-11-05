@@ -256,17 +256,15 @@ async function getUserDetails(user: User, supabase: SupabaseClient<Database>)
   const [profileResult, membershipsResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, username, email, full_name, display_name, bio, has_avatar')
+      .select('id, username, email, full_name, display_name, bio, has_avatar, avatar_url ')
       .eq('id', user.id)
       .single(),
       
     supabase
           .from('memberships')
-          .select('account_id, role, can_publish, accounts(id, name, plan_name, subscription_status, is_personal)')
+          .select('account_id, role, can_publish, accounts(id, name, plan_name, subscription_status, is_personal, account_slug, blog_title, blog_subtitle )')
           .eq('user_id', user.id)
       ]);
-  console.log("RAW MEMBERSHIPS DATA:", JSON.stringify(membershipsResult.data, null, 2));
-  console.log("RAW MEMBERSHIPS ERROR:", membershipsResult.error);
 
   // NO hardcoded return type signature in the function header!
   // TypeScript will automatically infer the exact, perfectly accurate return shape

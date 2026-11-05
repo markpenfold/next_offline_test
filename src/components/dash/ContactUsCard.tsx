@@ -9,21 +9,31 @@ import { Send } from 'lucide-react';
 export function ContactUsCard() {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const profile = useAppStore((s) => s.profile)
   const activeAccount = useAppStore((s) => s.activeAccount)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault()
     setStatus('submitting')
     setErrorMessage('')
 
     const cleanSubject = DOMPurify.sanitize(subject.trim())
     const cleanBody = DOMPurify.sanitize(body.trim())
+    const cleanEmail = !profile?.email ? DOMPurify.sanitize(guestEmail.trim()) : ''
+
 
     if (!cleanSubject || !cleanBody) {
       setErrorMessage('Subject and message body cannot be empty.')
+      setStatus('error')
+      return
+    }
+
+    // 2. Validate guest email if user is not logged in
+    if (!profile?.email && !cleanEmail) {
+      setErrorMessage('Please provide your email address so we can reply to you.')
       setStatus('error')
       return
     }
@@ -36,7 +46,7 @@ export function ContactUsCard() {
           subject: cleanSubject,
           body: cleanBody,
           userInfo: {
-            email: profile?.email || 'N/A',
+            email: profile?.email || cleanEmail,
             username: profile?.username || profile?.full_name || 'N/A',
             tier: activeAccount?.plan_name?.toUpperCase() || 'FREE',
             workspaceId: activeAccount?.id || 'N/A',
@@ -68,6 +78,33 @@ export function ContactUsCard() {
       <form onSubmit={handleSubmit} className={styles.cardForm}>
         <div className={styles.cardBody}>
           <div className={styles.profileFieldsGroup}>
+
+            {/* 4. Conditional Email Field for Non-Logged-In Users */}
+            {!profile?.email && (
+              <div className={styles.fieldBlock}>
+                <div className={styles.inputLine}>
+                  <div className={styles.labelCol}>
+                    <label htmlFor="guestEmail" className={styles.fieldLabel}>
+                      Your Email
+                    </label>
+                    <span className={styles.fieldHelpText}>
+                      Required so we can get back to you
+                    </span>
+                  </div>
+                  <input
+                    id="guestEmail"
+                    type="email"
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    className={styles.textInput}
+                  />
+                </div>
+              </div>
+            )}
+
+
             {/* Subject Field */}
             <div className={styles.fieldBlock}>
               <div className={styles.inputLine}>
@@ -87,6 +124,7 @@ export function ContactUsCard() {
                 />
               </div>
             </div>
+
 
             {/* Message Field */}
             <div className={styles.fieldBlock}>

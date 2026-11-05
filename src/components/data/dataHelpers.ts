@@ -21,7 +21,6 @@ export interface SliceResult {
   uuidMap: Map<number, string[]>;
 }
 
-
 export function formatIndexDisplayName(category = "", version = "v1"): string {
   const formattedCategory = category
     .replace(/^category=/i, "")
@@ -29,8 +28,18 @@ export function formatIndexDisplayName(category = "", version = "v1"): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
 
-  const formattedVersion = version.replace(/^version=/i, "").trim().toUpperCase();
-  return `${formattedCategory} ${formattedVersion}`.trim();
+  const cleanVersion = version.replace(/^version=/i, "").trim().toLowerCase();
+  
+  // Extract number from version string (e.g., "v1.2" -> 1.2, "v2" -> 2)
+  const numericVersion = parseFloat(cleanVersion.replace(/^v/i, ""));
+
+  // Only append version if it parses as a valid number greater than 1
+  if (!isNaN(numericVersion) && numericVersion > 1) {
+    const formattedVersion = cleanVersion.toUpperCase();
+    return `${formattedCategory} ${formattedVersion}`.trim();
+  }
+
+  return formattedCategory.trim();
 }
 
 export function getExpectedDataShardNames(indexFileName: string): string[] {

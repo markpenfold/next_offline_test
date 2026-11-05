@@ -260,6 +260,7 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
         email: payload.user.email,
         display_name: payload.user.display_name,
         bio: payload.user.bio,
+        avatar_url:payload.user.avatar_url
       };
 
 
