@@ -378,7 +378,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   deletePost: async (userContext, postId, postSlug) => {
     try {
-      const res = await fetch('/api/delete-post', {
+      const res = await fetch('/api/unpublish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -408,6 +408,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  // UserContext is basically Author Context by another name
   publishDraft: async (userContext, htmlContent) => {
     const { 
       draftId, 
@@ -435,7 +436,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ isPublishing: true })
 
     try {
-        console.log("USER CONTECTST: ", userContext)
       // Upload media blobs to R2
       const { finalHtmlContent, finalHeroUrl } = await uploadDraftMediaToR2(
         draftId,
@@ -460,6 +460,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           subTitle: liveSubTitle,   // Live store subtitle
           heroImage: finalHeroUrl,  // Uploaded R2 CDN URL
           contentHtml: finalHtmlContent,
+          author:userContext,
         }),
       })
 

@@ -61,7 +61,7 @@ export async function refreshSession() {
 export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
 
   const rawData = Object.fromEntries(formData)
-  //console.log("rawData sent to signUp:", rawData)
+  console.log("rawData sent to signUp:", rawData)
   
   const result = signUpSchema.safeParse(rawData)
   if (!result.success) {
@@ -69,7 +69,7 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
      return { error: `${String(firstIssue.path[0])}: ${firstIssue.message}` }  }
 
   // Now destructure from result.data instead of formData directly
-  const { email, password, full_name, username, account_name, planChoice, invite_token } = result.data
+  const { email, password, full_name, username, account_name, planChoice, invite_token, blog_name, blog_slug } = result.data
 
   const supabase = await createClient()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -77,6 +77,7 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
   let verifiedParentAccountId: string | null = null
 
   // SECURITY CHECK: If joining a team, validate the token first
+  // Turn this into an external helper
   if (invite_token) {
     const { data: invite, error: inviteError } = await supabase
       .from('invitations')
@@ -99,8 +100,8 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
     verifiedParentAccountId = invite.account_id
   } /// END OF INVITE VERIFICATION 
 
-
-  // Execute standard Supabase  sign up //////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////////////////////////
+  // Execute standard Supabase sign-up //////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////
   const { data: authData, error } = await supabase.auth.signUp({ 
     email, 
@@ -111,6 +112,8 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
         full_name,
         username,
         account_name,
+        blog_name,
+        blog_slug,
         pending_plan: planChoice,
         // Pass the backend-verified ID straight to your existing Postgres trigger!
         parent_account_id: verifiedParentAccountId 
@@ -123,6 +126,7 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
   ///////////////////////////////////////////////////////////////////////////////////////////
   if (error) {
     const message = error.message.toLowerCase()
+    console.log("FUCKBALLS: ", message)
 
     // 1. Catch Unique Constraint Violations (Trigger / DB Errors)
     if (message.includes('accounts_account_name_key') || message.includes('account name')) {

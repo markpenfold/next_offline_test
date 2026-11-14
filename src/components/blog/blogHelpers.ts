@@ -48,6 +48,9 @@ export interface ManifestPost {
   updatedAt: string
   subTitle?: string | null
   heroImage?: string | null
+  userId: string;
+  accountId: string;
+  accountSlug: string;
 }
 
 /*===============================================================================
@@ -66,9 +69,6 @@ export async function getDirectory(dirName: string): Promise<FileSystemDirectory
   return currentHandle
 }
 
-/*===============================================================================
-OPFS READ & WRITE HELPERS
-===============================================================================*/
 
 /*===============================================================================
 IMAGE PROCESSING

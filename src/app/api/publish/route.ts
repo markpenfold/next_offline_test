@@ -1,36 +1,52 @@
 import { NextResponse } from "next/server";
 import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { r2Client } from "@/lib/blog/r2";
+import { r2Client} from "@/lib/blog/r2";
 import { renderFullPage } from "@/lib/blog/template";
 import { createClient } from '@/lib/supabase/server'
+import { getBucketName } from "@/lib/blog/helpers";
+import { ManifestPost, AuthorContext } from "@/components/blog/blogHelpers";
+import { fetchExistingManifestMap } from  "@/lib/blog/manifests"
 
+/*
+export interface ManifestPost {
+  id: string                   // Matches local BlogPost.id
+  postSlug: string             // R2 folder slug
+  title: string
+  publishedAt: string
+  updatedAt: string
+  subTitle?: string | null
+  heroImage?: string | null
+  accountSlug: string
+  author: AuthorContext
+}
+
+export interface AuthorContext {
+  userId: string
+  accountId: string
+  accountSlug?: string
+  name: string
+}
+*/
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  // 1. Verify token & session via Supabase Auth
+  // Verify token & session via Supabase Auth //
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
-  console.log('bucket name: ', bucketName)
-    if (!bucketName) {
-    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
-    return NextResponse.json(
-      { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
-      { status: 500 }
-    )
-  }
-
   try {
-    const { postId, accountId, accountSlug, postSlug, title, subTitle, heroImage, contentHtml } = await request.json()
+    const bucketName = getBucketName();
+    // This needs the incoming author context details. 
+    const { postId, accountId, accountSlug, postSlug, title, subTitle, heroImage, contentHtml, author } = await request.json()
 
     if (!accountSlug) return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 });
     if (!postSlug) return NextResponse.json({ error: "Missing postSlug" }, { status: 400 });
     if (!title) return NextResponse.json({ error: "Missing title" }, { status: 400 });
     if (!contentHtml) return NextResponse.json({ error: "Missing contentHtml" }, { status: 400 });
     if (!accountId) return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+    if (!author) return NextResponse.json({ error: "Missing author" }, { status: 400 });
 
     // Use passed postId or fallback to postSlug to guarantee persistent ID across OPFS/R2
     const resolvedId = postId || postSlug;
@@ -40,34 +56,31 @@ export async function POST(request: Request) {
 
     // 2. Fetch existing manifest or start fresh
     const manifestKey = `${accountSlug}/manifest.json`;
-    let manifest = { posts: [] as { id: string; slug: string; title: string; subTitle?: string | null; heroImage?: string | null; publishedAt: string; updatedAt: string }[] };
 
+    let manifest = await fetchExistingManifestMap( bucketName, manifestKey)
 
-    try {
-      const existingManifest = await r2Client.send(
-        new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
-      );
-      if (existingManifest.Body) {
-        const str = await existingManifest.Body.transformToString();
-        manifest = JSON.parse(str);
-      }
-    } catch {
-      // Manifest does not exist yet for this account; starting with an empty array
-    }
+    // 3. Check if this post already exists in the manifest map
+    const existingPost = manifest.get(resolvedId);
+    // Determine the published date: keep the original if updating, or use current time if new
+    const publishedAt = existingPost ? existingPost.publishedAt : new Date().toISOString();
+    const updatedAt = new Date().toISOString();
 
-    const now = new Date().toISOString();
-    
-    // 3. Update manifest post list by matching resolved ID or Slug (prevent duplicates)
-    manifest.posts = manifest.posts.filter((p) => p.id !== resolvedId && p.slug !== postSlug);
-    manifest.posts.unshift({
+    // 4. Construct the updated post object
+    const postData: ManifestPost = {
       id: resolvedId,
-      slug: postSlug,
+      postSlug,
       title: cleanTitle,
       subTitle: subTitle || null,
       heroImage: heroImage || null,
-      publishedAt: now,
-      updatedAt: now,
-    });
+      accountSlug,
+      author: author,
+      publishedAt,
+      updatedAt
+    };
+
+    // 5. Update the Map
+    manifest.set(resolvedId, postData);
+
 
     // 4. Render complete HTML string using clean raw title, subTitle, and heroImage
     const fullHtml = renderFullPage({
@@ -94,7 +107,7 @@ export async function POST(request: Request) {
       new PutObjectCommand({
         Bucket: bucketName,
         Key: manifestKey,
-        Body: JSON.stringify(manifest, null, 2),
+        Body: JSON.stringify({ posts: Array.from(manifest.values()) }, null, 2),        
         ContentType: "application/json",
       })
     );

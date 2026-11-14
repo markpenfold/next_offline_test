@@ -85,3 +85,53 @@ export function sortTimelineEvents(events: TimelineEvent[]): TimelineEvent[] {
     return yearA - yearB;
   });
 }
+
+
+export interface DebouncedFunction<T extends (...args: any[]) => any> {
+  (...args: Parameters<T>): ReturnType<T> | undefined;
+  flush: () => ReturnType<T> | undefined;
+  cancel: () => void;
+}
+
+export function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): DebouncedFunction<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: Parameters<T> | null = null;
+  let lastResult: ReturnType<T> | undefined = undefined;
+
+  const debounced = (...args: Parameters<T>): ReturnType<T> | undefined => {
+    lastArgs = args;
+
+    if (timer) clearTimeout(timer);
+
+    timer = setTimeout(() => {
+      if (lastArgs) {
+        lastResult = fn(...lastArgs);
+        timer = null;
+        lastArgs = null;
+      }
+    }, delay);
+
+    return lastResult;
+  };
+
+  debounced.flush = (): ReturnType<T> | undefined => {
+    if (timer && lastArgs) {
+      clearTimeout(timer);
+      lastResult = fn(...lastArgs);
+      timer = null;
+      lastArgs = null;
+    }
+    return lastResult;
+  };
+
+  debounced.cancel = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    lastArgs = null;
+  };
+
+  return debounced as unknown as DebouncedFunction<T>;
+}

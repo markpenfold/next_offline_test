@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { GetObjectCommand, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { r2Client } from "@/lib/blog/r2";
 import { createClient } from "@/lib/supabase/server";
+import { getBucketName } from "@/lib/blog/helpers";
+import { fetchExistingManifestMap } from "@/lib/blog/manifests";
+
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -11,22 +14,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
-    if (!bucketName) {
-    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
-    return NextResponse.json(
-      { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
-      { status: 500 }
-    )
-  }
-
   try {
-    const { accountSlug, postSlug } = await request.json();
+    const bucketName = getBucketName();
+    const { accountSlug, postSlug, postId } = await request.json();
 
     if (!accountSlug || !postSlug) {
       return NextResponse.json({ error: "Missing accountSlug or postSlug" }, { status: 400 });
     }
-    console.log("GONNA TRY AND KILL: ",accountSlug, postSlug)
 
     // 1. Delete all R2 storage objects under the post directory
     const postPrefix = `${accountSlug}/posts/${postSlug}/`;
@@ -48,25 +42,19 @@ export async function POST(request: Request) {
     // 2. Remove post from R2 manifest.json
     const manifestKey = `${accountSlug}/manifest.json`;
     try {
-      const existingManifest = await r2Client.send(
-        new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
-      );
-      if (existingManifest.Body) {
-        const str = await existingManifest.Body.transformToString();
-        const manifest = JSON.parse(str);
-
-        manifest.posts = (manifest.posts || []).filter((p: any) => p.slug !== postSlug);
+      let manifest = await fetchExistingManifestMap( bucketName, manifestKey)
+      manifest.delete(postId);
 
         await r2Client.send(
           new PutObjectCommand({
             Bucket: bucketName,
             Key: manifestKey,
-            Body: JSON.stringify(manifest, null, 2),
+            Body: JSON.stringify({ posts: Array.from(manifest.values()) }, null, 2),
             ContentType: "application/json",
           })
         );
       }
-    } catch {
+     catch {
       // Manifest read ignored if missing
     }
 

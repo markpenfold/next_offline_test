@@ -1,51 +1,7 @@
 import { useDATAStore } from './useDataStore';
 import { useUIStore } from './useUIStore';
 import { saveProject } from '@/components/data/diskOPFS';
-
-export function debounce<T extends (...args: any[]) => any>(
-  fn: T,
-  delay: number
-) {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let lastArgs: Parameters<T> | null = null;
-  let lastResult: ReturnType<T> | undefined = undefined;
-
-  const debounced = (...args: Parameters<T>): ReturnType<T> | undefined => {
-    lastArgs = args;
-
-    if (timer) clearTimeout(timer);
-
-    timer = setTimeout(() => {
-      if (lastArgs) {
-        lastResult = fn(...lastArgs);
-        timer = null;
-        lastArgs = null;
-      }
-    }, delay);
-
-    return lastResult;
-  };
-
-  // Immediately executes any pending invocation
-  debounced.flush = (): ReturnType<T> | undefined => {
-    if (timer && lastArgs) {
-      clearTimeout(timer);
-      lastResult = fn(...lastArgs);
-      timer = null;
-      lastArgs = null;
-    }
-    return lastResult;
-  };
-
-  // Cancels any pending execution without running it
-  debounced.cancel = () => {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    lastArgs = null;
-  };
-
-  return debounced;
-}
+import { debounce } from '@/lib/utils/general';
 
 // 1. Unified save function reading fresh snapshots from both stores
 export async function performSave(){

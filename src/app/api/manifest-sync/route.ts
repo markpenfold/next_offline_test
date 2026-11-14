@@ -1,11 +1,30 @@
 import { NextResponse } from "next/server";
-import { ListObjectsV2Command, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2Client } from "@/lib/blog/r2";
 import { createClient } from "@/lib/supabase/server";
-import { ManifestPost } from "@/components/blog/blogHelpers";
+import { rebuildAccountManifestFromR2 } from "@/lib/blog/manifests"; // Adjust path as needed
 
+/*
+export interface ManifestPost {
+  id: string                   // Matches local BlogPost.id
+  postSlug: string             // R2 folder slug
+  title: string
+  publishedAt: string
+  updatedAt: string
+  subTitle?: string | null
+  heroImage?: string | null
+  accountSlug: string
+  author: AuthorContext
+}
 
-// Scans R2 and generates/re-prints an accurate manifest.json
+export interface AuthorContext {
+  userId: string
+  accountId: string
+  accountSlug?: string
+  name: string
+}
+*/
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -14,152 +33,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-    const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
-    if (!bucketName) {
-    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
+  const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME;
+  if (!bucketName) {
+    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.');
     return NextResponse.json(
       { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
       { status: 500 }
-    )
+    );
   }
 
-  
-
   try {
-    const { accountSlug } = await request.json();
+    const { accountSlug, accountId } = await request.json();
 
     if (!accountSlug) {
       return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 });
     }
 
-    const accountPrefix = `${accountSlug}`;
-    const postsPrefix = `${accountPrefix}/posts/`;
-    const manifestKey = `${accountPrefix}/manifest.json`;
+    // 1. Rebuild the manifest by scanning R2 via the external function
+    const scannedPosts = await rebuildAccountManifestFromR2({
+      bucketName,
+      accountSlug,
+      accountId,
+      user,
+    });
 
-    // 1. Fetch existing manifest (if present) to preserve stable UUIDs, timestamps, subTitle & heroImage
-    const existingManifestMapBySlug = new Map<string, ManifestPost>();
-    try {
-      const manifestRes = await r2Client.send(
-        new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
-      );
-      if (manifestRes.Body) {
-        const rawText = await manifestRes.Body.transformToString();
-        const parsedData = JSON.parse(rawText);
-        const postsList: ManifestPost[] = parsedData.posts || parsedData || [];
-        
-        for (const item of postsList) {
-          const key = item.postSlug || (item as any).slug;
-          if (key) {
-            existingManifestMapBySlug.set(key, item);
-          }
-        }
-      }
-    } catch {
-      // Manifest read is optional (e.g. first initialization)
-    }
+    const manifestKey = `${accountSlug}/manifest.json`;
 
-    // 2. Scan R2 bucket for all published post index.html objects
-    const listResult = await r2Client.send(
-      new ListObjectsV2Command({
-        Bucket: bucketName,
-        Prefix: postsPrefix,
-      })
-    );
-
-    const objects = listResult.Contents || [];
-
-    // Extract unique post slugs from user-content/{accountSlug}/posts/{postSlug}/index.html
-    const postSlugs = Array.from(
-      new Set(
-        objects
-          .map((obj) => obj.Key)
-          .filter((key): key is string => Boolean(key && key.endsWith("/index.html")))
-          .map((key) => {
-            const parts = key.split("/");
-            return parts[parts.length - 2];
-          })
-      )
-    );
-
-    // 3. Rebuild manifest post list, preserving metadata and parsing fallback HTML
-    const posts: ManifestPost[] = await Promise.all(
-      postSlugs.map(async (slug) => {
-        const htmlKey = `${postsPrefix}${slug}/index.html`;
-        const existingEntry = existingManifestMapBySlug.get(slug);
-
-        let title = existingEntry?.title || slug.replace(/-/g, " ");
-        let subTitle: string | null = existingEntry?.subTitle || null;
-        let heroImage: string | null = existingEntry?.heroImage || null;
-        let postId = existingEntry?.id || crypto.randomUUID();
-        let publishedAt = existingEntry?.publishedAt || new Date().toISOString();
-        let updatedAt = new Date().toISOString();
-
-        try {
-          const file = await r2Client.send(
-            new GetObjectCommand({ Bucket: bucketName, Key: htmlKey })
-          );
-          if (file.Body) {
-            const html = await file.Body.transformToString();
-
-            // Extract title tag from HTML document
-            const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-            if (titleMatch?.[1]) {
-              title = titleMatch[1].trim();
-            }
-
-            // Extract subtitle from .post-subtitle class if missing in manifest
-            if (!subTitle) {
-              const subTitleMatch = html.match(/<p class=["']post-subtitle["']>(.*?)<\/p>/i);
-              if (subTitleMatch?.[1]) {
-                subTitle = subTitleMatch[1].trim();
-              }
-            }
-
-            // Extract hero image src from .post-hero-image class if missing in manifest
-            if (!heroImage) {
-              const heroMatch = html.match(/<img[^>]+class=["'][^"']*post-hero-image[^"']*["'][^>]+src=["']([^"']+)["']/i);
-              if (heroMatch?.[1]) {
-                heroImage = heroMatch[1];
-              }
-            }
-
-            // Extract data-post-id attribute if present in HTML head/body
-            const idMatch = html.match(/data-post-id=["']([^"']+)["']/i);
-            if (idMatch?.[1]) {
-              postId = idMatch[1];
-            }
-          }
-        } catch {
-          // Fallback to defaults if reading HTML fails
-        }
-
-        return {
-          id: postId,
-          postSlug: slug,
-          title,
-          subTitle,
-          heroImage,
-          publishedAt,
-          updatedAt,
-        };
-      })
-    );
-
-    const manifest = { posts };
-
-    // 4. Write back updated manifest.json to R2
+    // 2. Write back the updated account manifest to R2
     await r2Client.send(
       new PutObjectCommand({
         Bucket: bucketName,
         Key: manifestKey,
-        Body: JSON.stringify(manifest, null, 2),
+        Body: JSON.stringify({ posts: scannedPosts }, null, 2),
         ContentType: "application/json",
       })
     );
 
-    return NextResponse.json({ success: true, manifest: posts });
+    return NextResponse.json({ success: true, manifest: scannedPosts });
   } catch (err: any) {
-    console.error("Failed to sync manifest:", err);
+    console.error("Failed to sync account manifest:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

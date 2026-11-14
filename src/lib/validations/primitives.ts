@@ -1,4 +1,70 @@
 import { z } from "zod";
+import leoProfanity from 'leo-profanity';
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS HELPERS///
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export function containsProfanity(text: string): boolean {
+  if (!text) return false;
+  // Clean spaces, hyphens, underscores, and numbers to catch obfuscated words
+  const cleanedText = text.toLowerCase().replace(/[-_\s0-9]/g, '');
+  
+  // Also check the raw text just in case
+  return leoProfanity.check(text.toLowerCase()) || leoProfanity.check(cleanedText);
+}
+
+export const RESERVED_WORDS = [
+  'www',
+  'admin',
+  'administrator',
+  'api',
+  'app',
+  'auth',
+  'blog',
+  'dashboard',
+  'help',
+  'login',
+  'logout',
+  'mail',
+  'omen',
+  'root',
+  'settings',
+  'signup',
+  'smtp',
+  'status',
+  'support',
+  'system',
+  'test',
+  'webmail',
+];
+
+export function isRestrictedText(text: string, checkReserved = false): boolean {
+  if (!text) return false;
+
+  const lower = text.trim().toLowerCase();
+  const cleaned = lower.replace(/[-_\s0-9]/g, '');
+
+  // 1. Check profanity (catches words anywhere in the string)
+  if (leoProfanity.check(lower) || leoProfanity.check(cleaned)) {
+    return true;
+  }
+
+  // 2. Check reserved system words (exact match only for slugs/usernames)
+  if (checkReserved && RESERVED_WORDS.includes(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS  CHECKS ///
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 // Reusable primitives
 const passwordSchema = z
@@ -9,16 +75,57 @@ const passwordSchema = z
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
-// 1. Sign Up
+
+// Reusable field validator to avoid repeating the profanity check code
+const cleanDisplaySchema = (fieldName: string, minLength = 2) =>
+  z.string()
+    .min(minLength, `${fieldName} must be at least ${minLength} characters`)
+    .refine((val) => !isRestrictedText(val, false), {
+      message: `${fieldName} contains restricted words.`,
+    });
+
+export const fullNameSchema = cleanDisplaySchema("Full name", 2)
+  .refine((val) => !isRestrictedText(val, false), {
+    message: "Full name contains restricted or inappropriate words.",
+  })
+
+export const usernameSchema = z.string()
+  .min(3, "Username must be at least 3 characters")
+  .max(20, "Username cannot exceed 20 characters")
+  .toLowerCase()
+  .regex(/^[a-z0-9_-]+$/, "Username can only contain letters, numbers, hyphens, and underscores")
+  .refine((val) => !isRestrictedText(val, true), {
+    message: "This username is reserved or not allowed.",
+  })
+
+export const accountNameSchema = cleanDisplaySchema("Account name", 2)
+  .refine((val) => !isRestrictedText(val, true), {
+    message: "This account name is reserved or not allowed.",
+  })
+
+export const blogNameSchema = cleanDisplaySchema("Blog name", 2)
+
+export const blogSlugSchema = z.string()
+  .min(2, "Blog URL is too short")
+  .regex(/^[a-z0-9-]+$/, "Blog URL can only contain lowercase letters, numbers, and hyphens")
+  .refine((slug) => !isRestrictedText(slug, true), {
+    message: "This blog URL is reserved or not allowed.",
+  })
+
+// --- Main Combined Sign Up Schema ---
+
 export const signUpSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  full_name: z.string().min(2, "Full name must be at least 2 characters"),
-  username: z.string().min(3, "Username must be at least 3 characters").toLowerCase(),
-  account_name: z.string().min(2, "Account name is required"),
+  full_name: fullNameSchema,
+  account_name: accountNameSchema,
+  blog_name: blogNameSchema,
+  username: usernameSchema,
+  blog_slug: blogSlugSchema,
   planChoice: z.string().min(1, "Plan is required"),
   invite_token: z.string().optional(),
-});
+})
+
 
 // 2. Login
 export const loginSchema = z.object({
