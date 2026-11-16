@@ -13,17 +13,18 @@ export type PostStatus = 'draft' | 'published'
 export interface UserContext {
   userId: string
   accountId: string
-  accountSlug?: string
+  accountSlug: string
   name: string
 }
 
 export interface AuthorContext {
   userId: string
   accountId: string
-  accountSlug?: string
+  accountSlug: string
   name: string
 }
 
+// content of the post.json file in each draft folder
 export interface BlogPost {
   id: string                   // Unique UUID (never changes)
   slug: string                 // URL slug (editable)
@@ -40,18 +41,7 @@ export interface BlogPost {
   heroImage?: string | null
 }
 
-export interface ManifestPost {
-  id: string                   // Matches local BlogPost.id
-  postSlug: string             // R2 folder slug
-  title: string
-  publishedAt: string
-  updatedAt: string
-  subTitle?: string | null
-  heroImage?: string | null
-  userId: string;
-  accountId: string;
-  accountSlug: string;
-}
+
 
 /*===============================================================================
 DIRECTORY HELPERS
@@ -174,4 +164,167 @@ export function escapeHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+
+/*===============================================================================
+HANDLE UPDATES TO POST.JSON
+===============================================================================*/
+
+/** Reads and parses post.json from a local OPFS post directory. */
+export async function readLocalPostJson(subDirHandle: FileSystemDirectoryHandle): Promise<any> {
+  try {
+    const fileHandle = await subDirHandle.getFileHandle('post.json');
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  } catch (err) {
+    console.warn('Could not read post.json from OPFS directory, returning empty object:', err);
+    return false;
+  }
+}
+
+
+/**
+ * Serializes and writes metadata to post.json inside a local OPFS post directory.
+ * Returns true if successful, false otherwise.
+ */
+export async function writeLocalPostJson(
+  subDirHandle: FileSystemDirectoryHandle, 
+  metadata: any
+): Promise<boolean> {
+  try {
+    const fileHandle = await subDirHandle.getFileHandle('post.json', { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(metadata, null, 2));
+    await writable.close();
+    return true;
+  } catch (err) {
+    console.error('Failed to write post.json to OPFS directory:', err);
+    return false;
+  }
+}
+
+/**
+ * Reads existing post.json from OPFS, merges partial updates, updates the timestamp, and writes it back.
+ * Returns the updated metadata object on success, or throws/returns null on failure.
+ */
+export async function updatePostJson(
+  postId: string,
+  updates: Record<string, any>
+): Promise<any | null> {
+  try {
+    const dirPath = `publishing/${postId}`;
+    const localDirHandle = await getDirectory(dirPath);
+    
+    // Read existing metadata
+    const existingMetadata = await readLocalPostJson(localDirHandle);
+    
+    // Merge updates and stamp with current time
+    const updatedMetadata = {
+      ...existingMetadata,
+      ...updates,
+      dateLastEdited: new Date().toISOString(),
+    };
+    
+    // Write back to OPFS and check success status
+    const success = await writeLocalPostJson(localDirHandle, updatedMetadata);
+    if (!success) {
+      throw new Error(`Failed to write updated post.json for post ${postId}`);
+    }
+    
+    return updatedMetadata;
+  } catch (err) {
+    console.error('Failed in updatePostJson:', err);
+    return null;
+  }
+}
+
+
+
+export function convertJsonToBlogPost(
+  metadata: any, 
+  dirHandle: FileSystemDirectoryHandle, 
+  fallbackLastModified?: string
+): BlogPost {
+  const fileLastModified = fallbackLastModified || new Date().toISOString()
+  const postStatus = metadata.status || 'draft'
+
+  return {
+    id: metadata.id || dirHandle.name,
+    slug: metadata.slug || metadata.customSlug || metadata.postSlug || dirHandle.name,
+    title: metadata.title || 'Untitled Post',
+    subTitle: metadata.subTitle || null,
+    status: postStatus,
+    createdAt: metadata.createdAt || metadata.publishedAt || fileLastModified,
+    dateLastEdited: metadata.dateLastEdited || metadata.updatedAt || fileLastModified,
+    author: {
+      userId: metadata.author?.userId || metadata.userId || '',
+      accountId: metadata.author?.accountId || metadata.accountId || '',
+      accountSlug: metadata.author?.accountSlug || metadata.accountSlug || '',
+      name: metadata.author?.name || metadata.accountSlug || 'Author',
+    },
+    blobMap: metadata.blobMap || {},
+    templateId: metadata.templateId || 'simple-blog',
+    dirHandle: dirHandle,
+    heroImage: metadata.heroImage || null,
+  }
+}
+
+
+
+/**
+ * Inspects downloaded media filenames and index.html content, 
+ * builds a working blobMap, and rewrites image URLs to point to local OPFS paths.
+ */
+export function generateBlobMapAndFixHtml(
+  htmlContent: string,
+  mediaFilenames: string[]
+): { blobMap: Record<string, string>; updatedHtml: string } {
+  const blobMap: Record<string, string> = {}
+  let updatedHtml = htmlContent
+
+  if (!mediaFilenames || mediaFilenames.length === 0) {
+    return { blobMap, updatedHtml }
+  }
+
+  for (const filename of mediaFilenames) {
+    const localPath = `media/${filename}`
+    blobMap[filename] = localPath
+    blobMap[`media/${filename}`] = localPath
+
+    // Rewrite remote/absolute src URLs to local OPFS paths
+    const escapedFilename = filename.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const r2UrlPattern = new RegExp(`(src=["'][^"']*?)(?:/media/|/)?(${escapedFilename})(["'])`, 'g')
+    updatedHtml = updatedHtml.replace(r2UrlPattern, `$1${localPath}$3`)
+  }
+
+  return { blobMap, updatedHtml }
+}
+
+
+
+export function generatePostJson(
+  missingItem: { postId: string; title?: string },
+  userContext: UserContext,
+  mediaFileNames: string[],
+  blobMap: Record<string, string>
+) {
+  return {
+    id: missingItem.postId,
+    slug: missingItem.postId,
+    title: missingItem.title || missingItem.postId.replace(/-/g, ' '),
+    status: 'published',
+    createdAt: new Date().toISOString(),
+    dateLastEdited: new Date().toISOString(),
+    author: {
+      userId: userContext.userId,
+      accountId: userContext.accountId,
+      accountSlug: userContext.accountSlug,
+      name: userContext.name,
+    },
+    templateId: 'simple-blog',
+    heroImage: mediaFileNames.length > 0 ? `media/${mediaFileNames[0]}` : null,
+    blobMap,
+  }
 }

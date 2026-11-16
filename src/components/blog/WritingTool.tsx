@@ -39,8 +39,8 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
   
   const setActiveTab = useEditorStore((s) => s.setActiveTab)
   const registerBlob = useEditorStore((s) => s.registerBlob)
-  const loadExistingDraft = useEditorStore((s) => s.loadExistingDraft)
-  const loadExistingPub = useEditorStore((s) => s.loadExistingPub)
+  const loadExistingDraft = useEditorStore((s) => s.loadPost)
+  const loadExistingPub = useEditorStore((s) => s.loadPost)
   const fetchAvailableDrafts = useEditorStore((s) => s.fetchAvailableDrafts)
   const fetchAvailablePublished = useEditorStore((s) => s.fetchAvailablePublished)
   const setIsNewDocModalOpen = useEditorStore((s) => s.setIsNewDocModalOpen)
@@ -136,20 +136,15 @@ export function WritingTool({ initialDraftId }: { initialDraftId?: string }) {
 const handleSelectDocument = async (id: string) => {
   if (!editor) return
 
-  const isPublished = activeTab === 'published'
-  const folder = isPublished ? 'published' : 'drafts'
-
   // 1. Load document content
-  const htmlContent = isPublished 
-    ? await loadExistingPub(id) 
-    : await loadExistingDraft(id)
-
+  const htmlContent = await loadExistingPub(id) 
+    
   if (htmlContent) {
     editor.commands.setContent(htmlContent)
   }
 
   // 2. Load hero image blob URL
-  const heroUrl = await getHeroImageUrl(folder, id)
+  const heroUrl = await getHeroImageUrl(id)
   setHeroImage(heroUrl)
 
   // 3. Navigate to editor

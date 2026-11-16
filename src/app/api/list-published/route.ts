@@ -2,21 +2,20 @@ import { NextResponse } from "next/server"
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { r2Client } from "@/lib/blog/r2"
 import { createClient } from "@/lib/supabase/server"
-import { ManifestPost } from "@/components/blog/blogHelpers";
+import { BlogPost } from "@/components/blog/blogHelpers" // Assuming BlogPost is accessible here
 
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
-
-const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
+  const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
   if (!bucketName) {
-  console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
-  return NextResponse.json(
-    { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
-    { status: 500 }
-  )
-}
+    console.error('R2 Error: R2_USERCONTENT_BUCKET_NAME environment variable is not defined.')
+    return NextResponse.json(
+      { error: 'Server configuration error: Missing R2_USERCONTENT_BUCKET_NAME.' },
+      { status: 500 }
+    )
+  }
 
   if (error || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -28,28 +27,25 @@ const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
     if (!accountSlug) {
       return NextResponse.json({ error: "Missing accountSlug" }, { status: 400 })
     }
-    //console.log("looking for ", accountSlug)
+
     const accountPrefix = `${accountSlug}`
     const postsPrefix = `${accountPrefix}/posts/`
     const manifestKey = `${accountPrefix}/manifest.json`
 
-    // 1. Fetch manifest to map posts by slug
-    const manifestMapBySlug = new Map<string, ManifestPost>()
+    // 1. Fetch manifest to map posts by slug/id
+    const manifestMapBySlug = new Map<string, Partial<BlogPost>>()
 
     try {
       const manifestRes = await r2Client.send(
         new GetObjectCommand({ Bucket: bucketName, Key: manifestKey })
       )
       if (manifestRes.Body) {
-        
         const str = await manifestRes.Body.transformToString()
         const manifestData = JSON.parse(str)
-        //console.log("MANIFEST:", manifestData)
-        const posts: ManifestPost[] = manifestData.posts || manifestData || []
-        //console.log("POSTS: ", posts)
+        const posts: Partial<BlogPost>[] = manifestData.posts || manifestData || []
 
         for (const item of posts) {
-          const itemSlug = item.postSlug
+          const itemSlug = item.slug
           if (itemSlug) {
             manifestMapBySlug.set(itemSlug, item)
           }
@@ -64,7 +60,7 @@ const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
       new ListObjectsV2Command({
         Bucket: bucketName,
         Prefix: postsPrefix,
-        Delimiter: "/", // Delimiter prevents scanning inner media/HTML files
+        Delimiter: "/", 
       })
     )
 
@@ -72,7 +68,6 @@ const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
     const publishedPosts = (listRes.CommonPrefixes || [])
       .map((cp) => {
         if (!cp.Prefix) return null
-        // e.g. "user-content/marko-polo/posts/alpha/" -> "alpha"
         const parts = cp.Prefix.replace(/\/$/, "").split("/")
         return parts[parts.length - 1]
       })
@@ -81,14 +76,21 @@ const bucketName = process.env.R2_USERCONTENT_BUCKET_NAME
         const meta = manifestMapBySlug.get(slug)
 
         return {
-          id: meta?.id || slug, // Permanent UUID from manifest (fallback to slug if missing)
-          slug: slug,           // Public URL slug
+          id: meta?.id || slug,
+          postId: meta?.id || slug,
+          slug: slug,
+          postSlug: slug,
           title: meta?.title || slug.replace(/-/g, " "),
-          publishedAt: meta?.publishedAt || new Date().toISOString(),
-          updatedAt: meta?.updatedAt || meta?.publishedAt || new Date().toISOString(),
+          subTitle: meta?.subTitle || null,
+          status: 'published',
+          createdAt: meta?.createdAt || new Date().toISOString(),
+          dateLastEdited: meta?.dateLastEdited || new Date().toISOString(),
+          author: meta?.author || { userId: user.id, accountId: '', accountSlug, name: user.email || 'Author' },
+          blobMap: meta?.blobMap || {},
+          templateId: meta?.templateId || 'simple-blog',
+          heroImage: meta?.heroImage || null,
         }
       })
-      //console.log("PP: ", publishedPosts)
 
     return NextResponse.json({ success: true, posts: publishedPosts })
   } catch (err: any) {

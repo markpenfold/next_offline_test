@@ -1,6 +1,7 @@
 import { AvailableIndex, ProjectConfig, AvailableDataShard } from "@/components/data/dataTypes";
-import { BlogPost, ManifestPost, PostStatus, UserContext, AuthorContext } from "@/components/blog/blogHelpers";
+import { BlogPost, UserContext, convertJsonToBlogPost, generateBlobMapAndFixHtml, readLocalPostJson, generatePostJson } from "@/components/blog/blogHelpers";
 import { parseLocalDataShardFileName } from "./cloudR2";
+import { POSTS_DIR } from "@/lib/utils/constants";
 
 // ============================================================================
 // 1. CORE DIRECTORY & FILE PRIMITIVES
@@ -85,6 +86,9 @@ export async function getOPFSDirectories(
   )
 }
 
+
+
+
 // ============================================================================
 // 2. READ / WRITE / DELETE ACTIONS
 // ============================================================================
@@ -105,10 +109,10 @@ export async function saveToOPFSFolder(
     await writable.close();
     writable = null; 
 
-    console.log(`💾 Saved to OPFS: /${dirName}/${fileName}`);
+    console.log(`Saved to OPFS: /${dirName}/${fileName}`);
     return `${dirName}/${fileName}`;
   } catch (err) {
-    console.error(`❌ OPFS Write Error [/${dirName}/${fileName}]:`, err);
+    console.error(`OPFS Write Error [/${dirName}/${fileName}]:`, err);
     if (writable) {
       try { await writable.abort(); } catch {}
     }
@@ -317,6 +321,10 @@ export async function getLocalOPFSDataShards(): Promise<AvailableDataShard[]> {
   }
 }
 
+
+
+
+
 // ============================================================================
 // 3. PROJECT & SESSION PERSISTENCE
 // ============================================================================
@@ -383,6 +391,11 @@ export async function getSavedProjects(
   }
 }
 
+
+
+
+
+
 // ============================================================================
 // 4. PUBLISHING & DRAFT MANAGEMENT
 // ============================================================================
@@ -391,7 +404,7 @@ export async function saveDraftMedia(
   fileName: string,
   blob: Blob
 ): Promise<string> {
-  const dirPath = `publishing/drafts/${draftId}/media`
+  const dirPath = `publishing/${draftId}/media`
   // Reuses core saveToOPFSFolder primitive
   return await saveToOPFSFolder(dirPath, fileName, blob)
 }
@@ -400,47 +413,36 @@ export async function removeDraftMedia(
   draftId: string,
   fileName: string
 ): Promise<boolean> {
-  const dirPath = `publishing/drafts/${draftId}/media`
+  const dirPath = `publishing/${draftId}/media`
   // Reuses core deleteOPFSFile primitive (handles file opening & errors cleanly)
   return await deleteOPFSFile(dirPath, fileName)
 }
 
 export async function getLocalMediaFile(
-  folder: 'drafts' | 'published',
   postId: string,
   fileName: string
 ): Promise<File | null> {
-  const dirPath = `publishing/${folder}/${postId}/media`
+  const dirPath = `publishing/${postId}/media`
   const handle = await getOPFSFileHandle(dirPath, fileName)
   if (!handle) return null
   return await handle.getFile()
 }
 
-/**
- * Helper to fetch hero.webp and return a Blob URL preview for React state
- */
+/** Helper to fetch hero.webp and return a Blob URL preview for React state */
 export async function getHeroImageUrl(
-  folder: 'drafts' | 'published',
   postId: string
 ): Promise<string | null> {
-  const file = await getLocalMediaFile(folder, postId, 'hero.webp')
+  const file = await getLocalMediaFile(postId, 'hero.webp')
   if (!file) return null
   return URL.createObjectURL(file)
 }
 
-
-export async function deleteDraftFolder(draftId: string): Promise<boolean> {
-  return await wipeOPFSFolder(`publishing/drafts/${draftId}`)
-}
-
+// attempt fix where post.json missing
 export async function reconcileDraftFolder(
   parentDir: FileSystemDirectoryHandle,
   subDir: FileSystemDirectoryHandle,
-  folderPath: 'publishing/drafts' | 'publishing/published',
-  onPurgeNotice?: (slug: string) => void
 ): Promise<BlogPost | null> {
   const folderKey = subDir.name
-  const status: PostStatus = folderPath === 'publishing/drafts' ? 'draft' : 'published'
 
   let hasContent = false
   try {
@@ -458,7 +460,7 @@ export async function reconcileDraftFolder(
       slug: folderKey,
       title: `Recovered Post (${folderKey.slice(0, 8)})`,
       subTitle: null,
-      status,
+      status: 'draft',
       createdAt: now,
       dateLastEdited: now,
       author: {
@@ -489,7 +491,6 @@ export async function reconcileDraftFolder(
 
   try {
     await parentDir.removeEntry(folderKey, { recursive: true })
-    onPurgeNotice?.(folderKey)
   } catch (err) {
     console.error(`Failed to purge unrecoverable directory ${folderKey}:`, err)
   }
@@ -498,13 +499,11 @@ export async function reconcileDraftFolder(
 }
 
 export async function getOPFSPosts(
-  folderPath: 'publishing/drafts' | 'publishing/published',
-  onPurgeNotice?: (slug: string) => void
+  statusFilter?: 'draft' | 'published'
 ): Promise<BlogPost[]> {
   try {
-    const dirHandle = await getDirectory(folderPath)
+    const dirHandle = await getDirectory('publishing')
     const posts: BlogPost[] = []
-    const status: PostStatus = folderPath === 'publishing/drafts' ? 'draft' : 'published'
 
     const dirIterable = dirHandle as FileSystemDirectoryHandle & {
       values(): AsyncIterable<FileSystemHandle>
@@ -512,29 +511,30 @@ export async function getOPFSPosts(
 
     for await (const entry of dirIterable.values()) {
       if (entry.kind !== 'directory') continue
-
       const subDir = entry as FileSystemDirectoryHandle
 
       try {
-        let jsonHandle: FileSystemFileHandle
-        try {
-          jsonHandle = await subDir.getFileHandle('post.json')
-        } catch {
-          jsonHandle = await subDir.getFileHandle('draft.json')
-        }
-
+        let jsonHandle: FileSystemFileHandle = await subDir.getFileHandle('post.json')
+        
         const file = await jsonHandle.getFile()
         const rawText = await file.text()
         const metadata = JSON.parse(rawText)
-
         const fileLastModified = new Date(file.lastModified).toISOString()
+
+        // what does the post.json file say? Fallback to draft if it is silent
+        const postStatus = metadata.status || 'draft'
+
+        // Apply status filter if provided
+        if (statusFilter && postStatus !== statusFilter) {
+          continue
+        }
 
         const post: BlogPost = {
           id: metadata.id || subDir.name,
           slug: metadata.slug || metadata.customSlug || metadata.postSlug || subDir.name,
           title: metadata.title || 'Untitled Post',
           subTitle: metadata.subTitle || null,
-          status,
+          status: postStatus,
           createdAt: metadata.createdAt || metadata.publishedAt || fileLastModified,
           dateLastEdited: metadata.dateLastEdited || metadata.updatedAt || fileLastModified,
           author: {
@@ -553,12 +553,13 @@ export async function getOPFSPosts(
       } catch {
         const recoveredPost = await reconcileDraftFolder(
           dirHandle,
-          subDir,
-          folderPath,
-          onPurgeNotice
+          subDir,        
         )
         if (recoveredPost) {
-          posts.push(recoveredPost)
+          const recoveredStatus = recoveredPost.status || 'draft'
+          if (!statusFilter || recoveredStatus === statusFilter) {
+            posts.push(recoveredPost)
+          }
         }
       }
     }
@@ -567,48 +568,12 @@ export async function getOPFSPosts(
       (a, b) => new Date(b.dateLastEdited).getTime() - new Date(a.dateLastEdited).getTime()
     )
   } catch (err) {
-    console.error(`Failed to read posts from OPFS [${folderPath}]:`, err)
+    console.error(`Failed to read posts from OPFS:`, err)
     return []
   }
 }
 
-export async function uploadDraftMediaToR2OLD(
-  draftId: string,
-  userContext: { accountId: string; accountSlug: string },
-  finalSlug: string,
-  blobMap: Record<string, string>,
-  htmlContent: string,
-  heroImage?: string | null
-): Promise<string> {
-  const mediaEntries = await getOPFSEntries(`publishing/drafts/${draftId}/media`)
-  let updatedHtml = htmlContent
-  let updatedHeroUrl = heroImage
-
-  for (const { name, handle } of mediaEntries) {
-    if (handle.kind !== 'file') continue
-
-    const file = await (handle as FileSystemFileHandle).getFile()
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('accountId', userContext.accountId)
-    formData.append('accountSlug', userContext.accountSlug)
-    formData.append('postSlug', finalSlug)
-
-    const res = await fetch('/api/upload', { method: 'POST', body: formData })
-    const data = await res.json()
-    if (!res.ok) throw new Error(`Upload failed for ${name}: ${data.error}`)
-
-    const blobUrlEntry = Object.entries(blobMap).find(([_, mappedName]) => mappedName === name)
-    if (blobUrlEntry) {
-      updatedHtml = updatedHtml.replaceAll(blobUrlEntry[0], data.url)
-    }
-  }
-
-  return updatedHtml
-}
-
-
+// clear existing R2 media files in case this is a re-pub
 export async function uploadDraftMediaToR2(
   draftId: string,
   userContext: { accountId: string; accountSlug: string },
@@ -617,10 +582,26 @@ export async function uploadDraftMediaToR2(
   htmlContent: string,
   heroImage?: string | null
 ): Promise<{ finalHtmlContent: string; finalHeroUrl: string | null }> {
-  const mediaEntries = await getOPFSEntries(`publishing/drafts/${draftId}/media`)
+  const mediaEntries = await getOPFSEntries(`publishing/${draftId}/media`)
   let updatedHtml = htmlContent
   let updatedHeroUrl: string | null = null
 
+  if (mediaEntries.length > 0) {
+    // 1. Clear the R2 media folder ONCE before uploading the fresh set
+    const clearFormData = new FormData()
+    clearFormData.append('accountId', userContext.accountId)
+    clearFormData.append('accountSlug', userContext.accountSlug)
+    clearFormData.append('postId', draftId)
+
+    // In case this is an update we must clear the current media folder if it exists
+    const clearRes = await fetch('/api/clearPostMedia', { method: 'POST', body: clearFormData })
+    if (!clearRes.ok) {
+      const errData = await clearRes.json()
+      throw new Error(`Failed to clear old media: ${errData.error || 'Unknown error'}`)
+    }
+  }
+
+  // 2. Loop through and upload each file safely
   for (const { name, handle } of mediaEntries) {
     if (handle.kind !== 'file') continue
 
@@ -630,19 +611,19 @@ export async function uploadDraftMediaToR2(
     formData.append('file', file)
     formData.append('accountId', userContext.accountId)
     formData.append('accountSlug', userContext.accountSlug)
-    formData.append('postSlug', finalSlug)
+    formData.append('postId', draftId)
 
-    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const res = await fetch('/api/uploadMedia', { method: 'POST', body: formData })
     const data = await res.json()
     if (!res.ok) throw new Error(`Upload failed for ${name}: ${data.error}`)
 
-    // 1. Explicitly catch standardized hero image
+    // 3. Explicitly catch standardized hero image
     if (name === 'hero.webp') {
       updatedHeroUrl = data.url
       continue
     }
 
-    // 2. Catch inline body images registered in blobMap
+    // 4. Catch inline body images registered in blobMap
     const blobEntry = Object.entries(blobMap).find(([_, mappedName]) => mappedName === name)
     if (blobEntry) {
       const [blobUrl] = blobEntry
@@ -655,7 +636,6 @@ export async function uploadDraftMediaToR2(
     finalHeroUrl: updatedHeroUrl,
   }
 }
-
 
 export async function copyOPFSDirectory(
   src: FileSystemDirectoryHandle, 
@@ -679,382 +659,80 @@ export async function copyOPFSDirectory(
   }
 }
 
-export async function moveDraftToPublished(draftId: string, targetId?: string): Promise<void> {
-  const destinationId = targetId || draftId
-  const draftsFolder = await getDirectory('publishing/drafts')
-  const publishedFolder = await getDirectory('publishing/published')
-
-  const sourceDir = await draftsFolder.getDirectoryHandle(draftId)
-  const targetDir = await publishedFolder.getDirectoryHandle(destinationId, { create: true })
-
-  await copyOPFSDirectory(sourceDir, targetDir)
-
-  // update edited date and published status
+export async function removeLocalPost(postId: string): Promise<void> {
   try {
-    const postJsonHandle = await targetDir.getFileHandle('post.json')
-    const file = await postJsonHandle.getFile()
-    const metadata: BlogPost = JSON.parse(await file.text())
-    
-    metadata.status = 'published'
-    metadata.dateLastEdited = new Date().toISOString()
-    
-    const writable = await postJsonHandle.createWritable()
-    await writable.write(JSON.stringify(metadata, null, 2))
-    await writable.close()
-  } catch (e) {
-    console.warn(`Could not update status to published in copied post.json:`, e)
-  }
-
-  await draftsFolder.removeEntry(draftId, { recursive: true })
-}
-
-export async function movePublishedToDraft(postId: string): Promise<BlogPost | null> {
-  const draftsFolder = await getDirectory('publishing/drafts')
-  const publishedFolder = await getDirectory('publishing/published')
-
-  const sourceDir = await publishedFolder.getDirectoryHandle(postId)
-  const targetDir = await draftsFolder.getDirectoryHandle(postId, { create: true })
-
-  // 1. Copy full directory (post.json + media/) over to drafts
-  await copyOPFSDirectory(sourceDir, targetDir)
-
-  let metadata: BlogPost | null = null
-
-  try {
-    const postJsonHandle = await targetDir.getFileHandle('post.json')
-    const file = await postJsonHandle.getFile()
-    metadata = JSON.parse(await file.text())
-    
-    if (metadata) {
-      metadata.status = 'draft'
-      metadata.dateLastEdited = new Date().toISOString()
-
-      // 2. Look up local media directory to restore hero image local blob URL if needed
-      try {
-        const mediaDir = await targetDir.getDirectoryHandle('media')
-        
-        for await (const [name, handle] of mediaDir.entries()) {
-          if (handle.kind === 'file' && name.includes('hero')) {
-            const mediaFile = await (handle as FileSystemFileHandle).getFile()
-            const localBlobUrl = URL.createObjectURL(mediaFile)
-            
-            // Reassign heroImage to local blob URL for editor state
-            metadata.heroImage = localBlobUrl
-          }
-        }
-      } catch {
-        // Media directory might be empty or missing
-      }
-
-      // 3. Save updated post.json back to draft
-      const writable = await postJsonHandle.createWritable()
-      await writable.write(JSON.stringify(metadata, null, 2))
-      await writable.close()
-    }
-  } catch (e) {
-    console.warn(`Could not update status to draft in copied post.json:`, e)
-  }
-
-  // 4. Clean up published directory
-  await publishedFolder.removeEntry(postId, { recursive: true })
-
-  return metadata
-}
-
-export async function syncAndUploadManifest(uc: UserContext): Promise<ManifestPost[]> {
-  const res = await fetch('/api/manifest-sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(uc),
-  })
-
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Failed to sync manifest with R2')
-
-  return data.manifest as ManifestPost[]
-}
-
-export async function reconcileLocalPublishedWithManifest(manifest: ManifestPost[]): Promise<void> {
-  try {
-    const publishedFolder = await getDirectory('publishing/published')
-    const publishedEntries = await getOPFSEntries('publishing/published')
-    const manifestIds = new Set(manifest.map((m) => m.id))
-
-    for (const { name, handle } of publishedEntries) {
-      if (handle.kind === 'directory' && !manifestIds.has(name)) {
-        await publishedFolder.removeEntry(name, { recursive: true })
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to reconcile local published directory with remote manifest:', err)
-  }
-}
-
-export async function removeLocalPublishedPost(postId: string): Promise<void> {
-  try {
-    const publishedFolder = await getDirectory('publishing/published')
+    const publishedFolder = await getDirectory('publishing')
     await publishedFolder.removeEntry(postId, { recursive: true })
   } catch (err) {
     console.warn(`Local published post [${postId}] not found or already deleted from OPFS:`, err)
   }
 }
 
-export async function downloadAndSavePublishedPostXXX(
-  userContext: UserContext,
-  item: { postId: string; postSlug: string; title: string; createdAt?: string }
-): Promise<void> {
-  
-  const listRes = await fetch('/api/list-published', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userContext),
-      })
-  
-  if (!listRes.ok) {
-    throw new Error(`Failed to list R2 files for post: ${item.postSlug}`)
-  }
-
-  const { files }: { files: Array<{ path: string; url: string }> } = await listRes.json()
-
-  const root = await navigator.storage.getDirectory()
-  const pubDir = await root
-    .getDirectoryHandle('publishing', { create: true })
-    .then((dir) => dir.getDirectoryHandle('published', { create: true }))
-
-  const postFolder = await pubDir.getDirectoryHandle(item.postId, { create: true })
-
-  await Promise.all(
-    files.map(async (fileInfo) => {
-      const fileRes = await fetch(fileInfo.url)
-      if (!fileRes.ok) return
-
-      const pathSegments = fileInfo.path.split('/').filter(Boolean)
-      const fileName = pathSegments.pop()!
-      
-      let targetFolder = postFolder
-      for (const segment of pathSegments) {
-        targetFolder = await targetFolder.getDirectoryHandle(segment, { create: true })
-      }
-
-      const fileHandle = await targetFolder.getFileHandle(fileName, { create: true })
-      const writable = await fileHandle.createWritable()
-
-      const blob = await fileRes.blob()
-      await writable.write(blob)
-      await writable.close()
-    })
-  )
-}
 
 export async function downloadAndSavePublishedPost(
   userContext: UserContext,
-  item: { postId: string; postSlug: string; title: string; createdAt?: string }
-): Promise<BlogPost | null> {
-  // 1. Fetch published posts list from R2 endpoint
-  console.log("Fetching published manifest...")
-  const listRes = await fetch('/api/list-published', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userContext),
-  })
-
-  if (!listRes.ok) {
-    throw new Error(`Failed to list R2 posts: ${item.postSlug}`)
-  }
-
-  const data = await listRes.json()
-  console.log("CUNTING DATA: ", data)
-
-  // Verify posts array exists
-  const posts: Array<{ id: string; postSlug: string; title: string; publishedAt?: string }> = data.posts || []
-  const targetPost = posts.find((p) => p.id === item.postId || p.postSlug === item.postSlug)
-
-  if (!targetPost) {
-    console.warn(`No post found in R2 matching ID/Slug: ${item.postId} / ${item.postSlug}`)
-    return null
-  }
-
-  // 2. Fetch the post's index.html from R2 using user-content path
-  const htmlUrl = `/user-content/${userContext.accountSlug}/posts/${item.postSlug}/index.html`
-  console.log("Downloading post HTML from: ", htmlUrl)
-
-  const htmlRes = await fetch(htmlUrl)
-  let htmlContent = ''
-  if (htmlRes.ok) {
-    htmlContent = await htmlRes.text()
-  } else {
-    console.warn(`Could not fetch HTML content from ${htmlUrl}`)
-  }
-
-  // 3. Prepare target OPFS directory 'publishing/published/<postId>'
-  const root = await navigator.storage.getDirectory()
-  const pubDir = await root
-    .getDirectoryHandle('publishing', { create: true })
-    .then((dir) => dir.getDirectoryHandle('published', { create: true }))
-
-  const postFolder = await pubDir.getDirectoryHandle(item.postId, { create: true })
-
-  // 4. Save content.html in OPFS
-  const contentHandle = await postFolder.getFileHandle('content.html', { create: true })
-  const contentWritable = await contentHandle.createWritable()
-  await contentWritable.write(htmlContent)
-  await contentWritable.close()
-
-  // 5. Generate post.json in OPFS
-  const now = new Date().toISOString()
-  const postMetadata: BlogPost = {
-    id: item.postId,
-    slug: item.postSlug,
-    title: item.title || targetPost.title || 'Untitled Post',
-    subTitle: null,
-    status: 'published',
-    createdAt: item.createdAt || targetPost.publishedAt || now,
-    dateLastEdited: now,
-    author: {
-      userId: userContext.userId,
-      accountId: userContext.accountId,
-      accountSlug: userContext.accountSlug,
-      name: userContext.name || 'Author',
-    },
-    dirHandle: postFolder,
-  }
-
-  console.log("OK FUCKNUTS: ", postMetadata)
-
-  const jsonHandle = await postFolder.getFileHandle('post.json', { create: true })
-  const jsonWritable = await jsonHandle.createWritable()
-  await jsonWritable.write(JSON.stringify({ ...postMetadata, dirHandle: null }, null, 2))
-  await jsonWritable.close()
-
-  return {
-    ...postMetadata,
-    content: htmlContent,
-  }
-}
-
-export async function getOPFSPostById(
-  folderPath: 'publishing/drafts' | 'publishing/published',
-  postId: string,
-  onPurgeNotice?: (slug: string) => void
-): Promise<BlogPost | null> {
+  missingItem: { postId: string }
+) {
   try {
-    const dirHandle = await getDirectory(folderPath)
-    const subDir = await dirHandle.getDirectoryHandle(postId, { create: false })
-    const status: PostStatus = folderPath === 'publishing/drafts' ? 'draft' : 'published'
-
-    try {
-      let jsonHandle: FileSystemFileHandle
-      try {
-        jsonHandle = await subDir.getFileHandle('post.json')
-      } catch {
-        jsonHandle = await subDir.getFileHandle('draft.json')
-      }
-
-      const file = await jsonHandle.getFile()
-      const rawText = await file.text()
-      const metadata = JSON.parse(rawText)
-      const fileLastModified = new Date(file.lastModified).toISOString()
-
-      return {
-        id: metadata.id || subDir.name,
-        slug: metadata.slug || metadata.customSlug || metadata.postSlug || subDir.name,
-        title: metadata.title || 'Untitled Post',
-        subTitle: metadata.subTitle || null,
-        status,
-        createdAt: metadata.createdAt || metadata.publishedAt || fileLastModified,
-        dateLastEdited: metadata.dateLastEdited || metadata.updatedAt || fileLastModified,
-        author: {
-          userId: metadata.author?.userId || metadata.userId || '',
-          accountId: metadata.author?.accountId || metadata.accountId || '',
-          accountSlug: metadata.author?.accountSlug || metadata.accountSlug || '',
-          name: metadata.author?.name || metadata.accountSlug || 'Author',
-        },
-        blobMap: metadata.blobMap || {},
-        templateId: metadata.templateId || 'simple-blog',
-        dirHandle: subDir,
-      }
-    } catch {
-      return await reconcileDraftFolder(dirHandle, subDir, folderPath, onPurgeNotice)
-    }
-  } catch (err) {
-    console.warn(`Post with ID [${postId}] not found in OPFS [${folderPath}]:`, err)
-    return null
-  }
-}
-
-export async function getOPFSPostBySlug(
-  folderPath: 'publishing/drafts' | 'publishing/published',
-  slug: string,
-  onPurgeNotice?: (slug: string) => void
-): Promise<BlogPost | null> {
-  const posts = await getOPFSPosts(folderPath, onPurgeNotice)
-  return posts.find((post) => post.slug === slug) || null
-}
-
-export async function pushDraftFromOPFSToR2(
-  userContext: UserContext,
-  draftId: string
-): Promise<{ success: boolean; postSlug: string; error?: string }> {
-  try {
-    // 1. Get draft directory handle by UUID
-    const draftsFolder = await getDirectory('publishing/drafts')
-    const draftDir = await draftsFolder.getDirectoryHandle(draftId)
-
-    // 2. Read post.json metadata
-    const jsonHandle = await draftDir.getFileHandle('post.json')
-    const metaFile = await jsonHandle.getFile()
-    const metadata: BlogPost = JSON.parse(await metaFile.text())
-
-    // 3. Read index.html directly
-    const htmlHandle = await draftDir.getFileHandle('index.html')
-    const htmlFile = await htmlHandle.getFile()
-
-    // 4. Build payload for /api/publish
-    const formData = new FormData()
-    formData.append('userContext', JSON.stringify(userContext))
-    formData.append('metadata', JSON.stringify(metadata))
-    formData.append('indexHtml', htmlFile)
-
-    // 5. Append media assets if any exist in the folder
-    const dirIterable = draftDir as FileSystemDirectoryHandle & {
-      values(): AsyncIterable<FileSystemHandle>
-    }
-
-    for await (const entry of dirIterable.values()) {
-      if (entry.kind === 'file' && !['post.json', 'draft.json', 'index.html'].includes(entry.name)) {
-        const fileHandle = entry as FileSystemFileHandle
-        const file = await fileHandle.getFile()
-        formData.append(`media_${entry.name}`, file)
-      }
-    }
-
-    // 6. Post directly to R2 endpoint
-    const res = await fetch('/api/publish', {
+    // 1. Fetch the full folder bundle from R2
+    const res = await fetch('/api/get-post', {
       method: 'POST',
-      body: formData,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountSlug: userContext.accountSlug,
+        postId: missingItem.postId,
+        accountId: userContext.accountId,
+      }),
     })
 
-    const result = await res.json()
-    if (!res.ok || !result.success) {
-      throw new Error(result.error || 'Failed to upload draft to R2')
+    if (!res.ok) throw new Error(`Failed to fetch post folder for ${missingItem.postId}`)
+    const { files } = await res.json()
+
+    // 2. Open OPFS directory handle
+    const rootDir = await getDirectory('publishing')
+    const postDir = `${rootDir}/${missingItem.postId}`
+    const postDirHandle = await rootDir.getDirectoryHandle(missingItem.postId, { create: true })
+
+    let htmlContent = ''
+    let postJson = ''
+    const mediaFilenames: string[] = []
+
+    // 3. Write all files to OPFS
+    // grab htmlContent and mediaFiles along the way
+    for (const file of files) {
+      if (file.relativePath === 'index.html' && file.encoding === 'utf-8') {
+        htmlContent = file.content
+      }
+      if (file.relativePath === 'post.json' && file.encoding === 'utf-8') {
+        postJson = file.content
+      }
+      if (file.relativePath.startsWith('media/') && file.encoding === 'base64') {
+        mediaFilenames.push(file.relativePath.replace('media/', ''))
+      }
+
+      await saveToOPFSFolder(postDir, file.name, file)
     }
 
-    // 7. Move draft -> published in OPFS
-    await moveDraftToPublished(draftId)
+    // 4. Run through the transformer helper if we have HTML and media
+ 
+    if (htmlContent && mediaFilenames.length > 0) {
+      const { blobMap, updatedHtml } = generateBlobMapAndFixHtml(htmlContent, mediaFilenames)
+      await saveToOPFSFolder(postDir, 'index.html', updatedHtml)
+      let currentPostJson = await readLocalPostJson(postDirHandle)
 
-    return {
-      success: true,
-      postSlug: metadata.slug,
+      if (!currentPostJson) {
+        currentPostJson = generatePostJson(missingItem, userContext, mediaFilenames, blobMap)
+      }
+      await saveToOPFSFolder(postDir, 'post.json', currentPostJson)
     }
-  } catch (err: any) {
-    console.error('Failed to push draft to R2:', err)
-    return {
-      success: false,
-      postSlug: '',
-      error: err.message || 'Error pushing draft to remote storage',
-    }
+
+    return true
+  } catch (err) {
+    console.error(`Error saving post folder ${missingItem.postId}:`, err)
+    return false
   }
 }
+
 
 
 export async function saveNewDraft(
@@ -1062,7 +740,7 @@ export async function saveNewDraft(
   htmlContent: string
 ): Promise<{ success: boolean; dirHandle: FileSystemDirectoryHandle | null }> {
   try {
-    const dirPath = `publishing/drafts/${post.id}`
+    const dirPath = `${POSTS_DIR}${post.id}`
     const now = new Date().toISOString()
 
     const metadataToStore: BlogPost = {
@@ -1083,14 +761,13 @@ export async function saveNewDraft(
   }
 }
 
-
 /** Saves or updates a post in OPFS under publishing/drafts/{id} */
 export async function saveDraft(
   post: BlogPost,
   htmlContent: string
 ): Promise<{ success: boolean; dirHandle: FileSystemDirectoryHandle | null }> {
   try {
-    const dirPath = `publishing/drafts/${post.id}`
+    const dirPath = `${POSTS_DIR}${post.id}`
     const now = new Date().toISOString()
 
     const metadataToStore: BlogPost = {
@@ -1112,9 +789,9 @@ export async function saveDraft(
 }
 
 /** Reads a draft post from OPFS, re-hydrates media blobs, and explicitly marks status as 'draft' */
-export async function loadDraft(draftId: string): Promise<BlogPost | null> {
+export async function loadPost(draftId: string): Promise<BlogPost | null> {
   try {
-    const dirPath = `publishing/drafts/${draftId}`
+    const dirPath = `${POSTS_DIR}${draftId}`
 
     // 1. Read metadata & HTML content from OPFS
     const rawMeta = (await readFromOPFSFolder(dirPath, 'post.json', 'text')) as string
@@ -1171,101 +848,57 @@ export async function loadDraft(draftId: string): Promise<BlogPost | null> {
   }
 }
 
-/** Reads a published post from OPFS or attempts remote sync/manifest fetch if unavailable locally */
-export async function loadPublished(
-  pubId: string, 
-  userContext?: UserContext
-): Promise<BlogPost | null> {
-  const dirPath = `publishing/published/${pubId}`
-
+export async function getOPFSPostById(basePath: string, postId: string): Promise<BlogPost | null> {
   try {
-    // 1. Try reading from local OPFS published storage
-    const rawMeta = (await readFromOPFSFolder(dirPath, 'post.json', 'text')) as string
-    let htmlContent = (await readFromOPFSFolder(dirPath, 'index.html', 'text')) as string
-    const post: BlogPost = JSON.parse(rawMeta)
+    // 1. Access the specific post folder inside the base directory (e.g., 'publishing/uuid-here')
+    const subDir = await getDirectory(`${basePath}/${postId}`)
+    
+    // 2. Read the post.json file handle
+    const jsonHandle = await subDir.getFileHandle('post.json')
+    const file = await jsonHandle.getFile()
+    const rawText = await file.text()
+    const metadata = JSON.parse(rawText)
+    const fileLastModified = new Date(file.lastModified).toISOString()
 
-    // 2. Re-hydrate binary media blobs (if media/ exists)
-    const updatedBlobMap: Record<string, string> = {}
-    let rehydratedHeroUrl: string | null = post.heroImage || null
-
-    try {
-      const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
-
-      for (const { name, handle } of mediaEntries) {
-        if ((handle as FileSystemHandle).kind === 'file') {
-          const fileHandle = handle as FileSystemFileHandle
-          const file = await fileHandle.getFile()
-          const freshBlobUrl = URL.createObjectURL(file)
-
-          updatedBlobMap[freshBlobUrl] = name
-
-          if (name.includes('hero')) {
-            rehydratedHeroUrl = freshBlobUrl
-          }
-
-          const oldBlobUrl = Object.keys(post.blobMap || {}).find(
-            (key) => post.blobMap?.[key] === name
-          )
-
-          if (oldBlobUrl) {
-            htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
-          }
-        }
-      }
-    } catch {
-      // media/ folder does not exist for this post, ignore safely
-    }
-
-    const dirHandle = await getDirectory(dirPath)
-
-    return {
-      ...post,
-      heroImage: rehydratedHeroUrl,
-      content: htmlContent,
-      blobMap: updatedBlobMap,
-      status: 'published',
-      dirHandle,
-    }
-  } catch {
-    console.warn(`Local published post [${pubId}] not found in OPFS. Attempting remote sync...`)
-
-    // Fallback: If missing locally and context is provided, trigger manifest sync endpoint
-    if (userContext?.accountSlug) {
-      try {
-        const response = await fetch(`/api/manifest-sync?accountSlug=${userContext.accountSlug}`)
-        if (!response.ok) throw new Error('Manifest sync request failed')
-
-        const manifestItems: ManifestPost[] = await response.json()
-        const match = manifestItems.find((item) => item.id === pubId || item.postSlug === pubId)
-
-        if (match) {
-          const syncedPost: BlogPost = {
-            id: match.id,
-            slug: match.postSlug,
-            title: match.title,
-            heroImage: match.heroImage || null,
-            status: 'published',
-            createdAt: match.publishedAt,
-            dateLastEdited: match.updatedAt,
-            author: {
-              userId: userContext.userId,
-              accountId: userContext.accountId,
-              accountSlug: userContext.accountSlug,
-              name: 'Author',
-            },
-            dirHandle: null,
-          }
-
-          return syncedPost
-        }
-      } catch (syncErr) {
-        console.error(`Remote manifest sync failed for [${pubId}]:`, syncErr)
-      }
-    }
-
+    // 3. Convert raw JSON metadata into a fully typed BlogPost using your existing helper
+    return convertJsonToBlogPost(metadata, subDir, fileLastModified)
+  } catch (err) {
+    console.error(`Failed to fetch OPFS post by ID (${postId}) from basePath (${basePath}):`, err)
     return null
   }
 }
+
+export async function rebuildLocalManifest(): Promise<BlogPost[]> {
+  try {
+    // 1. Fetch all local posts (sorted newest first by dateLastEdited)
+    const posts = await getOPFSPosts()
+
+    const manifestData = {
+      posts,
+      updatedAt: new Date().toISOString(),
+    }
+
+    // 2. Write manifest.json to the root 'publishing' OPFS directory
+    const rootDir = await getDirectory('publishing')
+    const fileHandle = await rootDir.getFileHandle('manifest.json', { create: true })
+    const writable = await fileHandle.createWritable()
+    await writable.write(JSON.stringify(manifestData, null, 2))
+    await writable.close()
+
+    return posts
+  } catch (err) {
+    console.error('Failed to rebuild local OPFS manifest:', err)
+    return []
+  }
+}
+
+
+
+
+
+
+
+
 
 
 // ============================================================================

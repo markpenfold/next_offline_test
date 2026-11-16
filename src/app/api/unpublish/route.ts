@@ -3,8 +3,8 @@ import { GetObjectCommand, PutObjectCommand, ListObjectsV2Command, DeleteObjects
 import { r2Client } from "@/lib/blog/r2";
 import { createClient } from "@/lib/supabase/server";
 import { getBucketName } from "@/lib/blog/helpers";
-import { fetchExistingManifestMap } from "@/lib/blog/manifests";
-
+import { rebuildRootManifest, rebuildBlogManifest } from  "@/lib/blog/manifests"
+import { verifyUserCanPublish } from "@/lib/supabase/queries";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -16,7 +16,15 @@ export async function POST(request: Request) {
 
   try {
     const bucketName = getBucketName();
-    const { accountSlug, postSlug, postId } = await request.json();
+    const { accountSlug, postSlug, postId, accountId } = await request.json();
+    
+    // 2. Verify authorization (user has publishing rights for this account)
+    const canPublish = await verifyUserCanPublish(user.id, accountId);
+    if (!canPublish) {
+      return NextResponse.json({ error: 'Forbidden: Insufficient publishing privileges' }, { status: 403 });
+    }
+
+    
 
     if (!accountSlug || !postSlug) {
       return NextResponse.json({ error: "Missing accountSlug or postSlug" }, { status: 400 });
@@ -38,25 +46,11 @@ export async function POST(request: Request) {
         })
       );
     }
-
-    // 2. Remove post from R2 manifest.json
-    const manifestKey = `${accountSlug}/manifest.json`;
-    try {
-      let manifest = await fetchExistingManifestMap( bucketName, manifestKey)
-      manifest.delete(postId);
-
-        await r2Client.send(
-          new PutObjectCommand({
-            Bucket: bucketName,
-            Key: manifestKey,
-            Body: JSON.stringify({ posts: Array.from(manifest.values()) }, null, 2),
-            ContentType: "application/json",
-          })
-        );
-      }
-     catch {
-      // Manifest read ignored if missing
-    }
+ 
+    // Automatically rebuild the account manifest.json 
+    // Then rebuild root manifest
+    await rebuildBlogManifest(accountSlug)
+    await rebuildRootManifest();
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

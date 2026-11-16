@@ -403,6 +403,23 @@ export async function getAllUserAccountsWithRoles(user_id: string) {
   });
 }
 
+// Check a user has the OK to alter a blog 
+export async function verifyUserCanPublish(userId: string, accountId: string): Promise<boolean> {
+  const supabase = await createAdminClient();
+
+  const { data, error } = await supabase
+    .from('memberships')
+    .select('can_publish')
+    .eq('user_id', userId)
+    .eq('account_id', accountId)
+    .single();
+
+  if (error || !data) {
+    return false;
+  }
+
+  return data.can_publish === true;
+}
 
 // Define the query builder independently so TypeScript can inspect it
 const getAccountContextQuery = (supabase: SupabaseClient, userId: string, accountId: string) =>

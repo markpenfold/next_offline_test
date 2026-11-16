@@ -28,7 +28,7 @@ import { useEditorStore } from '@/stores/useEditorStore'
 import { useAppStore } from '@/providers/AppStoreProvider'
 import { TEMPLATE_OPTIONS } from './templates/TemplateOptions'
 import type {} from '@tiptap/extension-highlight'
-import { getOPFSPostById, saveDraftMedia, removeDraftMedia } from '@/components/data/diskOPFS'
+import { saveDraftMedia, removeDraftMedia, getOPFSPostById } from '@/components/data/diskOPFS'
 import { convertToWebP } from './blogHelpers'
 
 interface EditorCanvasProps {
@@ -65,12 +65,12 @@ export function EditorCanvas({
   const setSubTitle = useEditorStore((s) => s.setLiveSubTitle)
   const setTemplateId = useEditorStore((s) => s.setTemplateId)
   const toggleToolbar = useEditorStore((s) => s.toggleToolbar)
-  const publishDraft = useEditorStore((s) => s.publishDraft)
+  const publishDraft = useEditorStore((s) => s.publishPost)
   const unpublishPost = useEditorStore((s) => s.unpublishPost)
   const saveCurrentDraft = useEditorStore((s) => s.saveCurrentDraft)
   const setCurrentPost = useEditorStore((s) => s.setCurrentPost)
   const setHeroImage = useEditorStore((s) => s.setHeroImage)
-  const loadExistingDraft = useEditorStore((s) => s.loadExistingDraft)
+  const loadExistingDraft = useEditorStore((s) => s.loadPost)
 
   const [editorError, setEditorError] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -162,7 +162,7 @@ export function EditorCanvas({
 
     if (res.success) {
       // 3. Fetch accurate updated post directly from OPFS published folder
-      const publishedPost = await getOPFSPostById('publishing/published', savedDraft.id)
+      const publishedPost = await getOPFSPostById('publishing', savedDraft.id)
 
       if (publishedPost) {
         console.log("In the published folder now: ", publishedPost)

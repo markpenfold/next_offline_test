@@ -11,7 +11,7 @@ export function DraftFinderModal({ editor }: { editor: any }) {
   const availableDrafts = useEditorStore((state) => state.availableDrafts);
   const isLoadingDrafts = useEditorStore((state) => state.isLoadingDrafts);
   const fetchAvailableDrafts = useEditorStore((state) => state.fetchAvailableDrafts);
-  const loadExistingDraft = useEditorStore((state) => state.loadExistingDraft);
+  const loadExistingDraft = useEditorStore((state) => state.loadPost);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [loadingDraftId, setLoadingDraftId] = useState<string | null>(null);
@@ -21,9 +21,7 @@ export function DraftFinderModal({ editor }: { editor: any }) {
   // Fetch drafts via store when the modal opens
   useEffect(() => {
     if (isDrawerOpen) {
-      fetchAvailableDrafts((purgedSlug) => {
-        console.warn(`[OPFS Cleanup] Automatically purged broken draft: ${purgedSlug}`);
-      });
+      fetchAvailableDrafts();
     }
   }, [isDrawerOpen, fetchAvailableDrafts]);
 

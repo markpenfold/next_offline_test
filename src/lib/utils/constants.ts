@@ -81,3 +81,4 @@ export const TRIGRAMS = [
   { symbol: "☷", name: "Kūn", meaning: "Earth / Ground", element: "Earth" },
 ];
 
+export const POSTS_DIR = "publishing/"

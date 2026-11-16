@@ -47,7 +47,7 @@ export function renderFullPage({
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${safeTitle} - ${safeAccountSlug}</title>
+    <title>${safeTitle}</title>
     <link rel="stylesheet"  href="/assets/styles.css">
   </head>
   <body>
