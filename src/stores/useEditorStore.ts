@@ -388,7 +388,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // 1. Upload media blobs to R2
       const { finalHtmlContent, finalHeroUrl } = await uploadDraftMediaToR2(
         draftId,
-        { accountId: userContext.accountId, accountSlug: userContext.accountSlug },
+        userContext,
         finalSlug,
         blobMap,
         htmlContent,

@@ -46,6 +46,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("Failed to clear media folder:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });  }
 }

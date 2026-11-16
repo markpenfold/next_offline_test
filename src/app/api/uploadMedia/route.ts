@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     const accountId = formData.get('accountId') as string | null
     const accountSlug = formData.get('accountSlug') as string | null
     const postSlug = formData.get('postSlug') as string | null
+    const postId = formData.get('postId') as string | null
 
     if (!file) return NextResponse.json({ error: 'Missing file payload' }, { status: 400 })
     if (!accountId) return NextResponse.json({ error: 'Missing accountId' }, { status: 400 })
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`
     
     // R2 Key: <accountSlug>/posts/<postSlug>/media/<fileName>
-    const r2Key = `${accountSlug}/posts/${postSlug}/media/${fileName}`
+    const r2Key = `${accountSlug}/posts/${postId}/media/${fileName}`
 
     // 6. Upload binary object to R2
     await r2Client.send(
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     )
 
     // 7. Construct and return final public asset URL for insertion into Tiptap
-    const publicUrl = `https://${accountSlug}.omen.land/${postSlug}/media/${fileName}`
+    const publicUrl = `https://${accountSlug}.omen.land/${postId}/media/${fileName}`
 
     return NextResponse.json({
       success: true,

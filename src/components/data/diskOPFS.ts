@@ -576,7 +576,7 @@ export async function getOPFSPosts(
 // clear existing R2 media files in case this is a re-pub
 export async function uploadDraftMediaToR2(
   draftId: string,
-  userContext: { accountId: string; accountSlug: string },
+  userContext: UserContext,
   finalSlug: string,
   blobMap: Record<string, string>,
   htmlContent: string,
@@ -588,18 +588,27 @@ export async function uploadDraftMediaToR2(
 
   if (mediaEntries.length > 0) {
     // 1. Clear the R2 media folder ONCE before uploading the fresh set
-    const clearFormData = new FormData()
-    clearFormData.append('accountId', userContext.accountId)
-    clearFormData.append('accountSlug', userContext.accountSlug)
-    clearFormData.append('postId', draftId)
-
+    
     // In case this is an update we must clear the current media folder if it exists
-    const clearRes = await fetch('/api/clearPostMedia', { method: 'POST', body: clearFormData })
+    const clearRes = await fetch('/api/clearPostMedia', { method: 'POST', body: JSON.stringify({
+        accountSlug: userContext.accountSlug,
+        postId: draftId,
+        accountId: userContext.accountId,
+      }),
+})
+    console.log("clearRes:", clearRes)
     if (!clearRes.ok) {
-      const errData = await clearRes.json()
-      throw new Error(`Failed to clear old media: ${errData.error || 'Unknown error'}`)
+        const errText = await clearRes.text()
+        let errorMessage = errText
+        try {
+          const errData = JSON.parse(errText)
+          errorMessage = errData.error || errText
+        } catch {
+          // If the server sent back HTML or plain text, keep it as the error message
+        }
+        throw new Error(`Failed to clear old media: ${errorMessage || clearRes.statusText}`)
+      }
     }
-  }
 
   // 2. Loop through and upload each file safely
   for (const { name, handle } of mediaEntries) {
@@ -612,6 +621,7 @@ export async function uploadDraftMediaToR2(
     formData.append('accountId', userContext.accountId)
     formData.append('accountSlug', userContext.accountSlug)
     formData.append('postId', draftId)
+    formData.append('postSlug', finalSlug)
 
     const res = await fetch('/api/uploadMedia', { method: 'POST', body: formData })
     const data = await res.json()
