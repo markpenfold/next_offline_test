@@ -35,8 +35,8 @@ export function NewDocModal({ isOpen, onClose, editor }: NewDocModalProps) {
     setErrorMessage(null)
 
     Promise.all([
-      getOPFSPosts("publishing/drafts"),
-      getOPFSPosts("publishing/published"),
+      getOPFSPosts("draft"),
+      getOPFSPosts("published"),
     ])
       .then(([drafts, published]) => {
         const titles = new Set<string>()

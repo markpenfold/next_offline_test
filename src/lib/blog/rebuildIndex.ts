@@ -2,7 +2,7 @@ import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-s
 import { r2Client } from '@/lib/blog/r2'
 import { renderIndexPage } from '@/lib/blog/indexTemplate'
 import { getPublishingContributors } from '@/lib/supabase/queries'
-import { ManifestPost, PostCardData } from "@/components/blog/blogHelpers";
+import { BlogPost, PostCardData } from "@/components/blog/blogHelpers";
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function rebuildBlogIndex(
@@ -18,25 +18,25 @@ export async function rebuildBlogIndex(
   // 1. Create elevated Supabase admin client to bypass RLS
   const supabaseAdmin = await createAdminClient()
 
-    // Fetch account details (temporarily avoiding blog_header_image column lookup until DB migration)
-    const { data: account, error: accountError } = await supabaseAdmin
+  // 2. Fetch account details
+  const { data: account, error: accountError } = await supabaseAdmin
     .from('accounts')
     .select('id, blog_title, blog_subtitle, blog_header_image')
     .eq('id', accountId)
     .single()
 
-    if (accountError || !account) {
+  if (accountError || !account) {
     console.error('❌ Supabase Admin Account Query Error:', accountError)
     throw new Error(`Account non-existent or query error for accountId: ${accountId}`)
-    }
+  }
 
   // 3. Fetch publishing contributors
   const contributors = await getPublishingContributors(account.id)
 
-  // 4. Read manifest.json & scan R2 directories
+  // 4. Read manifest.json & scan R2 directories (using BlogPost[])
   const postsPrefix = `${accountSlug}/posts/`
   const manifestKey = `${accountSlug}/manifest.json`
-  const manifestMapBySlug = new Map<string, ManifestPost>()
+  const manifestMapBySlug = new Map<string, BlogPost>()
 
   try {
     const manifestRes = await r2Client.send(
@@ -45,11 +45,11 @@ export async function rebuildBlogIndex(
     if (manifestRes.Body) {
       const str = await manifestRes.Body.transformToString()
       const manifestData = JSON.parse(str)
-      const rawPosts: ManifestPost[] = manifestData.posts || manifestData || []
+      const rawPosts: BlogPost[] = manifestData.posts || manifestData || []
 
       for (const item of rawPosts) {
-        if (item.postSlug) {
-          manifestMapBySlug.set(item.postSlug, item)
+        if (item.slug) {
+          manifestMapBySlug.set(item.slug, item)
         }
       }
     }
@@ -80,19 +80,19 @@ export async function rebuildBlogIndex(
         title: meta?.title || slug.replace(/-/g, ' '),
         subtitle: meta?.subTitle || null,
         heroImage: meta?.heroImage || null,
-        publishedAt: meta?.publishedAt || new Date().toISOString(),
+        publishedAt: meta?.createdAt || new Date().toISOString(),
       }
     })
 
   // 5. Render index template HTML string
-const indexHtml = renderIndexPage({
-  accountSlug,
-  blogTitle: account.blog_title || accountSlug,
-  blogSubtitle: account.blog_subtitle || null,
-  contributors,
-  initialPosts: publishedPosts,
-  blogHeaderImage: account.blog_header_image || null,
-})
+  const indexHtml = renderIndexPage({
+    accountSlug,
+    blogTitle: account.blog_title || accountSlug,
+    blogSubtitle: account.blog_subtitle || null,
+    contributors,
+    initialPosts: publishedPosts,
+    blogHeaderImage: account.blog_header_image || null,
+  })
 
   // 6. Save generated index.html to account root in R2
   await r2Client.send(

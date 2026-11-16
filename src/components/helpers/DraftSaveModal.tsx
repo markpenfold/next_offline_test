@@ -52,6 +52,7 @@ export function DraftSaveModal({ isOpen, onClose, editor }: DraftSaveModalProps)
           userId: user,
           accountId: activeAccount.id,
           name: profile?.display_name || activeAccount.name || "Anon",
+          accountSlug: activeAccount.account_slug,
         },
         editor.getHTML()
       );
