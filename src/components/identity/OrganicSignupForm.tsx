@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useState, useMemo, useEffect } from 'react'
-import { signup } from '@/actions/auth'
+import { organicSignup } from '@/actions/auth'
 import {
   signUpSchema,
   accountNameSchema,
@@ -86,7 +86,7 @@ function useFieldAvailability(
 }
 
 export function OrganicSignupForm({ planChoice }: OrganicSignupFormProps) {
-  const [state, formAction, isPending] = useActionState<ActionState, FormData>(signup, null)
+  const [state, formAction, isPending] = useActionState<ActionState, FormData>(organicSignup, null)
   const [clientError, setClientError] = useState<string | null>(null)
 
   // Password state
@@ -259,10 +259,10 @@ export function OrganicSignupForm({ planChoice }: OrganicSignupFormProps) {
 
         {/* Row 4: Blog Name */}
         <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: '12px', alignItems: 'center', width: '100%' }}>
-          <label htmlFor="blog_name" style={{ margin: 0 }}>Blog Name</label>
+          <label htmlFor="blog_title" style={{ margin: 0 }}>Blog Name</label>
           <input
-            id="blog_name"
-            name="blog_name"
+            id="blog_title"
+            name="blog_title"
             type="text"
             placeholder="New timelines"
             value={blogName}

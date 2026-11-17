@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useState, useMemo, useEffect } from 'react'
-import { signup } from '@/actions/auth'
+import { invitedSignup } from '@/actions/auth'
 import { 
   signUpSchema, 
   accountNameSchema, 
@@ -21,7 +21,7 @@ interface SignupFormProps {
 }
 
 export function InvitedSignupForm({planChoice, inviteToken}: SignupFormProps) {
-  const [state, formAction, isPending] = useActionState<ActionState, FormData>(signup, null);
+  const [state, formAction, isPending] = useActionState<ActionState, FormData>(invitedSignup, null);
   const [clientError, setClientError] = useState<string | null>(null)
 
   // Password state

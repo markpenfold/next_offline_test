@@ -20,8 +20,6 @@ export function CheckoutButton({ plan, activeAccount, className, children }: Che
       alert('Your workspace account data is still loading. Please wait a moment and try again.')
       return
     }
-
-
     setIsLoading(true)
     //console.log("SENDING THIS TO POST? ", JSON.stringify({ plan, accountId: activeAccount.id }))
     try {

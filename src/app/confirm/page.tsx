@@ -7,6 +7,8 @@ import Link from 'next/link'
 export default async function ConfirmPage() {
     const cookieStore = await cookies()
     const pending = cookieStore.get('allow_confirm')
+    const nameCookie = cookieStore.get('confirm_name')
+    const userName =nameCookie?.value || 'Fellow traveller'
     
     if (!pending) {
         console.log('no cookie for sign up?', pending)
@@ -16,6 +18,7 @@ export default async function ConfirmPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
+        <h4>Hi {userName}</h4>
       <h2>Please confirm your sign up</h2>
         An email has been sent to your sign up address. 
         

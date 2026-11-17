@@ -1,10 +1,11 @@
 import { NextResponse, NextRequest, } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin' // 🛡️ Import your admin utility
+import { createAdminClient } from '@/lib/supabase/admin'
 import { UserTier } from '@/lib/tl_utils/types'
 import { getAccountContext } from '@/lib/supabase/queries'
 import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
+import { setUpStripeCustomer } from '@/lib/supabase/queries'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: STRIPE_API_VERSION
@@ -16,7 +17,9 @@ const PRICE_IDS: Record<string, string> = {
   founder: process.env.STRIPE_PRICE_FOUNDER!,
 }
 
-// For users already logged into the app upgrading their plan.
+
+// ALREADY LOGGED IN = CHANGING PLAN
+
 export async function POST(request: Request) {
   //console.log("checkout POST Billing modification request received ", request)
   
@@ -240,107 +243,83 @@ export async function POST(request: Request) {
   }
 }
 
-// FOR FRESH SIGN UPS //////////////////////////
+
+// FOR FRESH ORGANIC SIGNUPS //////////////////////////
+// Incoming from signup-> confirm email -> callback ///
+// searchparams set with userId and plan //////////////
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const plan = searchParams.get('plan') as UserTier | null
     const urlUserId = searchParams.get('userId')
-    const urlEmail = searchParams.get('email')
-    
 
-    if (!plan) {
+    if (!plan || plan === 'free') {
+      return NextResponse.redirect(new URL('/dash?message=Welcome!', req.url))
+    }
+
+    const priceId = PRICE_IDS[plan]
+    if (!priceId) {
       return NextResponse.redirect(new URL('/pricing?error=invalid_plan', req.url))
     }
 
-    if (plan === 'free') {
-      return NextResponse.redirect(new URL('/dash?message=Welcome to your Free workspace!', req.url))
-    }
-
-    // 1. Resolve Identity (Session Cookie vs. URL Fallback)
-    // User should have been created by SignUp Action
+    // 1. Resolve Identity from session or query param fallback
     const supabase = await createClient()
     const { data: { user: sessionUser } } = await supabase.auth.getUser()
-    
-    // Use the secure session ID if available; otherwise, fall back to the onboarding URL param
     const targetUserId = sessionUser?.id || urlUserId
-    const targetEmail = sessionUser?.email || urlEmail || undefined
 
     if (!targetUserId) {
       console.error("[Checkout Error] No identity anchor found. Blocking anonymous request.")
       return NextResponse.redirect(new URL('/pricing?error=session_expired', req.url))
     }
 
-    // Map plan strings to Stripe Price IDs
-    const priceMap: Record<UserTier, string | undefined> = {
-      pro: process.env.STRIPE_PRICE_PRO,  
-      team: process.env.STRIPE_PRICE_TEAM,
-      founder: process.env.STRIPE_PRICE_FOUNDER,
-      free: undefined,
-      none: undefined
-    }
-
-    const priceId = priceMap[plan]
-    if (!priceId) {
-      return NextResponse.redirect(new URL('/dash?error=invalid_plan', req.url))
-    }
-
-    // 2. Fetch Workspace Account Data using our verified Target User ID
-    // Using supabase.auth.admin or standard client depending on your RLS policies for unauthenticated reads
-    const { data: membership, error: dbError } = await supabase
+    // 2. Fetch the user's single owned account via admin client for reliability
+    const supabaseAdmin = await createAdminClient()
+    const { data: membership, error: dbError } = await supabaseAdmin
       .from('memberships')
-      .select(`
-        account_id,
-        accounts (
-          stripe_customer_id
-        )
-      `)
+      .select('account_id')
       .eq('user_id', targetUserId)
+      .eq('role', 'owner')
       .maybeSingle()
 
-    const accountContext = Array.isArray(membership?.accounts) ? membership.accounts[0] : membership?.accounts
-    const accountId = membership?.account_id
-    const stripeCustomerId = accountContext?.stripe_customer_id
-
-    // If a fresh signup hasn't had their workspace generated yet,
-    // Send them to failure url
-    // Could also add an await here?
-    if (dbError || !accountId) {
-      console.warn(`[Checkout Warning] No workspace found for user ${targetUserId}. Falling back to default routing context.`);
-      return NextResponse.redirect(new URL('/sign-up-error?error=invalid_plan', req.url))
+    if (dbError || !membership?.account_id) {
+      console.error(`[Checkout Error] No owned workspace found for user ${targetUserId}.`)
+      return NextResponse.redirect(new URL('/sign-up-error?error=no_workspace', req.url))
     }
 
-    // Enforce 2 seat floor on team setups
+    const accountId = membership.account_id
+
+    // 3. Ensure Stripe customer is fully provisioned using your shared helper
+    let stripeCustomerId: string
+    try {
+      stripeCustomerId = await setUpStripeCustomer(accountId, targetUserId)
+    } catch (stripeErr: any) {
+      console.error('[Checkout Error] Failed to auto-provision Stripe customer:', stripeErr.message)
+      return NextResponse.redirect(new URL('/sign-up-error?error=billing_init_fail', req.url))
+    }
+
+    // 4. Enforce 2-seat floor for team plans
     const finalQuantity = plan === 'team' ? 2 : 1
 
-    // 3. Construct the Stripe Checkout Session
-    // https://docs.stripe.com/api/checkout/sessions/object?api-version=2026-05-27.preview&rds=1
+    // 5. Create the Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
+      customer: stripeCustomerId,
       payment_method_types: ['card'],
-      
-      // If returning user, link their customer account. If fresh signup, pass their email.
-      customer: stripeCustomerId || undefined,
-      customer_email: stripeCustomerId ? undefined : targetEmail,
-      client_reference_id: targetUserId,
-
-      line_items: [{ price: priceId, quantity: finalQuantity }],
       mode: 'subscription',
+      line_items: [{ price: priceId, quantity: finalQuantity }],
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dash?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
-      
-      metadata: {
-        userId: targetUserId,
-        account_id: accountId , // 🎯 Tells webhook to build a workspace if missing!
-        plan_name: plan
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing?canceled=true`,
+      metadata: { 
+        planChoice: plan, 
+        userId: targetUserId, 
+        account_id: accountId 
       },
-      
-      subscription_data: {
-        metadata: {
-          userId: targetUserId,
-          account_id: accountId || 'PENDING_ONBOARDING',
-          plan_name: plan
-        }
-      },
+      subscription_data: { 
+        metadata: { 
+          planChoice: plan, 
+          userId: targetUserId, 
+          account_id: accountId 
+        } 
+      }
     })
 
     return NextResponse.redirect(new URL(session.url!))

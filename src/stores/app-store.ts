@@ -323,56 +323,16 @@ export const createAppStore = (initialTier: UserTier = TIERS.NONE) => {
     },
 
     // 6. IN-PLACE REALTIME UPGRADE REFRESHER
-    refreshTier: async () => {
-      const currentActiveAccount = get().activeAccount;
-      if (!currentActiveAccount) return;
+refreshTier: async () => {
+      const prevActiveId = get().activeAccount?.id;
+      await get().syncFromDatabase();
 
-      try {
-        console.log("Syncing subscription tier with database...");
-
-        // Get plan name given the active account ID
-        const { data, error } = await supabase
-          .from('accounts')
-          .select('plan_name')
-          .eq('id', currentActiveAccount.id)
-          .single();
-
-        if (data && !error) {
-          const freshTier = (data.plan_name?.toLowerCase() || 'none') as UserTier;
-          
-          // 1. Update the global tier shortcut
-          set({ tier: freshTier });
-
-          // 2. Also update the specific activeAccount object in state so it matches
-          set({ activeAccount: { ...currentActiveAccount, plan_name: freshTier } });
-
-          // 3. Update the item inside the accounts array
-          const currentAccounts = get().accounts;
-          const updatedAccounts = currentAccounts.map(acc => 
-            // 🟢 FIX 1: Compare ID to ID, not ID to the whole account object
-            // 🟢 FIX 2: Update 'plan_name' instead of adding an accidental 'tier' property
-            acc.id === currentActiveAccount.id 
-              ? { ...acc, plan_name: freshTier } 
-              : acc
-          );
-          set({ accounts: updatedAccounts });
-          
-          // 4. Cache everything to localStorage
-          const savedLease = localStorage.getItem('jungle_lease_v2');
-          if (savedLease) {
-            const parsed = JSON.parse(savedLease);
-            localStorage.setItem('jungle_lease_v2', JSON.stringify({ 
-              ...parsed, 
-              tier: freshTier,
-              accounts: updatedAccounts,
-              activeAccount: currentActiveAccount
-              // WAS: activeAccount: { ...currentActiveAccount, plan_name: freshTier } // Keep cache sync'd
-            }));
-          }
-          console.log(`✨ Local workspace sync complete! Current tier: ${freshTier}`);
+      // Preserve the previously selected account if the user belongs to multiple accounts
+      if (prevActiveId) {
+        const matched = get().accounts.find((acc) => acc.id === prevActiveId);
+        if (matched) {
+          get().setActiveAccount(matched);
         }
-      } catch (e) {
-        console.error('Failed to sync live tier from database:', e);
       }
     },
   }));

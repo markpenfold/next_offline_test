@@ -3,13 +3,11 @@
 
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { type PostgrestSingleResponse, type PostgrestResponse } from '@supabase/supabase-js';
 import { type SupabaseClient, type User } from '@supabase/supabase-js';
-import { type LoginResult,  ProfileRecord, MembershipRecord, ActionState  } from '@/lib/tl_utils/types'
+import { type LoginResult,  ActionState  } from '@/lib/tl_utils/types'
 import { redirect } from 'next/navigation'
-import { updatePasswordSchema, forgotPasswordSchema } from "@/lib/validations/primitives";
+import { updatePasswordSchema, forgotPasswordSchema, signUpSchema, type SignUpPayload } from "@/lib/validations/primitives";
 import { headers } from 'next/headers'
-import { signUpSchema } from '@/lib/validations/primitives'
 import { generateUserSessionPayload } from '@/lib/supabase/queries'
 import { Database } from '@/lib/tl_utils/database_types'
 import { setUpStripeCustomer, getActiveUserAccount } from '@/lib/supabase/queries';
@@ -58,137 +56,64 @@ export async function refreshSession() {
 }
 
 
-export async function signup(prevState: ActionState, formData: FormData): Promise<ActionState> {
-
-  const rawData = Object.fromEntries(formData)
-  console.log("rawData sent to signUp:", rawData)
-  
-  const result = signUpSchema.safeParse(rawData)
-  if (!result.success) {
-     const firstIssue = result.error.issues[0]
-     return { error: `${String(firstIssue.path[0])}: ${firstIssue.message}` }  }
-
-  // Now destructure from result.data instead of formData directly
-  const { email, password, full_name, username, account_name, planChoice, invite_token, blog_name, blog_slug } = result.data
-
+export async function organicSignup(prevState: ActionState, formData: FormData): Promise<ActionState> {
   const supabase = await createClient()
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const rawData = Object.fromEntries(formData)
 
-  let verifiedParentAccountId: string | null = null
-
-  // SECURITY CHECK: If joining a team, validate the token first
-  // Turn this into an external helper
-  if (invite_token) {
-    const { data: invite, error: inviteError } = await supabase
-      .from('invitations')
-      .select('account_id, email, expires_at, accepted')
-      .eq('id', invite_token)
-      .single()
-    // 1. Check if token exists or has already been used
-    if (inviteError || !invite || invite.accepted) {
-      return { error: "This invitation is invalid or has already been used." }
-    }
-    // 2. Check if the token has expired
-    if (new Date(invite.expires_at) < new Date()) {
-      return { error: "This invitation has expired. Please ask your admin for a new link." }
-    }
-    // 3. Prevent Email Hijacking: Ensure they are signing up with the invited email
-    if (invite.email.toLowerCase() !== email.toLowerCase().trim()) {
-      return { error: "This invitation was sent to a different email address." }
-    }
-    // Secure token passes validation. Fetch the true account ID from the DB.
-    verifiedParentAccountId = invite.account_id
-  } /// END OF INVITE VERIFICATION 
-
-  ////////////////////////////////////////////////////////////////////////////////////////
-  // Execute standard Supabase sign-up //////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////
-  const { data: authData, error } = await supabase.auth.signUp({ 
-    email, 
-    password,
-    options: {
-      emailRedirectTo: `${siteUrl}/auth/callback?plan=${planChoice}`,
-      data: {
-        full_name,
-        username,
-        account_name,
-        blog_name,
-        blog_slug,
-        pending_plan: planChoice,
-        // Pass the backend-verified ID straight to your existing Postgres trigger!
-        parent_account_id: verifiedParentAccountId 
-      }
-    }
-  })
-
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  ///////////////// AS MUCH ERROR DETAIL AS YOU CAN HANDLE //////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  if (error) {
-    const message = error.message.toLowerCase()
-    console.log("FUCKBALLS: ", message)
-
-    // 1. Catch Unique Constraint Violations (Trigger / DB Errors)
-    if (message.includes('accounts_account_name_key') || message.includes('account name')) {
-      return { error: "That account name is already taken. Please choose another." }
-    }
-    if (message.includes('profiles_username_key') || message.includes('username')) {
-      return { error: "That username is already taken. Please try another." }
-    }
-    if (message.includes('already registered') || message.includes('user_already_exists')) {
-      return { error: "An account with this email already exists." }
-    }
-
-    // Fallback for unexpected errors
-    return { error: error.message }
+  // 1. Validate organic signup payload ////////////////
+  const validatedFields = signUpSchema.safeParse(rawData)
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
   }
 
-  ///////////////////////////////////////////////////////////////////////////////
-  /// Now we want to get a stripe ID for the user+Account ///////////////////////
-  ///////////////////////////////////////////////////////////////////////////////
-  
-  // 🎯 3. Safely isolate the User ID
-  const userId = authData?.user?.id
-  if (!userId) {
-    return { error: "User registration succeeded, but failed to resolve identity." }
+// Add new user to Supabase ////////////////////////
+// This triggers the resend confirm email ///////////////
+// From that email the user will be sent to the auth/callback endpoint 
+const authResult = await createSupabaseUser(validatedFields.data)
+if (!authResult.success) {
+  return { error: authResult.error }
+}
+
+// get user id from the auth setup
+const { userId } = authResult
+
+/// NOW CREATE STRIPE ACCOUNT OR GRAB EXISTING ONE FOR CUSTOMER //////////
+try {
+    // grab the account we just created in supabase
+    const accountData = await getActiveUserAccount(userId)
+    const accountId = accountData?.account_id
+
+    if (accountId) {
+      // now we create a stripe account ready for them to use to pay
+      // at this point it has been added to the accounts table
+      const newStripeId = await setUpStripeCustomer(accountId, userId)
+      console.log(`Mapped Stripe Customer ${newStripeId} to account ${accountId}`)
+    } else {
+      console.warn(`Could not resolve new accountId for user ${userId}; Stripe provisioning deferred to callback.`)
+    }
+  } catch (stripeError: any) {
+    // Non-blocking: /auth/callback and /api/checkout/stripe auto-heal this if transient
+    console.error('Stripe customer provisioning deferred:', stripeError.message)
   }
 
-  // Resolve the Account ID context if we have a team invite
-  let accountId = verifiedParentAccountId
-
-    // If it's a brand new signup
-    // Fetch the newly created account
-  if (!accountId) {
-    const activeAccount = await getActiveUserAccount(userId)
-    accountId = activeAccount?.account_id || null
-  }if (!accountId) {
-    return { error: "Could not resolve workspace account for customer setup." }
-  }
-
-  //  set up stripe IF not a team invite
-  if (!verifiedParentAccountId){
-      try {
-        // AWAIT the Stripe provisioning step 
-        const newStripeId = await setUpStripeCustomer(accountId, userId)
-        console.log(`Successfully mapped Stripe Customer ${newStripeId} to account ${accountId}`)
-      } catch (stripeError: any) {
-        console.error("Stripe customer provisioning deferred:", stripeError.message)
-        // Optional: Decide whether you want to block registration or let them pass and handle it later
-      }
-  }
-
-
-  // just in time cookies
+  // 4. Gate /confirm and redirect
+  // Sets a Temporary Permission Cookie (allow_confirm: true):
   const cookieStore = await cookies()
   cookieStore.set('allow_confirm', 'true', {
-    maxAge: 600, 
-    path: '/',
     httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 10,
+    path: '/',
   })
 
-  redirect('/confirm');
+  cookieStore.set('confirm_name', validatedFields.data.full_name, {
+    httpOnly: false, // Set to false if you want client components to read it directly, or keep true if only reading on the server
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 10,
+    path: '/',
+  })
+
+  redirect('/confirm')
 }
 
 
@@ -279,4 +204,140 @@ async function getUserDetails(user: User, supabase: SupabaseClient<Database>)
   // Because we have imported the db schema from Supabase => SupabaseClient<Database>
   return [profileResult, membershipsResult] as const;
 
+}
+
+
+
+/// HELPERS
+interface CreateSupabaseUserInput {
+  email: string
+  password: string
+  metadata: {
+    full_name: string
+    username: string
+    account_name: string
+    blog_name: string
+    blog_slug: string
+    pending_plan?: string
+    parent_account_id?: string
+  }
+}
+
+type CreateSupabaseUserResult =
+  | { success: true; userId: string }
+  | { success: false; error: string }
+
+// 2. Create Auth user (Postgres trigger creates profile + 'free'/'active' personal account)
+async function createSupabaseUser(
+  data: SignUpPayload,
+  extraMetadata: Record<string, string> = {}
+): Promise<CreateSupabaseUserResult> {
+  const supabase = await createClient()
+
+  const headerList = await headers()
+  const host = headerList.get('host')
+  const protocol = host?.includes('localhost') ? 'http' : 'https'
+  const siteUrl = host ? `${protocol}://${host}` : process.env.NEXT_PUBLIC_SITE_URL
+
+  const { data: signUpData, error } = await supabase.auth.signUp({
+    email: data.email,
+    password: data.password,
+    options: {
+      emailRedirectTo: `${siteUrl}/auth/callback`,
+      data: {
+        full_name: data.full_name,
+        username: data.username,
+        account_name: data.account_name,
+        pending_plan: data.planChoice || 'free',
+        blog_name: data.blog_title?.trim() || data.account_name,
+        blog_slug: data.blog_slug,
+        ...extraMetadata,
+      },
+    },
+  })
+
+  if (error) {
+    console.error('Supabase Signup Error:', error.message)
+    const msg = error.message.toLowerCase()
+
+    if (msg.includes('database error saving new user') || msg.includes('unique constraint')) {
+      if (msg.includes('username')) return {success: false, error: 'That username is already taken. Please choose another.' }
+      if (msg.includes('account_slug') || msg.includes('blog_slug')) return {success: false, error: 'That blog URL is already taken.' }
+      if (msg.includes('name')) return {success: false, error: 'That account name is already in use.' }
+      return {success: false, error: 'A profile detail (username, account, or URL) is already in use.' }
+    }
+
+    if (msg.includes('user already registered')) {
+      return {success: false, error: 'An account with this email already exists.' }
+    }
+
+    return {success: false, error: error.message }
+  }
+
+  if (!signUpData.user?.id) {
+    return {success: false, error: 'Registration failed to initialize user.' }
+  }
+
+  return {success: true, userId: signUpData.user.id }
+}
+
+
+
+//// JUST HERE TILL WE GET AROUND TO WRITING THE INVITE PATH ////////////////
+export async function invitedSignup(prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const supabase = await createClient()
+  const rawData = Object.fromEntries(formData)
+
+  // 1. Validate organic signup payload ////////////////
+  const validatedFields = signUpSchema.safeParse(rawData)
+  if (!validatedFields.success) {
+    return { error: validatedFields.error.issues[0].message }
+  }
+
+/// Add new user to Supabase ////////////////////////
+const authResult = await createSupabaseUser(validatedFields.data)
+if (!authResult.success) {
+  return { error: authResult.error }
+}
+
+// get user id from the auth setup
+const { userId } = authResult
+
+/// NOW CREATE STRIPE ACCOUNT OR GRAB EXISTING ONE FOR CUSTOMER //////////
+try {
+    // grab the account we just created in supabase
+    const accountData = await getActiveUserAccount(userId)
+    const accountId = accountData?.account_id
+
+    if (accountId) {
+      // now we create a stripe account ready for them to use to pay
+      // at this point it has been added to the accounts table
+      const newStripeId = await setUpStripeCustomer(accountId, userId)
+      console.log(`Mapped Stripe Customer ${newStripeId} to account ${accountId}`)
+    } else {
+      console.warn(`Could not resolve new accountId for user ${userId}; Stripe provisioning deferred to callback.`)
+    }
+  } catch (stripeError: any) {
+    // Non-blocking: /auth/callback and /api/checkout/stripe auto-heal this if transient
+    console.error('Stripe customer provisioning deferred:', stripeError.message)
+  }
+
+  // 4. Gate /confirm and redirect
+  // Sets a Temporary Permission Cookie (allow_confirm: true):
+  const cookieStore = await cookies()
+  cookieStore.set('allow_confirm', 'true', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 10,
+    path: '/',
+  })
+
+  cookieStore.set('confirm_name', validatedFields.data.full_name, {
+    httpOnly: false, // Set to false if you want client components to read it directly, or keep true if only reading on the server
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 10,
+    path: '/',
+  })
+
+  redirect('/confirm')
 }

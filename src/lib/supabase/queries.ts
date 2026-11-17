@@ -319,53 +319,75 @@ export async function getUserProfile(userId: string): Promise<Tables<'profiles'>
 // used when we KNOW the account has no Stripe Customer ID. 
 export async function setUpStripeCustomer(accountId:string, userId:string):Promise<string>{
 
-      let stripeCustomerId:string | null = null;
+  const supabaseAdmin = await createAdminClient()
 
-        console.log("setting up Stripe Customer ID for userAccount:", accountId)
-        const userProfile: Tables<'profiles'> | null = await getUserProfile(userId);
+  // 1. Check DB first (instant & strongly consistent)
+  const { data: existingAccount, error: accountFetchError } = await supabaseAdmin
+    .from('accounts')
+    .select('stripe_customer_id, name')
+    .eq('id', accountId)
+    .single()
 
-        // 2. Guard Clause: Typescript knows profile fields can be null. We must verify they exist.
-        if (!userProfile || !userProfile.email) {
-          throw new Error(`User profile or email missing for user ID: ${userId}`)
-        }
+  if (accountFetchError || !existingAccount) {
+    throw new Error(`Account not found for ID: ${accountId}`)
+  }
 
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-          apiVersion: STRIPE_API_VERSION
-        })
+  if (existingAccount.stripe_customer_id) {
+    return existingAccount.stripe_customer_id
+  }
 
-        const existingCustomers = await stripe.customers.search({
-          query: `email:'${userProfile.email}' AND metadata['account_id']:'${accountId}'`,
-          limit: 1,
-        });
-        //double check with Stripe before creating a new ID
-        if (existingCustomers.data.length > 0) {
-          stripeCustomerId = existingCustomers.data[0].id
-        } else {
-          const customer = await stripe.customers.create({
-            email: userProfile.email,
-            metadata: { userId: userProfile.id, accountId: accountId},
-          })
-          stripeCustomerId = customer.id
-        }
-        
-        if(!stripeCustomerId){
-           throw new Error(`could not find or create a new stripe id for this user: ${userId}`)
-        }
+  ////////////////////////////////////////////
+  // No existing stripe id let's create one //
+  ////////////////////////////////////////////
+  let stripeCustomerId:string | null = null;
 
-        const supabase = await createAdminClient<Database>()
-        //Uses Admin Client to update system identity details seamlessly
-        let result = await supabase
-          .from('accounts')
-          .update({ stripe_customer_id: stripeCustomerId })
-          .eq('id', accountId)
-          .select() // 🎯 Tells Supabase to return the modified data
-          .single() // 🎯 Since we filter by id, narrow the array down to one object
+  console.log("setting up Stripe Customer ID for userAccount:", accountId)
+  const userProfile: Tables<'profiles'> | null = await getUserProfile(userId);
 
-          if (result.error) {
-            throw new Error(`Database update failed: ${result.error.message}`)
-          }
-        
-        return stripeCustomerId;
+  // 2. Guard Clause: Typescript knows profile fields can be null. We must verify they exist.
+  if (!userProfile || !userProfile.email) {
+    throw new Error(`User profile or email missing for user ID: ${userId}`)
+  }
+
+  // create stripe client
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: STRIPE_API_VERSION
+  })
+
+  // check with stripe to see if this person has an account already
+  const existingCustomers = await stripe.customers.search({
+    query: `email:'${userProfile.email}' AND metadata['account_id']:'${accountId}'`,
+    limit: 1,
+  });
+
+  // If there is an existing account use it. 
+  if (existingCustomers.data.length > 0) {
+    stripeCustomerId = existingCustomers.data[0].id
+  } else {
+    // if there is no account, create one!
+    const customer = await stripe.customers.create({
+      email: userProfile.email,
+      name: userProfile.full_name || existingAccount.name || undefined,
+      metadata: { userId: userProfile.id, accountId: accountId},
+    })
+    stripeCustomerId = customer.id
+  }
+  
+  if(!stripeCustomerId){
+      throw new Error(`could not find or create a new stripe id for this user: ${userId}`)
+  }
+
+  // 4. Persist stripe_customer_id on the account
+  const { error: updateError } = await supabaseAdmin
+    .from('accounts')
+    .update({ stripe_customer_id: stripeCustomerId })
+    .eq('id', accountId)
+
+  if (updateError) {
+    throw new Error(`Database update failed: ${updateError.message}`)
+  }
+
+  return stripeCustomerId;
 }
 
 // Fetch ALL  ACCOUNTS + USER'S ROLE ///////////////////

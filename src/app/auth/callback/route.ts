@@ -4,11 +4,13 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { Database } from '@/lib/tl_utils/database_types'
 import { STRIPE_API_VERSION } from "@/lib/utils/stripeConfig";
+import { setUpStripeCustomer } from '@/lib/supabase/queries'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: STRIPE_API_VERSION,
 })
 
+// Catches signup confirmation and password resets 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
@@ -36,24 +38,25 @@ export async function GET(request: Request) {
 
   // Got an error or missing user? Get out early.
   if (error || !data?.user) {
-    console.log("NO FUCKING USER")
+    console.log("NO USER FOUND DURING AUTH CONFIRMATION STEP")
     return NextResponse.redirect(new URL('/auth/auth-code-error', siteUrl).toString())
   }
     
-  // SUCCESS PATH //////////////////////////////////////////////////////////////
-  const user = data.user
-
-  // CATCH PASSWORD RESETS HERE AND SEND TO update page
-  // Keeping session active
+  // CATCH PASSWORD RESETS HERE AND SEND TO update page //////////////////////////
+  // Keeping session active //////////////////////////////////////////////////////
   if (next === '/update-password') {
     return NextResponse.redirect(new URL(next, siteUrl).toString())
   }
-
+  ///////////////////////////////////////////////////////////////////////////////
+  
+  
+  // SUCCESS PATH //////////////////////////////////////////////////////////////
+  const user = data.user
 
   let currentAccountId:string | null = null;
   const supabaseAdmin = await createAdminClient<Database>()
   
-  //Background Provisioning: Safe to execute because we have the verified user object
+  // Get the account/s owned by this user
   try {
     const { data: membership, error: dbError } = await supabaseAdmin
       .from('memberships')
@@ -73,29 +76,24 @@ export async function GET(request: Request) {
       : membership?.accounts
       
     const existingStripeId = accountsData?.stripe_customer_id
-      
-    // Set stripe ID if not already done //////////////////
+    
+    ///////////////////////////////////////////////////////////////////////////////////////
+    // Set stripe ID if not already done //////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////
     if (currentAccountId && !existingStripeId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: { userId: user.id, accountId: currentAccountId }, 
-        }, {
-        idempotencyKey: `customer_create_${user.id}`,
-      })
-      await supabaseAdmin
-        .from('accounts')
-        .update({ stripe_customer_id: customer.id })
-        .eq('id', currentAccountId)
-    }
-  } catch (stripeErr) {
-    console.error('Non-blocking provisioning warning:', stripeErr)
-  }
+        try {
+          await setUpStripeCustomer(currentAccountId, user.id)
+        } catch (stripeErr) {
+          console.error('Non-blocking provisioning warning:', stripeErr)
+        }
+      }
 
-  // Final happy-path redirect ////////////////////////////////////////
+  // FINALLY TIME TO PAY FOR THE SIGNUP ////////////////////////////////////////
+  // GRAB THE REQUESTED PLAN ///////////////////////////////////////////////////
   const pendingPlan = user?.user_metadata?.pending_plan
-  
-
-  // PATH A:IF THEY CHOSE A PAID PLAN, SEND THEM TO STRIPE CHECKOUT INSTEAD OF THE DASHBOARD
+      
+  // 1 === THE PAID PLAN ===================================== 1 //
+  // SEND THEM TO STRIPE CHECKOUT INSTEAD OF THE DASHBOARD ////////
   if (pendingPlan && currentAccountId && pendingPlan !== 'free') {
     const checkoutUrl = new URL('/api/checkout/stripe', siteUrl)
     checkoutUrl.searchParams.set('plan', pendingPlan)
@@ -106,7 +104,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(checkoutUrl.toString())
   }
 
-  // 🟢 PATH B: FREE PLAN / STANDARD SIGNUP CONFIRMATION
+  // 2 === FREE PLAN ==== DIRECT TO SIGNUP CONFIRMATION
   // Wipe out the auto-authenticated server session cookie completely.
   // This guarantees they are forced through your dedicated LoginForm entry point.
   await supabase.auth.signOut()
@@ -122,4 +120,5 @@ export async function GET(request: Request) {
 
   return NextResponse.redirect(loginRedirectUrl.toString())
   
+}catch{}
 }

@@ -119,13 +119,14 @@ export const signUpSchema = z.object({
   password: passwordSchema,
   full_name: fullNameSchema,
   account_name: accountNameSchema,
-  blog_name: blogNameSchema,
+  blog_title: blogNameSchema,
   username: usernameSchema,
   blog_slug: blogSlugSchema,
   planChoice: z.string().min(1, "Plan is required"),
   invite_token: z.string().optional(),
 })
 
+export type SignUpPayload = z.infer<typeof signUpSchema>
 
 // 2. Login
 export const loginSchema = z.object({
