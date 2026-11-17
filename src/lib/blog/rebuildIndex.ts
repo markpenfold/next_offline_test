@@ -5,6 +5,7 @@ import { getPublishingContributors } from '@/lib/supabase/queries'
 import { BlogPost, PostCardData } from "@/components/blog/blogHelpers";
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// The front page for each blog space
 export async function rebuildBlogIndex(
   _userSupabase: any, // Kept for backwards compatibility if needed, but admin client overrides
   accountSlug: string, 

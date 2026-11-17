@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     if (currentAccountId && !existingStripeId) {
       const customer = await stripe.customers.create({
         email: user.email,
-        metadata: { userId: user.id, account_id: currentAccountId }, 
+        metadata: { userId: user.id, accountId: currentAccountId }, 
         }, {
         idempotencyKey: `customer_create_${user.id}`,
       })

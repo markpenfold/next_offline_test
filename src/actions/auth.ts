@@ -93,7 +93,7 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
       return { error: "This invitation has expired. Please ask your admin for a new link." }
     }
     // 3. Prevent Email Hijacking: Ensure they are signing up with the invited email
-    if (invite.email.toLowerCase() !== email) {
+    if (invite.email.toLowerCase() !== email.toLowerCase().trim()) {
       return { error: "This invitation was sent to a different email address." }
     }
     // Secure token passes validation. Fetch the true account ID from the DB.
@@ -165,14 +165,18 @@ export async function signup(prevState: ActionState, formData: FormData): Promis
     return { error: "Could not resolve workspace account for customer setup." }
   }
 
-  try {
-      // AWAIT the Stripe provisioning step 
-      const newStripeId = await setUpStripeCustomer(accountId, userId)
-      console.log(`Successfully mapped Stripe Customer ${newStripeId} to account ${accountId}`)
-    } catch (stripeError: any) {
-      console.error("Stripe customer provisioning deferred:", stripeError.message)
-      // Optional: Decide whether you want to block registration or let them pass and handle it later
-    }
+  //  set up stripe IF not a team invite
+  if (!verifiedParentAccountId){
+      try {
+        // AWAIT the Stripe provisioning step 
+        const newStripeId = await setUpStripeCustomer(accountId, userId)
+        console.log(`Successfully mapped Stripe Customer ${newStripeId} to account ${accountId}`)
+      } catch (stripeError: any) {
+        console.error("Stripe customer provisioning deferred:", stripeError.message)
+        // Optional: Decide whether you want to block registration or let them pass and handle it later
+      }
+  }
+
 
   // just in time cookies
   const cookieStore = await cookies()

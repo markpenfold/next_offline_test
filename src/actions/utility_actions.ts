@@ -59,11 +59,7 @@ export async function checkUserNameAvailability(userName: string) {
   return { available: !data }
 }
 
-
-
-/**
- * A mock server-side authentication check.
- */
+/** A mock server-side authentication check. */
 export async function simulateServerAuth(targetStatus: boolean) {
   // Simulate a tiny 500ms database round-trip delay
   await new Promise((resolve) => setTimeout(resolve, 500));

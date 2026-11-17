@@ -343,7 +343,7 @@ export async function setUpStripeCustomer(accountId:string, userId:string):Promi
         } else {
           const customer = await stripe.customers.create({
             email: userProfile.email,
-            metadata: { userId: userProfile.id, account_id: accountId},
+            metadata: { userId: userProfile.id, accountId: accountId},
           })
           stripeCustomerId = customer.id
         }

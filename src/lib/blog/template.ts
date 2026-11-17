@@ -15,6 +15,8 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+// Generate the main blog page 
+// Called in the editorStore on publish
 export function renderFullPage({ 
   title, 
   subTitle, 

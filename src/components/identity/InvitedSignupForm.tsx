@@ -20,7 +20,7 @@ interface SignupFormProps {
   inviteToken?: string
 }
 
-export function SignupForm({planChoice, inviteToken}: SignupFormProps) {
+export function InvitedSignupForm({planChoice, inviteToken}: SignupFormProps) {
   const [state, formAction, isPending] = useActionState<ActionState, FormData>(signup, null);
   const [clientError, setClientError] = useState<string | null>(null)
 
@@ -36,7 +36,7 @@ export function SignupForm({planChoice, inviteToken}: SignupFormProps) {
   const [accountName, setAccountName] = useState('')
   const [blogName, setBlogName] = useState('')
   const [userName, setUserName] = useState('')
-  const [fullNameBAD, setFullNameBAD] = useState(true)
+  const [fullNameBAD, setFullNameBAD] = useState(false)
   
   const [isBlogCustomized, setIsBlogCustomized] = useState(false)
 
@@ -113,8 +113,6 @@ export function SignupForm({planChoice, inviteToken}: SignupFormProps) {
     else{
       setFullNameBAD(inputName.trim() ? isRestrictedText(inputName, true) : false);
     }
-
-      
   }
 
   useEffect(() => {
@@ -225,7 +223,9 @@ export function SignupForm({planChoice, inviteToken}: SignupFormProps) {
   }
 
   return (
+    
     <div className={styles.fbox}>
+      <h3>INVITED SIGN UP</h3>
       <form action={handleSubmit} className={styles.authForm} style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%', maxWidth: '700px', margin: '0 auto' }}>
         <h2 style={{ gridColumn: '1 / -1', marginBottom: '8px' }}>Create a new {planChoice} account</h2>
 

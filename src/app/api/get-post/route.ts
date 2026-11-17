@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { accountSlug, postId, accountId } = body
 
-        // 2. Verify authorization (user has publishing rights for this account)
+    // 2. Verify authorization (user has publishing rights for this account)
     const canPublish = await verifyUserCanPublish(user.id, accountId );
     if (!canPublish) {
       return NextResponse.json({ error: 'Forbidden: Insufficient publishing privileges' }, { status: 403 });

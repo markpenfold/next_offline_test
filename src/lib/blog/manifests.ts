@@ -8,6 +8,7 @@ export interface AccountManifest {
   posts: BlogPost[];
 }
 
+// the manifest for each individual blog
 export async function rebuildBlogManifest(accountSlug: string) {
   const prefix = `${accountSlug}/posts/`
   const BUCKET_NAME = getBucketName()
@@ -57,7 +58,7 @@ export async function rebuildBlogManifest(accountSlug: string) {
   }))
 }
 
-
+// The omen.land root collecting all blog posts 
 export async function rebuildRootManifest() {
   // Discover all unique blog accounts by listing top-level prefixes or tracking manifests.
   // For simplicity, we can list top-level directories or scan for account manifests.
@@ -108,8 +109,8 @@ export async function rebuildRootManifest() {
 
 
 
-/// NEEDS UPDATES TO WORK
-/** 
+
+/**  NEEDS UPDATES TO WORK
 export async function checkSyncStatus(userContext: { accountSlug: string }) {
   // 1. Load local manifest from OPFS
   const rootDir = await getDirectory('publishing')

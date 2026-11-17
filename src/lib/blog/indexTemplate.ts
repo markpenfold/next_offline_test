@@ -1,5 +1,6 @@
 import { Contributor, PostCardData, IndexPageParams, escapeHtml } from "@/components/blog/blogHelpers";
 
+//fallback hero for index
 function generateMosaicSvg(seedStr: string): string {
   let hash = 0;
   for (let i = 0; i < seedStr.length; i++) {
@@ -27,7 +28,7 @@ function generateMosaicSvg(seedStr: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
 }
 
-
+// The template for the index page including fallback hero generator
 export function renderIndexPage({
   accountSlug,
   blogTitle,

@@ -48,7 +48,9 @@ export default function PricingPage() {
           {tier_details.map((tier) => {
             const isCurrentPlan = currentTier === tier.id;
             const isFree = tier.id === 'free';
-            const isAvailable = isFree;
+            const isPro = tier.id === 'pro';
+            const isFounder = tier.id === 'founder';
+            const isAvailable = isFree || isFounder || isPro;
 
             return (
               <div 
