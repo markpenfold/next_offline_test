@@ -9,9 +9,6 @@ import { sendEmergencyAdminAlert } from '@/lib/utils/sendEmergencyLog';
 import { PRICE_IDS } from '@/lib/utils/constants';
 import { STRIPE_API_VERSION } from '@/lib/utils/stripeConfig';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: STRIPE_API_VERSION,
-});
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -29,6 +26,11 @@ class WebhookError extends Error {
 // MAIN WEBHOOK ENTRYPOINT
 // =========================================================
 export async function POST(req: Request) {
+
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: STRIPE_API_VERSION,
+});
+
   const body = await req.text();
   const signature = (await headers()).get('Stripe-Signature');
 
@@ -440,4 +442,15 @@ function isCustomerDeleted(event: Stripe.Event): boolean {
   const obj = event.data.object as any;
   const customer = obj?.customer;
   return Boolean(customer && typeof customer === 'object' && 'deleted' in customer && customer.deleted);
+}
+
+
+export function getStripe() {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    throw new Error('Missing STRIPE_SECRET_KEY environment variable');
+  }
+  return new Stripe(apiKey, {
+    apiVersion: '2025-02-28.acacia' as any, // keep your existing apiVersion
+  });
 }
