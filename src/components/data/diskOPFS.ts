@@ -93,6 +93,8 @@ export async function getOPFSDirectories(
 // 2. READ / WRITE / DELETE ACTIONS
 // ============================================================================
 
+// handle single file writes 
+// manages own directory handles
 export async function saveToOPFSFolder(
   dirName: string, 
   fileName: string,
@@ -679,6 +681,56 @@ export async function removeLocalPost(postId: string): Promise<void> {
 }
 
 
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+interface RemotePostFile {
+  relativePath: string
+  content: string
+  encoding: 'utf-8' | 'base64'
+  contentType?: string
+}
+
+// Takes already existing dir handle
+// will create any intermediate folder structure
+async function writeFileToDir(
+  dirHandle: FileSystemDirectoryHandle,
+  relativePath: string,
+  data: string | ArrayBuffer | Blob
+): Promise<void> {
+  const parts = relativePath.split('/').filter(Boolean)
+  const fileName = parts.pop()
+  if (!fileName) return
+
+  let targetDir = dirHandle
+  for (const folder of parts) {
+    targetDir = await targetDir.getDirectoryHandle(folder, { create: true })
+  }
+
+  const fileHandle = await targetDir.getFileHandle(fileName, { create: true })
+  const writable = await fileHandle.createWritable()
+  try {
+    await writable.write(data)
+    await writable.close()
+  } catch (err) {
+    await writable.abort().catch(() => {})
+    throw err
+  }
+}
+
+interface RemotePostFile {
+  relativePath: string
+  content: string
+  encoding: 'utf-8' | 'base64'
+  contentType?: string
+}
+
 export async function downloadAndSavePublishedPost(
   userContext: UserContext,
   missingItem: { postId: string }
@@ -695,21 +747,31 @@ export async function downloadAndSavePublishedPost(
       }),
     })
 
-    if (!res.ok) throw new Error(`Failed to fetch post folder for ${missingItem.postId}`)
-    const { files } = await res.json()
+    if (!res.ok) {
+      throw new Error(`Failed to fetch post folder for ${missingItem.postId} (${res.status})`)
+    }
 
-    // 2. Open OPFS directory handle
+    const { files }: { files: RemotePostFile[] } = await res.json()
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new Error(`No files returned for post ${missingItem.postId}`)
+    }
+
+    // 2. Open OPFS directory named with postId
     const rootDir = await getDirectory('publishing')
-    const postDir = `${rootDir}/${missingItem.postId}`
-    const postDirHandle = await rootDir.getDirectoryHandle(missingItem.postId, { create: true })
+    const postDirHandle = await rootDir.getDirectoryHandle(missingItem.postId, {
+      create: true,
+    })
 
     let htmlContent = ''
     let postJson = ''
     const mediaFilenames: string[] = []
 
-    // 3. Write all files to OPFS
-    // grab htmlContent and mediaFiles along the way
+    // 3. Write all files inside the postId folder
     for (const file of files) {
+      if (!file.relativePath || file.relativePath.endsWith('/')) {
+        continue
+      }
+
       if (file.relativePath === 'index.html' && file.encoding === 'utf-8') {
         htmlContent = file.content
       }
@@ -717,23 +779,15 @@ export async function downloadAndSavePublishedPost(
         postJson = file.content
       }
       if (file.relativePath.startsWith('media/') && file.encoding === 'base64') {
-        mediaFilenames.push(file.relativePath.replace('media/', ''))
+        mediaFilenames.push(file.relativePath.slice('media/'.length))
       }
 
-      await saveToOPFSFolder(postDir, file.name, file)
-    }
+      const payload: string | ArrayBuffer =
+        file.encoding === 'base64'
+          ? base64ToArrayBuffer(file.content)
+          : file.content
 
-    // 4. Run through the transformer helper if we have HTML and media
- 
-    if (htmlContent && mediaFilenames.length > 0) {
-      const { blobMap, updatedHtml } = generateBlobMapAndFixHtml(htmlContent, mediaFilenames)
-      await saveToOPFSFolder(postDir, 'index.html', updatedHtml)
-      let currentPostJson = await readLocalPostJson(postDirHandle)
-
-      if (!currentPostJson) {
-        currentPostJson = generatePostJson(missingItem, userContext, mediaFilenames, blobMap)
-      }
-      await saveToOPFSFolder(postDir, 'post.json', currentPostJson)
+      await writeFileToDir(postDirHandle, file.relativePath, payload)
     }
 
     return true
@@ -798,6 +852,67 @@ export async function saveDraft(
   }
 }
 
+
+async function rehydrateMediaFromOPFS(
+  dirPath: string,
+  post: BlogPost,
+  initialHtml: string
+): Promise<{
+  blobMap: Record<string, string>
+  htmlContent: string
+  heroImage: string | null
+}> {
+  const blobMap: Record<string, string> = {}
+  let htmlContent = initialHtml
+  let heroImage: string | null = post.heroImage || null
+
+  try {
+    const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
+
+    for (const { name, handle } of mediaEntries) {
+      if ((handle as FileSystemHandle).kind !== 'file') continue
+
+      const file = await (handle as FileSystemFileHandle).getFile()
+      const freshBlobUrl = URL.createObjectURL(file)
+      blobMap[freshBlobUrl] = name
+
+      // 1. Match heroImage by filename (or legacy "hero" naming)
+      const isHero =
+        name.includes('hero') ||
+        Boolean(
+          heroImage &&
+            (heroImage.endsWith(`/${name}`) ||
+              heroImage === `media/${name}` ||
+              heroImage === name)
+        )
+
+      if (isHero) {
+        heroImage = freshBlobUrl
+      }
+
+      // 2. Replace old blob URL from post.blobMap if present
+      const oldBlobUrl = Object.keys(post.blobMap || {}).find(
+        (key) => post.blobMap?.[key] === name
+      )
+      if (oldBlobUrl) {
+        htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
+      }
+
+      // 3. Also replace local/R2 media paths referencing this filename
+      const escapedName = name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+      const mediaRefRegex = new RegExp(
+        `(?<=src=["'])[^"']*(?:^|/)media/${escapedName}(?:[?#][^"']*)?(?=["'])`,
+        'g'
+      )
+      htmlContent = htmlContent.replace(mediaRefRegex, freshBlobUrl)
+    }
+  } catch {
+    // No media/ directory for this post
+  }
+
+  return { blobMap, htmlContent, heroImage }
+}
+
 /** Reads a draft post from OPFS, re-hydrates media blobs, and explicitly marks status as 'draft' */
 export async function loadPost(draftId: string): Promise<BlogPost | null> {
   try {
@@ -805,51 +920,24 @@ export async function loadPost(draftId: string): Promise<BlogPost | null> {
 
     // 1. Read metadata & HTML content from OPFS
     const rawMeta = (await readFromOPFSFolder(dirPath, 'post.json', 'text')) as string
-    let htmlContent = (await readFromOPFSFolder(dirPath, 'index.html', 'text')) as string
+    let initialHtml = (await readFromOPFSFolder(dirPath, 'index.html', 'text')) as string
+
     const post: BlogPost = JSON.parse(rawMeta)
 
-    // 2. Re-hydrate binary media blobs into fresh browser Object URLs (if media/ exists)
-    const updatedBlobMap: Record<string, string> = {}
-    let rehydratedHeroUrl: string | null = post.heroImage || null
-
-    try {
-      const mediaEntries = await getOPFSEntries(`${dirPath}/media`)
-
-      for (const { name, handle } of mediaEntries) {
-        if ((handle as FileSystemHandle).kind === 'file') {
-          const fileHandle = handle as FileSystemFileHandle
-          const file = await fileHandle.getFile()
-          const freshBlobUrl = URL.createObjectURL(file)
-
-          updatedBlobMap[freshBlobUrl] = name
-
-          // Check if this file is the hero image
-          if (name.includes('hero')) {
-            rehydratedHeroUrl = freshBlobUrl
-          }
-
-          const oldBlobUrl = Object.keys(post.blobMap || {}).find(
-            (key) => post.blobMap?.[key] === name
-          )
-
-          if (oldBlobUrl) {
-            htmlContent = htmlContent.replaceAll(oldBlobUrl, freshBlobUrl)
-          }
-        }
-      }
-    } catch {
-      // media/ folder does not exist for this post, ignore safely
-    }
-
-    // 3. Get local directory handle reference
+    const { blobMap, htmlContent, heroImage } = await rehydrateMediaFromOPFS(
+      dirPath,
+      post,
+      initialHtml
+    )
+  
     const dirHandle = await getDirectory(dirPath)
 
     return {
       ...post,
-      heroImage: rehydratedHeroUrl,
+      heroImage,
       content: htmlContent,
-      blobMap: updatedBlobMap,
-      status: 'draft',
+      blobMap,
+      status: post.status || 'draft',
       dirHandle,
     }
   } catch (err) {

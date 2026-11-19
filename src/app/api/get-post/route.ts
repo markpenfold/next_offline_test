@@ -21,14 +21,14 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { accountSlug, postId, accountId } = body
 
+    if (!accountSlug || !postId) {
+      return NextResponse.json({ error: "Missing accountSlug or postId" }, { status: 400 })
+    }
+
     // 2. Verify authorization (user has publishing rights for this account)
     const canPublish = await verifyUserCanPublish(user.id, accountId );
     if (!canPublish) {
       return NextResponse.json({ error: 'Forbidden: Insufficient publishing privileges' }, { status: 403 });
-    }
-
-    if (!accountSlug || !postId) {
-      return NextResponse.json({ error: "Missing accountSlug or postId" }, { status: 400 })
     }
 
     const postPrefix = `${accountSlug}/posts/${postId}/`

@@ -291,12 +291,19 @@ export function generateBlobMapAndFixHtml(
   for (const filename of mediaFilenames) {
     const localPath = `media/${filename}`
     blobMap[filename] = localPath
-    blobMap[`media/${filename}`] = localPath
+    blobMap[localPath] = localPath
 
-    // Rewrite remote/absolute src URLs to local OPFS paths
     const escapedFilename = filename.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
-    const r2UrlPattern = new RegExp(`(src=["'][^"']*?)(?:/media/|/)?(${escapedFilename})(["'])`, 'g')
-    updatedHtml = updatedHtml.replace(r2UrlPattern, `$1${localPath}$3`)
+    // Match the full attribute value ending with `/<filename>` or `"<filename>"`
+    const srcPattern = new RegExp(
+      `(<img\\b[^>]*?\\bsrc=["'])([^"']*?)(?:^|/)` + `(${escapedFilename})(["'])`,
+      'gi'
+    )
+
+    updatedHtml = updatedHtml.replace(
+      srcPattern,
+      (_match, prefix, _oldDir, file, quote) => `${prefix}${localPath}${quote}`
+    )
   }
 
   return { blobMap, updatedHtml }
@@ -328,3 +335,5 @@ export function generatePostJson(
     blobMap,
   }
 }
+
+
